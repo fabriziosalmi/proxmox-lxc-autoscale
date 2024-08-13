@@ -2,6 +2,9 @@
 
 **LXC AutoScale** is a Python-based daemon designed to dynamically manage and optimize resources (CPU, memory, and storage) for LXC containers on a Proxmox host. By continuously monitoring container usage, it ensures that resources are allocated efficiently, potentially reducing energy consumption and improving system performance.
 
+> [!WARNING]  
+> Storage stuff is still not tested. Use at your own risk.
+
 ## Features
 
 - **Automatic Resource Adjustment**: Adjust CPU cores, memory, and storage based on container usage thresholds.
@@ -120,6 +123,10 @@ sudo journalctl -u lxc_autoscale.service -f
 - **--gotify_token**: Gotify server token for authentication.
 - **--energy_mode**: Enable energy efficiency mode during off-peak hours.
 - **--rollback**: Rollback to the previous container configurations.
+
+## Demo
+
+![demo](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/static/proxmox-lxc-autoscale-gotify.png?raw=true)
 
 ## Contributing
 
