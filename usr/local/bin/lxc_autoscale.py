@@ -7,6 +7,7 @@ import json
 import argparse
 import signal
 from time import sleep, time
+from datetime import datetime
 
 # Default Configuration
 DEFAULT_POLL_INTERVAL = 300   # Polling interval in seconds (5 minutes)
@@ -31,11 +32,21 @@ IGNORED_CONTAINERS = []
 
 LOCK_FILE = "/var/lock/lxc_autoscale.lock"
 LOG_FILE = "/var/log/lxc_autoscale.log"
-BACKUP_DIR = "/var/backups"
+BACKUP_DIR = "/var/lib/lxc_autoscale/backups"
 
 RESERVE_CPU_PERCENT = 10
 RESERVE_MEMORY_MB = 2048
 RESERVE_STORAGE_MB = 10240
+
+# Grouping and Prioritization Configuration
+CONTAINER_GROUPS = {
+    "critical": [],
+    "non_critical": []
+}
+
+# Energy Efficiency Mode (Off-peak hours: 10 PM - 6 AM)
+OFF_PEAK_START = 22  # 10 PM
+OFF_PEAK_END = 6    # 6 AM
 
 # Set up logging
 logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
@@ -63,6 +74,9 @@ parser.add_argument("--min_cores", type=int, default=DEFAULT_MIN_CORES, help="Mi
 parser.add_argument("--max_cores", type=int, default=DEFAULT_MAX_CORES, help="Maximum number of cores per container")
 parser.add_argument("--min_mem", type=int, default=DEFAULT_MIN_MEMORY, help="Minimum memory per container in MB")
 parser.add_argument("--min_decrease_chunk", type=int, default=DEFAULT_MIN_DECREASE_CHUNK, help="Minimum memory decrease chunk in MB")
+parser.add_argument("--gotify_url", type=str, help="Gotify server URL for notifications")
+parser.add_argument("--gotify_token", type=str, help="Gotify server token for authentication")
+parser.add_argument("--energy_mode", action="store_true", help="Enable energy efficiency mode during off-peak hours")
 parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
 args = parser.parse_args()
 
@@ -97,6 +111,22 @@ def acquire_lock():
         logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
         sys.exit(1)
 
+# Function to check if we are in off-peak hours
+def is_off_peak():
+    if args.energy_mode:
+        current_hour = datetime.now().hour
+        if OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END:
+            return True
+    return False
+
+# Function to notify via Gotify
+def send_gotify_notification(title, message, priority=5):
+    if args.gotify_url and args.gotify_token:
+        cmd = f"curl -X POST {args.gotify_url}/message -F 'title={title}' -F 'message={message}' -F 'priority={priority}' -H 'X-Gotify-Key: {args.gotify_token}'"
+        run_command(cmd)
+    else:
+        logging.warning("Gotify URL or Token not provided. Notification not sent.")
+
 # Function to get all containers
 def get_containers():
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
@@ -129,6 +159,7 @@ def rollback_container_settings(ctid):
         run_command(f"pct set {ctid} -cores {settings['cores']}")
         run_command(f"pct set {ctid} -memory {settings['memory']}")
         run_command(f"pct resize {ctid} rootfs={settings['storage']}M")
+        send_gotify_notification(f"Rollback for Container {ctid}", "Container settings rolled back to previous state.")
 
 # Function to get total available CPU cores on the host
 def get_total_cores():
@@ -241,6 +272,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores -= increment
                 cores_changed = True
+                send_gotify_notification(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}.")
             else:
                 logging.warning(f"Not enough available cores to increase for container {ctid}")
         elif cpu_usage < args.cpu_lower and current_cores > args.min_cores:
@@ -251,6 +283,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores += decrement
                 cores_changed = True
+                send_gotify_notification(f"CPU Decreased for Container {ctid}", f"CPU cores decreased to {new_cores}.")
 
         # Adjust memory if needed
         if mem_usage > args.mem_upper:
@@ -260,6 +293,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -memory {current_memory + increment}")
                 available_memory -= increment
                 memory_changed = True
+                send_gotify_notification(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB.")
         elif mem_usage < args.mem_lower and current_memory > args.min_mem:
             decrease_amount = min(args.min_decrease_chunk * ((current_memory - args.min_mem) // args.min_decrease_chunk),
                                   current_memory - args.min_mem)
@@ -269,6 +303,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory += decrease_amount
                 memory_changed = True
+                send_gotify_notification(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease_amount}MB.")
 
         # Adjust storage if needed (only increase, no decrease)
         if storage_usage > args.storage_upper:
@@ -277,6 +312,22 @@ def adjust_resources(containers):
                 run_command(f"pct resize {ctid} rootfs={args.storage_inc}M")
                 available_storage -= args.storage_inc
                 storage_changed = True
+                send_gotify_notification(f"Storage Increased for Container {ctid}", f"Storage increased by {args.storage_inc}MB.")
+
+        # Apply energy efficiency mode if enabled
+        if args.energy_mode and is_off_peak():
+            if current_cores > args.min_cores:
+                logging.info(f"Reducing cores for energy efficiency during off-peak hours for container {ctid}...")
+                run_command(f"pct set {ctid} -cores {args.min_cores}")
+                available_cores += (current_cores - args.min_cores)
+                cores_changed = True
+                send_gotify_notification(f"CPU Reduced for Container {ctid}", f"CPU cores reduced to {args.min_cores} for energy efficiency.")
+            if current_memory > args.min_mem:
+                logging.info(f"Reducing memory for energy efficiency during off-peak hours for container {ctid}...")
+                run_command(f"pct set {ctid} -memory {args.min_mem}")
+                available_memory += (current_memory - args.min_mem)
+                memory_changed = True
+                send_gotify_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {args.min_mem}MB for energy efficiency.")
 
     logging.info(f"Initial resources: {initial_cores} cores, {initial_memory} MB memory, {initial_storage} MB storage")
     logging.info(f"Final resources: {available_cores} cores, {available_memory} MB memory, {available_storage} MB storage")
