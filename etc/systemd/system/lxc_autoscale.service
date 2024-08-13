@@ -1,0 +1,11 @@
+[Unit]
+Description=LXC AutoScale Daemon
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py --poll_interval 60
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
