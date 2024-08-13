@@ -32,6 +32,9 @@ echo "📂 Setting up directories..."
 mkdir -p $(dirname $LOG_PATH)
 mkdir -p $BACKUP_DIR
 
+# Create the log file if it doesn't exist
+touch $LOG_PATH
+
 # Set the correct permissions
 echo "🔧 Setting permissions..."
 chown root:root $LOG_PATH
