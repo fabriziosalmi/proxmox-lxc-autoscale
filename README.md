@@ -32,10 +32,10 @@
 
 3. **Ensure Proper Permissions**:
    ```bash
-   sudo chown root:root /var/log/lxc_auto_scale.log
-   sudo chown -R root:root /var/lib/lxc_auto_scale/
-   sudo chmod 755 /var/lib/lxc_auto_scale/
-   sudo chmod 644 /var/log/lxc_auto_scale.log
+   sudo chown root:root /var/log/lxc_autoscale.log
+   sudo chown -R root:root /var/lib/lxc_autoscale/
+   sudo chmod 755 /var/lib/lxc_autoscale/
+   sudo chmod 644 /var/log/lxc_autoscale.log
    ```
 
 4. **Create a Systemd Service**:
