@@ -7,7 +7,9 @@
 - **Automatic Resource Adjustment**: Adjust CPU cores, memory, and storage based on container usage thresholds.
 - **Backup and Rollback**: Automatically backs up container configurations before making changes and allows easy rollback to previous settings.
 - **Daemon Mode**: Runs continuously as a background service, checking and adjusting resources at regular intervals.
-- **Customizable via CLI**: Configure thresholds, increments, and other parameters via command-line arguments.
+- **Energy Efficiency Mode**: Optionally reduce resources during off-peak hours to save energy.
+- **Gotify Notifications**: Send real-time notifications of significant events (e.g., resource adjustments, rollbacks) via Gotify.
+- **Granular Control of Resource Allocation**: Customize thresholds and increments for specific containers or groups of containers.
 - **Detailed Logging**: Logs all actions, making it easy to monitor and debug the resource management process.
 
 ## Installation
@@ -20,14 +22,14 @@
 
 1. **Download the Script**:
    ```bash
-   wget https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/usr/local/bin/lxc_autoscale.py -O /usr/local/bin/lxc_autoscale.py
+   wget https://example.com/lxc_autoscale.py -O /usr/local/bin/lxc_autoscale.py
    chmod +x /usr/local/bin/lxc_autoscale.py
    ```
 
 2. **Set Up Directories for Logs and Backups**:
    ```bash
    sudo mkdir -p /var/log/
-   sudo mkdir -p /var/backups/
+   sudo mkdir -p /var/lib/lxc_autoscale/backups/
    ```
 
 3. **Ensure Proper Permissions**:
@@ -49,11 +51,11 @@
 
    ```ini
    [Unit]
-   Description=Proxmox LXC AutoScale
+   Description=LXC AutoScale - LXC Resource Management Daemon
    After=network.target
 
    [Service]
-   ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py --poll_interval 60
+   ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py --poll_interval 300
    Restart=always
    User=root
 
@@ -79,9 +81,9 @@ You can run the script manually with default settings or custom parameters:
   python3 /usr/local/bin/lxc_autoscale.py
   ```
 
-- **Custom Poll Interval and CPU Thresholds**:
+- **Run with Energy Efficiency Mode and Gotify Notifications**:
   ```bash
-  python3 /usr/local/bin/lxc_autoscale.py --poll_interval 60 --cpu_upper 85 --cpu_lower 15
+  python3 /usr/local/bin/lxc_autoscale.py --energy_mode --gotify_url https://gotify.example.com --gotify_token YOUR_TOKEN
   ```
 
 - **Rollback to Previous Configuration**:
@@ -106,6 +108,17 @@ sudo journalctl -u lxc_autoscale.service -f
 - **--mem_upper**: Memory usage upper threshold to trigger memory addition (default: 80).
 - **--mem_lower**: Memory usage lower threshold to trigger memory reduction (default: 20).
 - **--storage_upper**: Storage usage upper threshold to trigger storage addition (default: 80).
+- **--core_min**: Minimum number of cores to add or remove (default: 1).
+- **--core_max**: Maximum number of cores to add or remove (default: 4).
+- **--mem_min**: Minimum amount of memory to add or remove in MB (default: 512).
+- **--storage_inc**: Storage increment in MB (default: 10240).
+- **--min_cores**: Minimum number of cores per container (default: 1).
+- **--max_cores**: Maximum number of cores per container (default: 8).
+- **--min_mem**: Minimum memory per container in MB (default: 512).
+- **--min_decrease_chunk**: Minimum memory decrease chunk in MB (default: 512).
+- **--gotify_url**: Gotify server URL for notifications.
+- **--gotify_token**: Gotify server token for authentication.
+- **--energy_mode**: Enable energy efficiency mode during off-peak hours.
 - **--rollback**: Rollback to the previous container configurations.
 
 ## Contributing
