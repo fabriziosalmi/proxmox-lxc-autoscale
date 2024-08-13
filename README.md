@@ -25,7 +25,7 @@
 
 1. **Download the Script**:
    ```bash
-   wget https://example.com/lxc_autoscale.py -O /usr/local/bin/lxc_autoscale.py
+   wget https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/usr/local/bin/lxc_autoscale.py -O /usr/local/bin/lxc_autoscale.py
    chmod +x /usr/local/bin/lxc_autoscale.py
    ```
 
