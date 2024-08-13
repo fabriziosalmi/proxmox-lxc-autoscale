@@ -2,8 +2,13 @@
 
 **LXC AutoScale** is a Python-based daemon designed to dynamically manage and optimize resources (CPU, memory, and storage) for LXC containers on a Proxmox host. By continuously monitoring container usage, it ensures that resources are allocated efficiently, potentially reducing energy consumption and improving system performance.
 
-> [!WARNING]  
-> Storage stuff is still not tested. Use at your own risk.
+## Quick Start
+
+On the Proxmox host execute the install script, it will download the code from this repository and it will install and run a systemd service named **lxc_autoscale**, et voila!
+
+```
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install_lxc_autoscale.sh | bash
+```
 
 ## Features
 
@@ -14,6 +19,9 @@
 - **Gotify Notifications**: Send real-time notifications of significant events (e.g., resource adjustments, rollbacks) via Gotify.
 - **Granular Control of Resource Allocation**: Customize thresholds and increments for specific containers or groups of containers.
 - **Detailed Logging**: Logs all actions, making it easy to monitor and debug the resource management process.
+
+> [!WARNING]  
+> Storage stuff is still not fully tested. Make a backup of your important data before to use this software.
 
 ## Installation
 
