@@ -105,20 +105,19 @@ def run_command(cmd):
 
 # Function to ensure singleton script execution
 def acquire_lock():
-    lock_file = open(LOCK_FILE, 'w')
-    try:
-        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return lock_file
-    except IOError:
-        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
-        sys.exit(1)
+    with open(LOCK_FILE, 'w') as lock_file:
+        try:
+            fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return lock_file
+        except IOError:
+            logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
+            sys.exit(1)
 
 # Function to check if we are in off-peak hours
 def is_off_peak():
     if args.energy_mode:
         current_hour = datetime.now().hour
-        if OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END:
-            return True
+        return OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END
     return False
 
 # Function to notify via Gotify
@@ -132,11 +131,7 @@ def send_gotify_notification(title, message, priority=5):
 # Function to get all containers
 def get_containers():
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
-    if containers:
-        return containers.splitlines()
-    else:
-        logging.info("No containers found.")
-        return []
+    return containers.splitlines() if containers else []
 
 # Function to check if a container is running
 def is_container_running(ctid):
@@ -207,8 +202,7 @@ def get_memory_usage(ctid):
     mem_total = run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{print $2}}' /proc/meminfo")
     if mem_used and mem_total:
         try:
-            usage = (int(mem_used) * 100) / int(mem_total)
-            return usage
+            return (int(mem_used) * 100) / int(mem_total)
         except ValueError:
             logging.error(f"Failed to calculate memory usage for container {ctid}")
     logging.error(f"Failed to retrieve memory usage for container {ctid}")
@@ -217,12 +211,7 @@ def get_memory_usage(ctid):
 # Function to collect data about all containers
 def collect_container_data():
     containers = {}
-    container_list = get_containers()
-    if not container_list:
-        logging.info("No containers to process.")
-        return containers
-
-    for ctid in container_list:
+    for ctid in get_containers():
         if not is_container_running(ctid):
             continue
         logging.info(f"Collecting data for container {ctid}...")
@@ -255,11 +244,8 @@ def adjust_resources(containers):
         logging.info("No containers to adjust.")
         return
 
-    initial_cores = get_total_cores()
-    initial_memory = get_total_memory()
-
-    available_cores = initial_cores
-    available_memory = initial_memory
+    available_cores = get_total_cores()
+    available_memory = get_total_memory()
 
     for ctid, usage in containers:
         cpu_usage = usage['cpu']
@@ -302,6 +288,8 @@ def adjust_resources(containers):
                 available_memory -= increment
                 memory_changed = True
                 send_gotify_notification(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB.")
+            else:
+                logging.warning(f"Not enough available memory to increase for container {ctid}")
         elif mem_usage < args.mem_lower and current_memory > args.min_mem:
             decrease_amount = min(args.min_decrease_chunk * ((current_memory - args.min_mem) // args.min_decrease_chunk),
                                   current_memory - args.min_mem)
@@ -328,7 +316,6 @@ def adjust_resources(containers):
                 memory_changed = True
                 send_gotify_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {args.min_mem}MB for energy efficiency.")
 
-    logging.info(f"Initial resources: {initial_cores} cores, {initial_memory} MB memory")
     logging.info(f"Final resources: {available_cores} cores, {available_memory} MB memory")
 
 def main_loop():
@@ -350,15 +337,14 @@ def main_loop():
 # Main execution flow
 if __name__ == "__main__":
     # Acquire lock to prevent multiple instances
-    lock_file = acquire_lock()
-
-    if args.rollback:
-        logging.info("Starting rollback process...")
-        for ctid in get_containers():
-            rollback_container_settings(ctid)
-        logging.info("Rollback process completed.")
-    else:
-        main_loop()
-
-    # Release lock
-    lock_file.close()
+    with acquire_lock():
+        try:
+            if args.rollback:
+                logging.info("Starting rollback process...")
+                for ctid in get_containers():
+                    rollback_container_settings(ctid)
+                logging.info("Rollback process completed.")
+            else:
+                main_loop()
+        finally:
+            logging.info("Releasing lock and exiting.")
