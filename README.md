@@ -283,7 +283,7 @@ rm -rf /var/lib/lxc_autoscale/
 
 ## Contributing
 
-If you would like to contribute to the development of LXC AutoScale, feel free to submit a pull request or open an issue on the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
+If you would like to contribute to the development of LXC AutoScale, feel free to submit a pull request or [open an issue](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/new/choose) on the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
 
 ## License
 
