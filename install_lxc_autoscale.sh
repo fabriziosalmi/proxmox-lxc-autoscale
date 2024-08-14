@@ -10,24 +10,6 @@ CONF_DIR="/etc/lxc_autoscale"
 CONF_PATH="${CONF_DIR}/lxc_autoscale.conf"
 LOG_PATH="/var/log/lxc_autoscale.log"
 BACKUP_DIR="/var/lib/lxc_autoscale/backups"
-REQUIRED_PACKAGES=("curl" "python3" "systemctl" "awk" "jq")
-
-# Function to check and install required packages
-install_required_packages() {
-    for pkg in "${REQUIRED_PACKAGES[@]}"; do
-        if ! dpkg -l | grep -qw "$pkg"; then
-            echo "🔍 Checking for $pkg..."
-            echo "❗ $pkg is not installed. Installing..."
-            apt-get update && apt-get install -y $pkg
-            if [ $? -ne 0 ]; then
-                echo "❌ Error: Failed to install $pkg."
-                exit 1
-            fi
-        else
-            echo "✅ $pkg is already installed."
-        fi
-    done
-}
 
 # Function to check and stop the service if running
 stop_service_if_running() {
