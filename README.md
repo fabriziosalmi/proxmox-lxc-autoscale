@@ -45,71 +45,70 @@ Before any update, the installation script automatically backs up the existing c
 These settings control how the script manages the scaling of CPU and memory resources for containers. The default configuration file contains the following sections and settings:
 
 - **poll_interval** `300`  
-  The interval, in seconds, at which the script polls container metrics to determine if scaling actions are required. A shorter interval results in more frequent checks and potential adjustments.
+ <sub> The interval, in seconds, at which the script polls container metrics to determine if scaling actions are required. A shorter interval results in more frequent checks and potential adjustments. </sub>
 
 - **cpu_upper_threshold** `80`  
-  The upper CPU usage threshold, expressed as a percentage, that triggers scaling up (adding more CPU cores) for a container. When a container's CPU usage exceeds this threshold, additional CPU cores may be allocated.
+  <sub> The upper CPU usage threshold, expressed as a percentage, that triggers scaling up (adding more CPU cores) for a container. When a container's CPU usage exceeds this threshold, additional CPU cores may be allocated. </sub>
 
-- **cpu_lower_threshold**  
-  `20`  
-  The lower CPU usage threshold, expressed as a percentage, that triggers scaling down (reducing CPU cores) for a container. When a container's CPU usage falls below this threshold, CPU cores may be deallocated to save resources.
+- **cpu_lower_threshold** `20`  
+  <sub> The lower CPU usage threshold, expressed as a percentage, that triggers scaling down (reducing CPU cores) for a container. When a container's CPU usage falls below this threshold, CPU cores may be deallocated to save resources. </sub>
 
 - **memory_upper_threshold** `80`  
-  The upper memory usage threshold, expressed as a percentage, that triggers scaling up (increasing memory) for a container. When a container's memory usage exceeds this threshold, more memory may be allocated.
+  <sub> The upper memory usage threshold, expressed as a percentage, that triggers scaling up (increasing memory) for a container. When a container's memory usage exceeds this threshold, more memory may be allocated. </sub>
 
 - **memory_lower_threshold** `20`  
-  The lower memory usage threshold, expressed as a percentage, that triggers scaling down (decreasing memory) for a container. When a container's memory usage falls below this threshold, memory may be reduced.
+  <sub> The lower memory usage threshold, expressed as a percentage, that triggers scaling down (decreasing memory) for a container. When a container's memory usage falls below this threshold, memory may be reduced. </sub>
 
 - **core_min_increment** `1`  
-  The minimum number of CPU cores to add to a container during a scaling up operation. This value ensures that scaling adjustments are not too granular, which could lead to excessive adjustments.
+  <sub> The minimum number of CPU cores to add to a container during a scaling up operation. This value ensures that scaling adjustments are not too granular, which could lead to excessive adjustments. </sub>
 
 - **core_max_increment** `4`  
-  The maximum number of CPU cores that can be added to a container during a single scaling up operation. This prevents the script from allocating too many cores at once, which could negatively impact other containers or the host.
+  <sub> The maximum number of CPU cores that can be added to a container during a single scaling up operation. This prevents the script from allocating too many cores at once, which could negatively impact other containers or the host. </sub>
 
 - **memory_min_increment** `512`  
-  The minimum amount of memory, in MB, to add to a container during a scaling up operation. This value ensures that scaling adjustments are significant enough to handle increased workloads.
+  <sub> The minimum amount of memory, in MB, to add to a container during a scaling up operation. This value ensures that scaling adjustments are significant enough to handle increased workloads. </sub>
 
 - **min_cores** `1`  
-  The minimum number of CPU cores that any container should have. This prevents the script from reducing the CPU allocation below a functional minimum.
+  <sub> The minimum number of CPU cores that any container should have. This prevents the script from reducing the CPU allocation below a functional minimum. </sub>
 
 - **max_cores** `8`  
-  The maximum number of CPU cores that any container can have. This cap prevents any single container from monopolizing the host's CPU resources.
+  <sub> The maximum number of CPU cores that any container can have. This cap prevents any single container from monopolizing the host's CPU resources. </sub>
 
 - **min_memory** `512`  
-  The minimum amount of memory, in MB, that any container should have. This ensures that no container is allocated too little memory to function properly.
+  <sub> The minimum amount of memory, in MB, that any container should have. This ensures that no container is allocated too little memory to function properly. </sub>
 
 - **min_decrease_chunk** `512`  
-  The minimum chunk size, in MB, by which memory can be reduced during a scaling down operation. This prevents the script from making overly granular and frequent reductions in memory, which could destabilize the container.
+  <sub> The minimum chunk size, in MB, by which memory can be reduced during a scaling down operation. This prevents the script from making overly granular and frequent reductions in memory, which could destabilize the container. </sub>
 
 - **reserve_cpu_percent** `10`  
-  The percentage of the host's total CPU resources that should be reserved and not allocated to containers. This reserved capacity ensures that the host always has sufficient CPU resources for its own operations and for emergency situations.
+  <sub> The percentage of the host's total CPU resources that should be reserved and not allocated to containers. This reserved capacity ensures that the host always has sufficient CPU resources for its own operations and for emergency situations. </sub>
 
 - **reserve_memory_mb** `2048`  
-  The amount of memory, in MB, that should be reserved on the host and not allocated to containers. This reserved memory ensures that the host has enough memory for its own operations and for handling unexpected loads.
+  <sub> The amount of memory, in MB, that should be reserved on the host and not allocated to containers. This reserved memory ensures that the host has enough memory for its own operations and for handling unexpected loads. </sub>
 
 - **log_file** `/var/log/lxc_autoscale.log`  
-  The file path where the script writes its log output. This log contains information about the script's operations, including any scaling actions taken.
+  <sub> The file path where the script writes its log output. This log contains information about the script's operations, including any scaling actions taken. </sub>
 
 - **lock_file** `/var/lock/lxc_autoscale.lock`  
-  The file path for the lock file used by the script to prevent multiple instances from running simultaneously. This ensures that only one instance of the script manages resources at any given time.
+  <sub> The file path for the lock file used by the script to prevent multiple instances from running simultaneously. This ensures that only one instance of the script manages resources at any given time. </sub> 
 
 - **backup_dir** `/var/lib/lxc_autoscale/backups`  
-  The directory where backups of container configurations are stored before any scaling actions are taken. This allows for rollback in case of an issue with the scaling process.
+  <sub> The directory where backups of container configurations are stored before any scaling actions are taken. This allows for rollback in case of an issue with the scaling process. </sub>
 
 - **off_peak_start** `22`  
-  The hour (in 24-hour format) at which off-peak energy-saving mode begins. During off-peak hours, the script may reduce resources to save energy if `energy_mode` is enabled.
+  <sub> The hour (in 24-hour format) at which off-peak energy-saving mode begins. During off-peak hours, the script may reduce resources to save energy if `energy_mode` is enabled. </sub>
 
 - **off_peak_end** `6`  
-  The hour (in 24-hour format) at which off-peak energy-saving mode ends. After this time, containers may be scaled back up to handle peak load.
+  <sub> The hour (in 24-hour format) at which off-peak energy-saving mode ends. After this time, containers may be scaled back up to handle peak load. </sub>
 
 - **energy_mode** `False`  
-  A boolean setting that enables or disables energy-saving mode during off-peak hours. When enabled, this mode reduces CPU and memory resources allocated to containers during off-peak hours to save energy.
+  <sub> A boolean setting that enables or disables energy-saving mode during off-peak hours. When enabled, this mode reduces CPU and memory resources allocated to containers during off-peak hours to save energy. </sub>
 
 - **gotify_url** *Example:* `http://gotify.example.com`  
-  The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent.
+  <sub> The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent. </sub>
 
 - **gotify_token** *Example:* `abcdef1234567890`  
-  The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent.
+  <sub> The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent. </sub>
 
 
 ## Service Management
