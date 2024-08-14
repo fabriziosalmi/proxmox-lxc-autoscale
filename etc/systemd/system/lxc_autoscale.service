@@ -6,8 +6,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py
-Restart=on-failure
-RestartSec=10s
+Restart=no
 User=root
 
 # Ensure that the service is killed if it runs away
