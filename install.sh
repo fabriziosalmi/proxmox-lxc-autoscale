@@ -62,7 +62,7 @@ stop_service_if_running
 
 # Download the Python script
 echo "📥 Downloading the LXC AutoScale script..."
-curl -o $INSTALL_PATH $SCRIPT_URL
+curl -sSL -o $INSTALL_PATH $SCRIPT_URL
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to download the script."
     exit 1
@@ -73,7 +73,7 @@ chmod +x $INSTALL_PATH
 
 # Download the systemd service file
 echo "📥 Downloading the systemd service file..."
-curl -o $SERVICE_PATH $SERVICE_URL
+curl -sSL -o $SERVICE_PATH $SERVICE_URL
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to download the service file."
     exit 1
@@ -83,7 +83,7 @@ fi
 echo "📂 Setting up configuration directory and file..."
 mkdir -p $CONF_DIR
 backup_existing_conf
-curl -o $CONF_PATH $CONF_URL
+curl -sSL -o $CONF_PATH $CONF_URL
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to download the configuration file."
     exit 1
