@@ -57,6 +57,19 @@ backup_existing_conf() {
     fi
 }
 
+# Function to prompt user for overwriting the configuration file
+prompt_overwrite_conf() {
+    if [ -f "$CONF_PATH" ]; then
+        read -p "⚠️ A configuration file already exists at $CONF_PATH. Do you want to overwrite it? [y/N]: " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "🚫 Keeping the existing configuration file."
+            return 1
+        fi
+    fi
+    return 0
+}
+
 # Stop the service if it's already running
 stop_service_if_running
 
@@ -82,11 +95,13 @@ fi
 # Set up the configuration directory and file, with backup if needed
 echo "📂 Setting up configuration directory and file..."
 mkdir -p $CONF_DIR
-backup_existing_conf
-curl -sSL -o $CONF_PATH $CONF_URL
-if [ $? -ne 0 ]; then
-    echo "❌ Error: Failed to download the configuration file."
-    exit 1
+if prompt_overwrite_conf; then
+    backup_existing_conf
+    curl -sSL -o $CONF_PATH $CONF_URL
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to download the configuration file."
+        exit 1
+    fi
 fi
 
 # Set up directories for logs and backups
