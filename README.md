@@ -10,6 +10,7 @@ LXC AutoScale is a resource management daemon designed to **automatically adjust
 ## Features
 
 - **Automatic Resource Scaling:** Dynamically adjust CPU and memory based on usage thresholds.
+- **Tier defined thresholds:** Set specific thresholds for specific LXC containers regardeless of default configuration.
 - **Host Resource Reservation:** Ensure that the host system remains stable and responsive.
 - **Energy Efficiency Mode:** Reduce resource allocation during off-peak hours to save energy.
 - **Container Prioritization:** Prioritize resource allocation based on container groupings (e.g., critical, non-critical).
@@ -72,7 +73,7 @@ These settings control how the script manages the scaling of CPU and memory reso
 
 ### Tiers
 
-You can assign one or more LXC containers to different TIERS for specific thresholds assignements. You can define up to 3 different TIERS named TIER_1, TIER_2 and TIER_3. Just append and change accordingly with your needs this snippet to the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
+You can assign one or more LXC containers to different TIERS for specific thresholds assignments. You can define up to 3 different TIERS named TIER_1, TIER_2 and TIER_3. Just append and change accordingly with your needs this snippet to the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
 
 ```
 [TIER_1]
