@@ -267,7 +267,7 @@ def backup_container_settings(ctid, settings):
     """Backup the current settings of a container."""
     os.makedirs(BACKUP_DIR, exist_ok=True)
     backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-    with open(backup_file, 'w') as f:
+    with open(backup_file, 'w', encoding='utf-8') as f:
         json.dump(settings, f)
     logging.info(f"Backup saved for container {ctid}: {settings}")
 
@@ -277,7 +277,7 @@ def load_backup_settings(ctid):
     """Load the backup settings for a container."""
     backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
     if os.path.exists(backup_file):
-        with open(backup_file, 'r') as f:
+        with open(backup_file, 'r', encoding='utf-8') as f:
             settings = json.load(f)
         logging.info(f"Loaded backup for container {ctid}: {settings}")
         return settings
@@ -452,7 +452,8 @@ def adjust_resources(containers):
             )
             if available_memory >= increment:
                 logging.info(f"Increasing memory for container {ctid} by {increment}MB...")
-                run_command(f"pct set {ctid} -memory {current_memory + increment}")
+                new_memory = current_memory + increment
+                run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory -= increment
                 memory_changed = True
                 send_gotify_notification(
@@ -498,7 +499,7 @@ def adjust_resources(containers):
                     f"Memory reduced to {args.min_mem}MB for energy efficiency."
                 )
 
-    logging.info(f"Final resources: {available_cores} cores, {get_total_memory()} MB memory")
+    logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
 
 
 def main_loop():
