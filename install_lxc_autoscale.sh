@@ -57,9 +57,6 @@ backup_existing_conf() {
     fi
 }
 
-# Check and install required packages
-install_required_packages
-
 # Stop the service if it's already running
 stop_service_if_running
 
