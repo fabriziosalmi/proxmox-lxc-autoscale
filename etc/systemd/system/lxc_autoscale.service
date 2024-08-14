@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py
-Restart=on-failure
+Restart=no
 User=root
 
 [Install]
