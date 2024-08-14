@@ -317,7 +317,7 @@ def adjust_resources(containers):
                 memory_changed = True
                 send_gotify_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {args.min_mem}MB for energy efficiency.")
 
-    logging.info(f"Final resources: {available_cores} cores, {available_memory} MB memory")
+    logging.info(f"Final resources: {available_cores} cores, {get_total_memory()} MB memory")
 
 def main_loop():
     while running:
