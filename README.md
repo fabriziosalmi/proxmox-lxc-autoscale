@@ -12,7 +12,7 @@ LXC AutoScale is a resource management daemon designed to **automatically adjust
 - ⚙️ **Automatic Resource Scaling:** Dynamically adjust CPU and memory based on usage thresholds.
 - 📊 **Tier Defined Thresholds:** Set specific thresholds for one or more LXC containers.
 - 🛡️ **Host Resource Reservation:** Ensure that the host system remains stable and responsive.
-- 🛡️ **Ignore Scaling Exclusion:** Ensure that one or more LXC containers are not affected by the scaling process.
+- 🔒 **Ignore Scaling Option:** Ensure that one or more LXC containers are not affected by the scaling process.
 - 🌱 **Energy Efficiency Mode:** Reduce resource allocation during off-peak hours to save energy.
 - 🚦 **Container Prioritization:** Prioritize resource allocation based on resource type.
 - 📦 **Automatic Backups:** Backup and rollback container configurations.
