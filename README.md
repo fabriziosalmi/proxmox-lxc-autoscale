@@ -1,145 +1,131 @@
+
 # Proxmox LXC AutoScale
 
-**LXC AutoScale** is a Python-based daemon designed to dynamically manage and optimize resources (CPU, memory, and storage) for LXC containers on a Proxmox host. By continuously monitoring container usage, it ensures that resources are allocated efficiently, potentially reducing energy consumption and improving system performance.
+## Overview
 
-## Quick Start
-
-On the Proxmox host execute the install script, it will download the code from this repository and it will install and run a systemd service named **lxc_autoscale**, et voila!
-
-```
-curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install_lxc_autoscale.sh | bash
-```
+LXC AutoScale is a resource management daemon designed to automatically adjust the CPU, memory, and storage allocations of LXC containers based on their current usage and pre-defined thresholds. It helps in optimizing resource utilization, ensuring that critical containers have the necessary resources while also saving energy during off-peak hours.
 
 ## Features
 
-- **Automatic Resource Adjustment**: Adjust CPU cores, memory, and storage based on container usage thresholds.
-- **Backup and Rollback**: Automatically backs up container configurations before making changes and allows easy rollback to previous settings.
-- **Daemon Mode**: Runs continuously as a background service, checking and adjusting resources at regular intervals.
-- **Energy Efficiency Mode**: Optionally reduce resources during off-peak hours to save energy.
-- **Gotify Notifications**: Send real-time notifications of significant events (e.g., resource adjustments, rollbacks) via Gotify.
-- **Granular Control of Resource Allocation**: Customize thresholds and increments for specific containers or groups of containers.
-- **Detailed Logging**: Logs all actions, making it easy to monitor and debug the resource management process.
-
-> [!WARNING]  
-> Storage stuff is still not fully tested. Make a backup of your important data before to use this software.
+- **Automatic Resource Scaling:** Dynamically adjust CPU, memory, and storage based on usage thresholds.
+- **Energy Efficiency Mode:** Reduce resource allocation during off-peak hours to save energy.
+- **Container Prioritization:** Prioritize resource allocation based on container groupings (e.g., critical, non-critical).
+- **Automatic Backups:** Backup and rollback container configurations.
+- **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 
 ## Installation
 
-### Prerequisites
-
-- **Python 3.x**: Ensure Python 3 is installed on your Proxmox host.
-
-### Installation Steps
-
-1. **Download the Script**:
-   ```bash
-   wget https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/usr/local/bin/lxc_autoscale.py -O /usr/local/bin/lxc_autoscale.py
-   chmod +x /usr/local/bin/lxc_autoscale.py
-   ```
-
-2. **Set Up Directories for Logs and Backups**:
-   ```bash
-   sudo mkdir -p /var/log/
-   sudo mkdir -p /var/lib/lxc_autoscale/backups/
-   ```
-
-3. **Ensure Proper Permissions**:
-   ```bash
-   sudo chown root:root /var/log/lxc_autoscale.log
-   sudo chown -R root:root /var/lib/lxc_autoscale/
-   sudo chmod 755 /var/lib/lxc_autoscale/
-   sudo chmod 644 /var/log/lxc_autoscale.log
-   ```
-
-4. **Create a Systemd Service**:
-   Create a service file to run LXC AutoScale as a daemon.
-
-   ```bash
-   sudo nano /etc/systemd/system/lxc_autoscale.service
-   ```
-
-   Add the following content:
-
-   ```ini
-   [Unit]
-   Description=LXC AutoScale - LXC Resource Management Daemon
-   After=network.target
-
-   [Service]
-   ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py --poll_interval 300
-   Restart=always
-   User=root
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-5. **Enable and Start the Service**:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable lxc_autoscale.service
-   sudo systemctl start lxc_autoscale.service
-   ```
-
-## Usage
-
-### Running the Script Manually
-
-You can run the script manually with default settings or custom parameters:
-
-- **Default Settings**:
-  ```bash
-  python3 /usr/local/bin/lxc_autoscale.py
-  ```
-
-- **Run with Energy Efficiency Mode and Gotify Notifications**:
-  ```bash
-  python3 /usr/local/bin/lxc_autoscale.py --energy_mode --gotify_url https://gotify.example.com --gotify_token YOUR_TOKEN
-  ```
-
-- **Rollback to Previous Configuration**:
-  ```bash
-  python3 /usr/local/bin/lxc_autoscale.py --rollback
-  ```
-
-### Monitoring the Service
-
-Check the status and logs of the service:
+The easiest way to install LXC AutoScale is by using the following `curl` command:
 
 ```bash
-sudo systemctl status lxc_autoscale.service
-sudo journalctl -u lxc_autoscale.service -f
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install_lxc_autoscale.sh | bash
 ```
 
-## Configuration Options
+This script will:
 
-- **--poll_interval**: Set the polling interval in seconds (default: 300).
-- **--cpu_upper**: CPU usage upper threshold to trigger core addition (default: 80).
-- **--cpu_lower**: CPU usage lower threshold to trigger core reduction (default: 20).
-- **--mem_upper**: Memory usage upper threshold to trigger memory addition (default: 80).
-- **--mem_lower**: Memory usage lower threshold to trigger memory reduction (default: 20).
-- **--storage_upper**: Storage usage upper threshold to trigger storage addition (default: 80).
-- **--core_min**: Minimum number of cores to add or remove (default: 1).
-- **--core_max**: Maximum number of cores to add or remove (default: 4).
-- **--mem_min**: Minimum amount of memory to add or remove in MB (default: 512).
-- **--storage_inc**: Storage increment in MB (default: 10240).
-- **--min_cores**: Minimum number of cores per container (default: 1).
-- **--max_cores**: Maximum number of cores per container (default: 8).
-- **--min_mem**: Minimum memory per container in MB (default: 512).
-- **--min_decrease_chunk**: Minimum memory decrease chunk in MB (default: 512).
-- **--gotify_url**: Gotify server URL for notifications.
-- **--gotify_token**: Gotify server token for authentication.
-- **--energy_mode**: Enable energy efficiency mode during off-peak hours.
-- **--rollback**: Rollback to the previous container configurations.
+1. Download the latest version of the LXC AutoScale Python script.
+2. Download and install the systemd service file.
+3. Set up the necessary directories and configuration files.
+4. Back up any existing configuration files before updating them.
+5. Enable and start the LXC AutoScale systemd service.
 
-## Demo
+## Configuration
 
-![demo](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/static/proxmox-lxc-autoscale-gotify.png?raw=true)
+### Configuration File
+
+The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.conf`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
+
+**Backup of Configuration:**
+Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.conf.YYYYMMDD-HHMMSS.backup`.
+
+### Default Configuration
+
+The default configuration file contains the following sections and settings:
+
+```ini
+[DEFAULT]
+poll_interval = 300
+cpu_upper_threshold = 80
+cpu_lower_threshold = 20
+memory_upper_threshold = 80
+memory_lower_threshold = 20
+storage_upper_threshold = 80
+core_min_increment = 1
+core_max_increment = 4
+memory_min_increment = 512
+storage_increment = 10240
+min_cores = 1
+max_cores = 8
+min_memory = 512
+min_decrease_chunk = 512
+reserve_cpu_percent = 10
+reserve_memory_mb = 2048
+reserve_storage_mb = 10240
+log_file = /var/log/lxc_autoscale.log
+lock_file = /var/lock/lxc_autoscale.lock
+backup_dir = /var/lib/lxc_autoscale/backups
+off_peak_start = 22
+off_peak_end = 6
+energy_mode = False
+gotify_url = 
+gotify_token = 
+```
+
+## Service Management
+
+### Starting and Stopping the Service
+
+Once installed, the LXC AutoScale daemon runs as a systemd service. You can manage the service using the following commands:
+
+- **Start the service:**
+  ```bash
+  systemctl start lxc_autoscale.service
+  ```
+
+- **Stop the service:**
+  ```bash
+  systemctl stop lxc_autoscale.service
+  ```
+
+- **Restart the service:**
+  ```bash
+  systemctl restart lxc_autoscale.service
+  ```
+
+- **Check the status of the service:**
+  ```bash
+  systemctl status lxc_autoscale.service
+  ```
+
+### Enabling the Service at Boot
+
+To ensure that the LXC AutoScale daemon starts automatically at boot, use the following command:
+
+```bash
+systemctl enable lxc_autoscale.service
+```
+
+## Logging
+
+Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. You can monitor this log file to observe the daemon's operations and troubleshoot any issues.
+
+## Uninstallation
+
+If you wish to remove the LXC AutoScale daemon from your system, you can disable and stop the service, then delete the associated files:
+
+```bash
+systemctl disable lxc_autoscale.service
+systemctl stop lxc_autoscale.service
+rm -f /usr/local/bin/lxc_autoscale.py
+rm -f /etc/systemd/system/lxc_autoscale.service
+rm -rf /etc/lxc_autoscale/
+rm -rf /var/lib/lxc_autoscale/
+```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue if you find any bugs or have suggestions for improvements.
+If you would like to contribute to the development of LXC AutoScale, feel free to submit a pull request or open an issue on the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
