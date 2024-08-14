@@ -6,49 +6,49 @@ import fcntl
 import json
 import argparse
 import signal
+import configparser  # Add this import
 from time import sleep, time
 from datetime import datetime
 
+# Configuration file path
+CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.conf"
+
 # Default Configuration
-DEFAULT_POLL_INTERVAL = 300   # Polling interval in seconds (5 minutes)
-DEFAULT_CPU_UPPER_THRESHOLD = 80
-DEFAULT_CPU_LOWER_THRESHOLD = 20
-DEFAULT_MEMORY_UPPER_THRESHOLD = 80
-DEFAULT_MEMORY_LOWER_THRESHOLD = 20
-DEFAULT_STORAGE_UPPER_THRESHOLD = 80
-
-DEFAULT_CORE_MIN_INCREMENT = 1
-DEFAULT_CORE_MAX_INCREMENT = 4
-DEFAULT_MEMORY_MIN_INCREMENT = 512
-DEFAULT_STORAGE_INCREMENT = 10240
-
-DEFAULT_MIN_CORES = 1
-DEFAULT_MAX_CORES = 8
-DEFAULT_MIN_MEMORY = 512
-
-DEFAULT_MIN_DECREASE_CHUNK = 512
-
-IGNORED_CONTAINERS = []
-
-LOCK_FILE = "/var/lock/lxc_autoscale.lock"
-LOG_FILE = "/var/log/lxc_autoscale.log"
-BACKUP_DIR = "/var/lib/lxc_autoscale/backups"
-
-RESERVE_CPU_PERCENT = 10
-RESERVE_MEMORY_MB = 2048
-RESERVE_STORAGE_MB = 10240
-
-# Grouping and Prioritization Configuration
-CONTAINER_GROUPS = {
-    "critical": [],
-    "non_critical": []
+DEFAULTS = {
+    'poll_interval': 300,
+    'cpu_upper_threshold': 80,
+    'cpu_lower_threshold': 20,
+    'memory_upper_threshold': 80,
+    'memory_lower_threshold': 20,
+    'storage_upper_threshold': 80,
+    'core_min_increment': 1,
+    'core_max_increment': 4,
+    'memory_min_increment': 512,
+    'storage_increment': 10240,
+    'min_cores': 1,
+    'max_cores': 8,
+    'min_memory': 512,
+    'min_decrease_chunk': 512,
+    'reserve_cpu_percent': 10,
+    'reserve_memory_mb': 2048,
+    'reserve_storage_mb': 10240,
+    'log_file': "/var/log/lxc_autoscale.log",
+    'lock_file': "/var/lock/lxc_autoscale.lock",
+    'backup_dir': "/var/lib/lxc_autoscale/backups",
+    'off_peak_start': 22,
+    'off_peak_end': 6,
+    'energy_mode': False,
+    'gotify_url': '',
+    'gotify_token': ''
 }
 
-# Energy Efficiency Mode (Off-peak hours: 10 PM - 6 AM)
-OFF_PEAK_START = 22  # 10 PM
-OFF_PEAK_END = 6    # 6 AM
+# Load configuration from file
+config = configparser.ConfigParser(defaults=DEFAULTS)
+if os.path.exists(CONFIG_FILE):
+    config.read(CONFIG_FILE)
 
 # Set up logging
+LOG_FILE = config.get('DEFAULT', 'log_file')
 logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -60,23 +60,23 @@ logging.getLogger().addHandler(console)
 
 # CLI Argument Parsing
 parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
-parser.add_argument("--poll_interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Polling interval in seconds")
-parser.add_argument("--cpu_upper", type=int, default=DEFAULT_CPU_UPPER_THRESHOLD, help="CPU usage upper threshold")
-parser.add_argument("--cpu_lower", type=int, default=DEFAULT_CPU_LOWER_THRESHOLD, help="CPU usage lower threshold")
-parser.add_argument("--mem_upper", type=int, default=DEFAULT_MEMORY_UPPER_THRESHOLD, help="Memory usage upper threshold")
-parser.add_argument("--mem_lower", type=int, default=DEFAULT_MEMORY_LOWER_THRESHOLD, help="Memory usage lower threshold")
-parser.add_argument("--storage_upper", type=int, default=DEFAULT_STORAGE_UPPER_THRESHOLD, help="Storage usage upper threshold")
-parser.add_argument("--core_min", type=int, default=DEFAULT_CORE_MIN_INCREMENT, help="Minimum core increment")
-parser.add_argument("--core_max", type=int, default=DEFAULT_CORE_MAX_INCREMENT, help="Maximum core increment")
-parser.add_argument("--mem_min", type=int, default=DEFAULT_MEMORY_MIN_INCREMENT, help="Minimum memory increment")
-parser.add_argument("--storage_inc", type=int, default=DEFAULT_STORAGE_INCREMENT, help="Storage increment in MB")
-parser.add_argument("--min_cores", type=int, default=DEFAULT_MIN_CORES, help="Minimum number of cores per container")
-parser.add_argument("--max_cores", type=int, default=DEFAULT_MAX_CORES, help="Maximum number of cores per container")
-parser.add_argument("--min_mem", type=int, default=DEFAULT_MIN_MEMORY, help="Minimum memory per container in MB")
-parser.add_argument("--min_decrease_chunk", type=int, default=DEFAULT_MIN_DECREASE_CHUNK, help="Minimum memory decrease chunk in MB")
-parser.add_argument("--gotify_url", type=str, help="Gotify server URL for notifications")
-parser.add_argument("--gotify_token", type=str, help="Gotify server token for authentication")
-parser.add_argument("--energy_mode", action="store_true", help="Enable energy efficiency mode during off-peak hours")
+parser.add_argument("--poll_interval", type=int, default=config.getint('DEFAULT', 'poll_interval'), help="Polling interval in seconds")
+parser.add_argument("--cpu_upper", type=int, default=config.getint('DEFAULT', 'cpu_upper_threshold'), help="CPU usage upper threshold")
+parser.add_argument("--cpu_lower", type=int, default=config.getint('DEFAULT', 'cpu_lower_threshold'), help="CPU usage lower threshold")
+parser.add_argument("--mem_upper", type=int, default=config.getint('DEFAULT', 'memory_upper_threshold'), help="Memory usage upper threshold")
+parser.add_argument("--mem_lower", type=int, default=config.getint('DEFAULT', 'memory_lower_threshold'), help="Memory usage lower threshold")
+parser.add_argument("--storage_upper", type=int, default=config.getint('DEFAULT', 'storage_upper_threshold'), help="Storage usage upper threshold")
+parser.add_argument("--core_min", type=int, default=config.getint('DEFAULT', 'core_min_increment'), help="Minimum core increment")
+parser.add_argument("--core_max", type=int, default=config.getint('DEFAULT', 'core_max_increment'), help="Maximum core increment")
+parser.add_argument("--mem_min", type=int, default=config.getint('DEFAULT', 'memory_min_increment'), help="Minimum memory increment")
+parser.add_argument("--storage_inc", type=int, default=config.getint('DEFAULT', 'storage_increment'), help="Storage increment in MB")
+parser.add_argument("--min_cores", type=int, default=config.getint('DEFAULT', 'min_cores'), help="Minimum number of cores per container")
+parser.add_argument("--max_cores", type=int, default=config.getint('DEFAULT', 'max_cores'), help="Maximum number of cores per container")
+parser.add_argument("--min_mem", type=int, default=config.getint('DEFAULT', 'min_memory'), help="Minimum memory per container in MB")
+parser.add_argument("--min_decrease_chunk", type=int, default=config.getint('DEFAULT', 'min_decrease_chunk'), help="Minimum memory decrease chunk in MB")
+parser.add_argument("--gotify_url", type=str, default=config.get('DEFAULT', 'gotify_url'), help="Gotify server URL for notifications")
+parser.add_argument("--gotify_token", type=str, default=config.get('DEFAULT', 'gotify_token'), help="Gotify server token for authentication")
+parser.add_argument("--energy_mode", action="store_true", default=config.getboolean('DEFAULT', 'energy_mode'), help="Enable energy efficiency mode during off-peak hours")
 parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
 args = parser.parse_args()
 
