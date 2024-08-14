@@ -71,7 +71,7 @@ parser.add_argument("--poll_interval", type=int, default=config.getint('DEFAULT'
 parser.add_argument("--cpu_upper", type=int, default=config.getint('DEFAULT', 'cpu_upper_threshold'), help="CPU usage upper threshold")
 parser.add_argument("--cpu_lower", type=int, default=config.getint('DEFAULT', 'cpu_lower_threshold'), help="CPU usage lower threshold")
 parser.add_argument("--mem_upper", type=int, default=config.getint('DEFAULT', 'memory_upper_threshold'), help="Memory usage upper threshold")
-parser.add_argument("--mem_lower", type=int, default(config.getint('DEFAULT', 'memory_lower_threshold')), help="Memory usage lower threshold")
+parser.add_argument("--mem_lower", type=int, default=config.getint('DEFAULT', 'memory_lower_threshold'), help="Memory usage lower threshold")
 parser.add_argument("--core_min", type=int, default=config.getint('DEFAULT', 'core_min_increment'), help="Minimum core increment")
 parser.add_argument("--core_max", type=int, default=config.getint('DEFAULT', 'core_max_increment'), help="Maximum core increment")
 parser.add_argument("--mem_min", type=int, default=config.getint('DEFAULT', 'memory_min_increment'), help="Minimum memory increment")
