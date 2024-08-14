@@ -149,31 +149,14 @@ systemctl enable lxc_autoscale.service
 Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. You can monitor this log file to observe the daemon's operations and troubleshoot any issues.
 
 ```
-root@proxmox:~# tail -n50 /var/log/lxc_autoscale.log 
-2024-08-14 13:26:56 - INFO - Starting resource allocation process...
-2024-08-14 13:26:58 - DEBUG - Command 'pct list | awk 'NR>1 {print $1}'' executed successfully.
-2024-08-14 13:26:59 - DEBUG - Command 'pct status 100' executed successfully.
-024-08-14 13:26:59 - INFO - Collecting data for container 100...
-2024-08-14 13:27:02 - DEBUG - Command 'pct config 100 | grep cores | awk '{print $2}'' executed successfully.
-2024-08-14 13:27:04 - DEBUG - Command 'pct config 100 | grep memory | awk '{print $2}'' executed successfully.
-2024-08-14 13:27:04 - INFO - Backup saved for container 100: {'cores': 2, 'memory': 2880}
-2024-08-14 13:27:05 - DEBUG - Command 'pct exec 100 -- awk -v cores=$(nproc) '{usage+=$1} END {print usage/cores}' /proc/stat' executed successfully.
-2024-08-14 13:27:07 - DEBUG - Command 'pct exec 100 -- awk '/MemTotal/ {total=$2} /MemAvailable/ {free=$2} END {print total-free}' /proc/meminfo' executed successfully.
-2024-08-14 13:27:09 - DEBUG - Command 'pct exec 100 -- awk '/MemTotal/ {print $2}' /proc/meminfo' executed successfully.
-2024-08-14 13:27:09 - DEBUG - Container 100 data: {'cpu': 0.0, 'mem': 13.37619357638889, 'initial_cores': 2, 'initial_memory': 2880}
-2024-08-14 13:27:09 - DEBUG - Container priorities: [('100', {'cpu': 0.0, 'mem': 13.37619357638889, 'initial_cores': 2, 'initial_memory': 2880})]
-2024-08-14 13:27:09 - DEBUG - Command 'nproc' executed successfully.
-2024-08-14 13:27:09 - DEBUG - Total cores: 16, Reserved cores: 1, Available cores: 15
-2024-08-14 13:27:09 - DEBUG - Command 'free -m | awk '/Mem:/ {print $2}'' executed successfully.
-2024-08-14 13:27:09 - DEBUG - Total memory: 19999MB, Reserved memory: 2048MB, Available memory: 17951MB
-2024-08-14 13:27:09 - INFO - Decreasing cores for container 100 by 2...
-2024-08-14 13:27:10 - DEBUG - Command 'pct set 100 -cores 1' executed successfully.
-2024-08-14 13:27:10 - WARNING - Gotify URL or Token not provided. Notification not sent.
-2024-08-14 13:27:10 - INFO - Decreasing memory for container 100 by 2048MB...
-2024-08-14 13:27:12 - DEBUG - Command 'pct set 100 -memory 832' executed successfully.
-2024-08-14 13:27:12 - WARNING - Gotify URL or Token not provided. Notification not sent.
-2024-08-14 13:27:12 - INFO - Final resources: 17 cores, 19999 MB memory
-2024-08-14 13:27:12 - INFO - Resource allocation process completed. Next run in 300 seconds.
+root@proxmox:~# tail /var/log/lxc_autoscale.log 
+2024-08-14 22:04:27 - INFO - Starting resource allocation process...
+2024-08-14 22:04:45 - INFO - Initial resources before adjustments: 40 cores, 124750 MB memory
+2024-08-14 22:04:45 - INFO - Decreasing cores for container 114 by 2...
+2024-08-14 22:04:47 - INFO - Decreasing cores for container 102 by 2...
+2024-08-14 22:04:48 - INFO - Decreasing memory for container 102 by 6656MB...
+2024-08-14 22:04:50 - INFO - Final resources after adjustments: 44 cores, 131406 MB memory
+2024-08-14 22:04:50 - INFO - Resource allocation process completed. Next run in 300 seconds.
 ```
 
 ## Uninstallation
