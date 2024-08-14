@@ -38,11 +38,12 @@ This script will:
 ## Configuration
 
 ### Configuration File
-
-The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.conf`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
+> [!IMPORTANT]  
+> The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.conf`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
 
 ### Configuration Backup
-Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.conf.YYYYMMDD-HHMMSS.backup`.
+> [!NOTE]  
+> Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.conf.YYYYMMDD-HHMMSS.backup`.
 
 ### Default Configuration
 
@@ -150,8 +151,8 @@ systemctl enable lxc_autoscale.service
 ```
 
 ## Logging
-
-Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. You can monitor this log file to observe the daemon's operations and troubleshoot any issues.
+> [!TIP]
+> Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. You can monitor this log file to observe the daemon's operations and troubleshoot any issues.
 
 ```
 root@proxmox:~# tail /var/log/lxc_autoscale.log 
