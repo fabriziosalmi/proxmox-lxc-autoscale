@@ -9,6 +9,8 @@ import signal
 import configparser
 from time import sleep
 from datetime import datetime
+from socket import gethostname
+from contextlib import contextmanager
 
 # Configuration file path
 CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.conf"
@@ -52,6 +54,7 @@ RESERVE_CPU_PERCENT = config.getint('DEFAULT', 'reserve_cpu_percent')
 RESERVE_MEMORY_MB = config.getint('DEFAULT', 'reserve_memory_mb')
 OFF_PEAK_START = config.getint('DEFAULT', 'off_peak_start')
 OFF_PEAK_END = config.getint('DEFAULT', 'off_peak_end')
+PROXMOX_HOSTNAME = gethostname()
 
 logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -68,7 +71,7 @@ parser.add_argument("--poll_interval", type=int, default=config.getint('DEFAULT'
 parser.add_argument("--cpu_upper", type=int, default=config.getint('DEFAULT', 'cpu_upper_threshold'), help="CPU usage upper threshold")
 parser.add_argument("--cpu_lower", type=int, default=config.getint('DEFAULT', 'cpu_lower_threshold'), help="CPU usage lower threshold")
 parser.add_argument("--mem_upper", type=int, default=config.getint('DEFAULT', 'memory_upper_threshold'), help="Memory usage upper threshold")
-parser.add_argument("--mem_lower", type=int, default=config.getint('DEFAULT', 'memory_lower_threshold'), help="Memory usage lower threshold")
+parser.add_argument("--mem_lower", type=int, default(config.getint('DEFAULT', 'memory_lower_threshold')), help="Memory usage lower threshold")
 parser.add_argument("--core_min", type=int, default=config.getint('DEFAULT', 'core_min_increment'), help="Minimum core increment")
 parser.add_argument("--core_max", type=int, default=config.getint('DEFAULT', 'core_max_increment'), help="Maximum core increment")
 parser.add_argument("--mem_min", type=int, default=config.getint('DEFAULT', 'memory_min_increment'), help="Minimum memory increment")
@@ -89,30 +92,37 @@ def handle_signal(signum, frame):
     global running
     logging.info(f"Received signal {signum}. Shutting down gracefully...")
     running = False
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
+signal.signal(signal.SIGHUP, handle_signal)  # Handle hangup signal
 
 # Helper function to execute shell commands
-def run_command(cmd):
+def run_command(cmd, timeout=30):
     try:
-        result = subprocess.check_output(cmd, shell=True).decode('utf-8').strip()
+        result = subprocess.check_output(cmd, shell=True, timeout=timeout).decode('utf-8').strip()
         logging.debug(f"Command '{cmd}' executed successfully.")
         return result
+    except subprocess.TimeoutExpired:
+        logging.error(f"Command '{cmd}' timed out after {timeout} seconds.")
+        return None
     except subprocess.CalledProcessError as e:
         logging.error(f"Command '{cmd}' failed with error: {e}")
         return None
 
 # Function to ensure singleton script execution
+@contextmanager
 def acquire_lock():
     lock_file = open(LOCK_FILE, 'w')
     try:
         fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return lock_file
+        yield lock_file
     except IOError:
-        lock_file.close()
         logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
         sys.exit(1)
+    finally:
+        lock_file.close()
 
 # Function to check if we are in off-peak hours
 def is_off_peak():
@@ -124,8 +134,11 @@ def is_off_peak():
 # Function to notify via Gotify
 def send_gotify_notification(title, message, priority=5):
     if args.gotify_url and args.gotify_token:
-        cmd = f"curl -X POST {args.gotify_url}/message -F 'title={title}' -F 'message={message}' -F 'priority={priority}' -H 'X-Gotify-Key: {args.gotify_token}'"
-        run_command(cmd)
+        hostname_info = f"[Host: {PROXMOX_HOSTNAME}]"
+        full_message = f"{hostname_info} {message}"
+        cmd = f"curl -X POST {args.gotify_url}/message -F 'title={title}' -F 'message={full_message}' -F 'priority={priority}' -H 'X-Gotify-Key: {args.gotify_token}'"
+        if run_command(cmd):
+            logging.info(f"Notification sent: {title} - {message}")
     else:
         logging.warning("Gotify URL or Token not provided. Notification not sent.")
 
@@ -337,16 +350,14 @@ def main_loop():
 
 # Main execution flow
 if __name__ == "__main__":
-    lock_file = acquire_lock()  # Acquire the lock and keep the lock file open
-
-    try:
-        if args.rollback:
-            logging.info("Starting rollback process...")
-            for ctid in get_containers():
-                rollback_container_settings(ctid)
-            logging.info("Rollback process completed.")
-        else:
-            main_loop()
-    finally:
-        lock_file.close()  # Ensure the lock file is closed at the end
-        logging.info("Releasing lock and exiting.")
+    with acquire_lock() as lock_file:
+        try:
+            if args.rollback:
+                logging.info("Starting rollback process...")
+                for ctid in get_containers():
+                    rollback_container_settings(ctid)
+                logging.info("Rollback process completed.")
+            else:
+                main_loop()
+        finally:
+            logging.info("Releasing lock and exiting.")
