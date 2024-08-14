@@ -49,6 +49,9 @@ if os.path.exists(CONFIG_FILE):
 
 # Set up logging
 LOG_FILE = config.get('DEFAULT', 'log_file')
+LOCK_FILE = config.get('DEFAULT', 'lock_file')
+BACKUP_DIR = config.get('DEFAULT', 'backup_dir')
+
 logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -57,6 +60,16 @@ console.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 console.setFormatter(formatter)
 logging.getLogger().addHandler(console)
+
+# Function to ensure singleton script execution
+def acquire_lock():
+    lock_file = open(LOCK_FILE, 'w')
+    try:
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return lock_file
+    except IOError:
+        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
+        sys.exit(1)
 
 # CLI Argument Parsing
 parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
@@ -79,6 +92,7 @@ parser.add_argument("--gotify_token", type=str, default=config.get('DEFAULT', 'g
 parser.add_argument("--energy_mode", action="store_true", default=config.getboolean('DEFAULT', 'energy_mode'), help="Enable energy efficiency mode during off-peak hours")
 parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
 args = parser.parse_args()
+
 
 running = True
 
