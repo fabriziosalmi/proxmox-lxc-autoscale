@@ -42,11 +42,7 @@ Before any update, the installation script automatically backs up the existing c
 
 ### Default Configuration
 
-The default configuration file contains the following sections and settings:
-
-### LXC AutoScale Configuration Parameters
-
-This section describes each parameter in the `[DEFAULT]` section of the LXC AutoScale configuration file. These settings control how the script manages the scaling of CPU and memory resources for containers.
+These settings control how the script manages the scaling of CPU and memory resources for containers. The default configuration file contains the following sections and settings:
 
 - **poll_interval** `300`  
   The interval, in seconds, at which the script polls container metrics to determine if scaling actions are required. A shorter interval results in more frequent checks and potential adjustments.
