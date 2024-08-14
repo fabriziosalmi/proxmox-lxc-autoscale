@@ -1,7 +1,7 @@
 
 # Proxmox LXC AutoScale
 
-> [!WARNING]  
+> [!CAUTION]
 > Initial version can be bugged, use at your own risk. I am not responsible for any damage on your lovely stuff by using this tool.
 
 ## Overview
@@ -115,7 +115,8 @@ Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. Yo
 
 ## Uninstallation
 
-The easiest way to uninstall LXC AutoScale is by using the following `curl` command:
+> [!TIP]
+> The easiest way to uninstall LXC AutoScale is by using the following `curl` command:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/uninstall.sh | bash
