@@ -20,18 +20,15 @@ DEFAULTS = {
     'cpu_lower_threshold': 20,
     'memory_upper_threshold': 80,
     'memory_lower_threshold': 20,
-    'storage_upper_threshold': 80,
     'core_min_increment': 1,
     'core_max_increment': 4,
     'memory_min_increment': 512,
-    'storage_increment': 10240,
     'min_cores': 1,
     'max_cores': 8,
     'min_memory': 512,
     'min_decrease_chunk': 512,
     'reserve_cpu_percent': 10,
     'reserve_memory_mb': 2048,
-    'reserve_storage_mb': 10240,
     'log_file': "/var/log/lxc_autoscale.log",
     'lock_file': "/var/lock/lxc_autoscale.lock",
     'backup_dir': "/var/lib/lxc_autoscale/backups",
@@ -53,7 +50,6 @@ LOCK_FILE = config.get('DEFAULT', 'lock_file')
 BACKUP_DIR = config.get('DEFAULT', 'backup_dir')
 RESERVE_CPU_PERCENT = config.getint('DEFAULT', 'reserve_cpu_percent')
 RESERVE_MEMORY_MB = config.getint('DEFAULT', 'reserve_memory_mb')
-RESERVE_STORAGE_MB = config.getint('DEFAULT', 'reserve_storage_mb')
 OFF_PEAK_START = config.getint('DEFAULT', 'off_peak_start')
 OFF_PEAK_END = config.getint('DEFAULT', 'off_peak_end')
 
@@ -73,11 +69,9 @@ parser.add_argument("--cpu_upper", type=int, default=config.getint('DEFAULT', 'c
 parser.add_argument("--cpu_lower", type=int, default=config.getint('DEFAULT', 'cpu_lower_threshold'), help="CPU usage lower threshold")
 parser.add_argument("--mem_upper", type=int, default=config.getint('DEFAULT', 'memory_upper_threshold'), help="Memory usage upper threshold")
 parser.add_argument("--mem_lower", type=int, default=config.getint('DEFAULT', 'memory_lower_threshold'), help="Memory usage lower threshold")
-parser.add_argument("--storage_upper", type=int, default=config.getint('DEFAULT', 'storage_upper_threshold'), help="Storage usage upper threshold")
 parser.add_argument("--core_min", type=int, default=config.getint('DEFAULT', 'core_min_increment'), help="Minimum core increment")
 parser.add_argument("--core_max", type=int, default=config.getint('DEFAULT', 'core_max_increment'), help="Maximum core increment")
 parser.add_argument("--mem_min", type=int, default=config.getint('DEFAULT', 'memory_min_increment'), help="Minimum memory increment")
-parser.add_argument("--storage_inc", type=int, default=config.getint('DEFAULT', 'storage_increment'), help="Storage increment in MB")
 parser.add_argument("--min_cores", type=int, default=config.getint('DEFAULT', 'min_cores'), help="Minimum number of cores per container")
 parser.add_argument("--max_cores", type=int, default=config.getint('DEFAULT', 'max_cores'), help="Maximum number of cores per container")
 parser.add_argument("--min_mem", type=int, default=config.getint('DEFAULT', 'min_memory'), help="Minimum memory per container in MB")
@@ -166,7 +160,6 @@ def rollback_container_settings(ctid):
         logging.info(f"Rolling back container {ctid} to backup settings")
         run_command(f"pct set {ctid} -cores {settings['cores']}")
         run_command(f"pct set {ctid} -memory {settings['memory']}")
-        run_command(f"pct resize {ctid} rootfs={settings['storage']}M")
         send_gotify_notification(f"Rollback for Container {ctid}", "Container settings rolled back to previous state.")
 
 # Function to get total available CPU cores on the host
@@ -184,13 +177,6 @@ def get_total_memory():
     logging.debug(f"Total memory: {total_memory}MB, Reserved memory: {RESERVE_MEMORY_MB}MB, Available memory: {available_memory}MB")
     return available_memory
 
-# Function to get total available storage on the host (in MB)
-def get_total_storage():
-    total_storage = int(run_command("df -m --output=avail / | tail -n 1"))
-    available_storage = max(0, total_storage - RESERVE_STORAGE_MB)
-    logging.debug(f"Total storage: {total_storage}MB, Reserved storage: {RESERVE_STORAGE_MB}MB, Available storage: {available_storage}MB")
-    return available_storage
-
 # Function to get CPU usage of a container
 def get_cpu_usage(ctid):
     cmd = f"pct exec {ctid} -- awk -v cores=$(nproc) '{{usage+=$1}} END {{print usage/cores}}' /proc/stat"
@@ -206,27 +192,6 @@ def get_memory_usage(ctid):
     logging.debug(f"Container {ctid} memory usage: {usage}%")
     return usage
 
-def get_storage_usage(ctid):
-    storage_used = run_command(f"pct exec {ctid} -- df -h / | awk 'NR==2 {{print $4}}'")
-    if not storage_used:  # Check if the command returned an empty result
-        logging.error(f"Failed to retrieve storage usage for container {ctid}")
-        return 0  # Return a default value, or handle it as you see fit
-
-    if 'G' in storage_used:
-        storage_used = float(storage_used.replace('G', '')) * 1024  # Convert GB to MB
-    elif 'M' in storage_used:
-        storage_used = float(storage_used.replace('M', ''))  # Already in MB
-    else:
-        try:
-            storage_used = float(storage_used)  # Handle edge cases
-        except ValueError as e:
-            logging.error(f"Conversion error for container {ctid}: {e}")
-            storage_used = 0  # Default value in case of error
-
-    logging.debug(f"Container {ctid} storage usage: {storage_used}MB")
-    return storage_used
-
-
 # Function to collect data about all containers
 def collect_container_data():
     containers = {}
@@ -234,16 +199,13 @@ def collect_container_data():
         logging.info(f"Collecting data for container {ctid}...")
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
-        storage = int(get_storage_usage(ctid))
-        settings = {"cores": cores, "memory": memory, "storage": storage}
+        settings = {"cores": cores, "memory": memory}
         backup_container_settings(ctid, settings)
         containers[ctid] = {
             "cpu": get_cpu_usage(ctid),
             "mem": get_memory_usage(ctid),
-            "storage": storage,
             "initial_cores": cores,
             "initial_memory": memory,
-            "initial_storage": storage
         }
         logging.debug(f"Container {ctid} data: {containers[ctid]}")
     return containers
@@ -258,24 +220,19 @@ def prioritize_containers(containers):
 def adjust_resources(containers):
     initial_cores = get_total_cores()
     initial_memory = get_total_memory()
-    initial_storage = get_total_storage()
 
     available_cores = initial_cores
     available_memory = initial_memory
-    available_storage = initial_storage
 
     for ctid, usage in containers:
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
-        storage_usage = usage['storage']
 
         current_cores = usage["initial_cores"]
         current_memory = usage["initial_memory"]
-        current_storage = usage["initial_storage"]
 
         cores_changed = False
         memory_changed = False
-        storage_changed = False
 
         # Adjust CPU cores if needed
         if cpu_usage > args.cpu_upper:
@@ -319,15 +276,6 @@ def adjust_resources(containers):
                 memory_changed = True
                 send_gotify_notification(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease_amount}MB.")
 
-        # Adjust storage if needed (only increase, no decrease)
-        if storage_usage > args.storage_upper:
-            if available_storage >= args.storage_inc:
-                logging.info(f"Increasing storage for container {ctid} by {args.storage_inc}MB...")
-                run_command(f"pct resize {ctid} rootfs={args.storage_inc}M")
-                available_storage -= args.storage_inc
-                storage_changed = True
-                send_gotify_notification(f"Storage Increased for Container {ctid}", f"Storage increased by {args.storage_inc}MB.")
-
         # Apply energy efficiency mode if enabled
         if args.energy_mode and is_off_peak():
             if current_cores > args.min_cores:
@@ -343,8 +291,8 @@ def adjust_resources(containers):
                 memory_changed = True
                 send_gotify_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {args.min_mem}MB for energy efficiency.")
 
-    logging.info(f"Initial resources: {initial_cores} cores, {initial_memory} MB memory, {initial_storage} MB storage")
-    logging.info(f"Final resources: {available_cores} cores, {available_memory} MB memory, {available_storage} MB storage")
+    logging.info(f"Initial resources: {initial_cores} cores, {initial_memory} MB memory")
+    logging.info(f"Final resources: {available_cores} cores, {available_memory} MB memory")
 
 def main_loop():
     while running:
