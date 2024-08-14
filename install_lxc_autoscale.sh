@@ -3,10 +3,83 @@
 # Variables
 SCRIPT_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/usr/local/bin/lxc_autoscale.py"
 SERVICE_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/etc/systemd/system/lxc_autoscale.service"
+CONF_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/etc/lxc_autoscale/lxc_autoscale.conf"
 INSTALL_PATH="/usr/local/bin/lxc_autoscale.py"
 SERVICE_PATH="/etc/systemd/system/lxc_autoscale.service"
+CONF_DIR="/etc/lxc_autoscale"
+CONF_PATH="${CONF_DIR}/lxc_autoscale.conf"
 LOG_PATH="/var/log/lxc_autoscale.log"
 BACKUP_DIR="/var/lib/lxc_autoscale/backups"
+REQUIRED_PACKAGES=("curl" "python3" "systemctl" "awk" "jq")
+
+# Function to check and install required packages
+install_required_packages() {
+    for pkg in "${REQUIRED_PACKAGES[@]}"; do
+        if ! dpkg -l | grep -qw "$pkg"; then
+            echo "🔍 Checking for $pkg..."
+            echo "❗ $pkg is not installed. Installing..."
+            apt-get update && apt-get install -y $pkg
+            if [ $? -ne 0 ]; then
+                echo "❌ Error: Failed to install $pkg."
+                exit 1
+            fi
+        else
+            echo "✅ $pkg is already installed."
+        fi
+    done
+}
+
+# Function to check and stop the service if running
+stop_service_if_running() {
+    if systemctl is-active --quiet lxc_autoscale.service; then
+        echo "🛑 Stopping LXC AutoScale service..."
+        systemctl stop lxc_autoscale.service
+        if [ $? -ne 0 ]; then
+            echo "❌ Error: Failed to stop the service."
+            exit 1
+        fi
+    fi
+}
+
+# Function to start the service
+start_service() {
+    echo "🚀 Starting the LXC AutoScale service..."
+    systemctl start lxc_autoscale.service
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to start the service."
+        exit 1
+    fi
+}
+
+# Function to enable the service
+enable_service() {
+    echo "🔧 Enabling the LXC AutoScale service..."
+    systemctl enable lxc_autoscale.service
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to enable the service."
+        exit 1
+    fi
+}
+
+# Function to backup existing configuration file
+backup_existing_conf() {
+    if [ -f "$CONF_PATH" ]; then
+        timestamp=$(date +"%Y%m%d-%H%M%S")
+        backup_conf="${CONF_PATH}.${timestamp}.backup"
+        echo "💾 Backing up existing configuration file to $backup_conf..."
+        cp "$CONF_PATH" "$backup_conf"
+        if [ $? -ne 0 ]; then
+            echo "❌ Error: Failed to backup the existing configuration file."
+            exit 1
+        fi
+    fi
+}
+
+# Check and install required packages
+install_required_packages
+
+# Stop the service if it's already running
+stop_service_if_running
 
 # Download the Python script
 echo "📥 Downloading the LXC AutoScale script..."
@@ -24,6 +97,16 @@ echo "📥 Downloading the systemd service file..."
 curl -o $SERVICE_PATH $SERVICE_URL
 if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to download the service file."
+    exit 1
+fi
+
+# Set up the configuration directory and file, with backup if needed
+echo "📂 Setting up configuration directory and file..."
+mkdir -p $CONF_DIR
+backup_existing_conf
+curl -o $CONF_PATH $CONF_URL
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to download the configuration file."
     exit 1
 fi
 
@@ -47,9 +130,8 @@ echo "🔄 Reloading systemd daemon..."
 systemctl daemon-reload
 
 # Enable and start the LXC AutoScale service
-echo "🚀 Enabling and starting the service..."
-systemctl enable lxc_autoscale.service
-systemctl start lxc_autoscale.service
+enable_service
+start_service
 
 # Check the status of the service
 echo "🔍 Checking service status..."
