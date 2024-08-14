@@ -415,7 +415,6 @@ def prioritize_containers(containers):
     logging.debug(f"Container priorities: {priorities}")
     return priorities
 
-
 # Function to adjust resources based on priority and available resources
 def adjust_resources(containers):
     """Adjust container resources based on their priority and available host resources."""
@@ -434,7 +433,7 @@ def adjust_resources(containers):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    for ctid, usage in containers.items():
+    for ctid, usage in containers:
         config = get_container_config(ctid)
         cpu_upper = config['cpu_upper_threshold']
         cpu_lower = config['cpu_lower_threshold']
@@ -542,7 +541,6 @@ def adjust_resources(containers):
 
     # Log final available resources once, after all adjustments are made
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
-
 
 def main_loop():
     """Main loop for resource allocation process."""
