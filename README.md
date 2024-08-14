@@ -21,7 +21,7 @@ LXC AutoScale is a resource management daemon designed to automatically adjust t
 The easiest way to install LXC AutoScale is by using the following `curl` command:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install_lxc_autoscale.sh | bash
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
 This script will:
@@ -114,7 +114,13 @@ Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. Yo
 
 ## Uninstallation
 
-If you wish to remove the LXC AutoScale daemon from your system, you can disable and stop the service, then delete the associated files:
+The easiest way to uninstall LXC AutoScale is by using the following `curl` command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/uninstall.sh | bash
+```
+
+If you wish to remove the LXC AutoScale daemon from your system manually, you can disable and stop the service, then delete the associated files:
 
 ```bash
 systemctl disable lxc_autoscale.service
