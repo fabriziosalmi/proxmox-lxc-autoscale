@@ -105,13 +105,14 @@ def run_command(cmd):
 
 # Function to ensure singleton script execution
 def acquire_lock():
-    with open(LOCK_FILE, 'w') as lock_file:
-        try:
-            fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return lock_file
-        except IOError:
-            logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
-            sys.exit(1)
+    lock_file = open(LOCK_FILE, 'w')
+    try:
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return lock_file
+    except IOError:
+        lock_file.close()
+        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
+        sys.exit(1)
 
 # Function to check if we are in off-peak hours
 def is_off_peak():
@@ -336,15 +337,16 @@ def main_loop():
 
 # Main execution flow
 if __name__ == "__main__":
-    # Acquire lock to prevent multiple instances
-    with acquire_lock():
-        try:
-            if args.rollback:
-                logging.info("Starting rollback process...")
-                for ctid in get_containers():
-                    rollback_container_settings(ctid)
-                logging.info("Rollback process completed.")
-            else:
-                main_loop()
-        finally:
-            logging.info("Releasing lock and exiting.")
+    lock_file = acquire_lock()  # Acquire the lock and keep the lock file open
+
+    try:
+        if args.rollback:
+            logging.info("Starting rollback process...")
+            for ctid in get_containers():
+                rollback_container_settings(ctid)
+            logging.info("Rollback process completed.")
+        else:
+            main_loop()
+    finally:
+        lock_file.close()  # Ensure the lock file is closed at the end
+        logging.info("Releasing lock and exiting.")
