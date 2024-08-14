@@ -251,7 +251,7 @@ def adjust_resources(containers):
     available_cores = initial_cores
     available_memory = initial_memory
 
-    for ctid, usage in containers.items():
+    for ctid, usage in containers:
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
 
