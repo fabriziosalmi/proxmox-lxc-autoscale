@@ -6,11 +6,11 @@
 
 ## Overview
 
-LXC AutoScale is a resource management daemon designed to automatically adjust the CPU, memory, and storage allocations of LXC containers based on their current usage and pre-defined thresholds. It helps in optimizing resource utilization, ensuring that critical containers have the necessary resources while also saving energy during off-peak hours.
+LXC AutoScale is a resource management daemon designed to automatically adjust the CPU and memory allocations of LXC containers based on their current usage and pre-defined thresholds. It helps in optimizing resource utilization, ensuring that critical containers have the necessary resources while also saving energy during off-peak hours.
 
 ## Features
 
-- **Automatic Resource Scaling:** Dynamically adjust CPU, memory, and storage based on usage thresholds.
+- **Automatic Resource Scaling:** Dynamically adjust CPU and memory based on usage thresholds.
 - **Energy Efficiency Mode:** Reduce resource allocation during off-peak hours to save energy.
 - **Container Prioritization:** Prioritize resource allocation based on container groupings (e.g., critical, non-critical).
 - **Automatic Backups:** Backup and rollback container configurations.
@@ -52,11 +52,9 @@ cpu_upper_threshold = 80         # Upper CPU usage threshold (percentage) before
 cpu_lower_threshold = 20         # Lower CPU usage threshold (percentage) before scaling down.
 memory_upper_threshold = 80      # Upper memory usage threshold (percentage) before scaling up.
 memory_lower_threshold = 20      # Lower memory usage threshold (percentage) before scaling down.
-storage_upper_threshold = 80     # Upper storage usage threshold (percentage) before scaling up.
 core_min_increment = 1           # Minimum number of CPU cores to add when scaling up.
 core_max_increment = 4           # Maximum number of CPU cores to add when scaling up.
 memory_min_increment = 512       # Minimum amount of memory (MB) to add when scaling up.
-storage_increment = 10240        # Amount of storage (MB) to add when scaling up.
 min_cores = 1                    # Minimum number of CPU cores per container.
 max_cores = 8                    # Maximum number of CPU cores per container.
 min_memory = 512                 # Minimum memory (MB) per container.
