@@ -233,7 +233,7 @@ for section in config.sections():
             'max_cores': config.getint(section, 'max_cores'),
             'min_memory': config.getint(section, 'min_memory')
         }
-        nodes = config.get(section, 'nodes').split(',')
+        nodes = config.get(section, 'lxc_containers').split(',')
         for ctid in nodes:
             LXC_TIER_ASSOCIATIONS[ctid.strip()] = tier_config
 
