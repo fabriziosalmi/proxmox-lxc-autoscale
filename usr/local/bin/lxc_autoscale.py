@@ -1,7 +1,4 @@
-"""
-LXC Autoscale - A resource management daemon for LXC containers.
-"""
-
+# Imports
 import argparse
 import configparser
 import fcntl
@@ -15,6 +12,7 @@ from contextlib import contextmanager
 from datetime import datetime
 from socket import gethostname
 from time import sleep
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configuration file path
 CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.conf"
@@ -27,10 +25,10 @@ DEFAULTS = {
     'memory_upper_threshold': 80,
     'memory_lower_threshold': 20,
     'core_min_increment': 1,
-    'core_max_increment': 4,
+    'core_max_increment': 8,
     'memory_min_increment': 512,
     'min_cores': 1,
-    'max_cores': 8,
+    'max_cores': 12,
     'min_memory': 512,
     'min_decrease_chunk': 512,
     'reserve_cpu_percent': 10,
@@ -174,7 +172,6 @@ args = parser.parse_args()
 
 running = True
 
-
 # Signal handler for graceful shutdown
 def handle_signal(signum, frame):
     """Handle signals for graceful shutdown."""
@@ -183,11 +180,9 @@ def handle_signal(signum, frame):
     running = False
     sys.exit(0)
 
-
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGHUP, handle_signal)  # Handle hangup signal
-
 
 # Helper function to execute shell commands
 def run_command(cmd, timeout=30):
@@ -202,9 +197,11 @@ def run_command(cmd, timeout=30):
     except subprocess.CalledProcessError as e:
         logging.error(f"Command '{cmd}' failed with error: {e}")
         return None
+    except Exception as e:
+        logging.error(f"Unexpected error during command execution '{cmd}': {e}")
+        return None
 
-
-# Function to ensure singleton script execution
+# Ensure singleton script execution
 @contextmanager
 def acquire_lock():
     """Ensure only one instance of the script is running."""
@@ -218,8 +215,26 @@ def acquire_lock():
     finally:
         lock_file.close()
 
+# Ensure LXC_TIER_ASSOCIATIONS is defined
+LXC_TIER_ASSOCIATIONS = {}
 
-# Function to check if we are in off-peak hours
+# Load tier configurations and associate LXC IDs with them
+for section in config.sections():
+    if section.startswith('TIER_'):
+        tier_config = {
+            'cpu_upper_threshold': config.getint(section, 'cpu_upper_threshold'),
+            'cpu_lower_threshold': config.getint(section, 'cpu_lower_threshold'),
+            'memory_upper_threshold': config.getint(section, 'memory_upper_threshold'),
+            'memory_lower_threshold': config.getint(section, 'memory_lower_threshold'),
+            'min_cores': config.getint(section, 'min_cores'),
+            'max_cores': config.getint(section, 'max_cores'),
+            'min_memory': config.getint(section, 'min_memory')
+        }
+        nodes = config.get(section, 'nodes').split(',')
+        for ctid in nodes:
+            LXC_TIER_ASSOCIATIONS[ctid.strip()] = tier_config
+
+# Check if we are in off-peak hours
 def is_off_peak():
     """Check if current time is within off-peak hours."""
     if args.energy_mode:
@@ -227,8 +242,7 @@ def is_off_peak():
         return OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END
     return False
 
-
-# Function to notify via Gotify
+# Send notification via Gotify
 def send_gotify_notification(title, message, priority=5):
     """Send a notification using Gotify."""
     if args.gotify_url and args.gotify_token:
@@ -244,15 +258,13 @@ def send_gotify_notification(title, message, priority=5):
     else:
         logging.warning("Gotify URL or Token not provided. Notification not sent.")
 
-
-# Function to get all containers
+# Get all containers
 def get_containers():
     """Retrieve a list of all containers."""
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
     return containers.splitlines() if containers else []
 
-
-# Function to check if a container is running
+# Check if a container is running
 def is_container_running(ctid):
     """Check if a container is currently running."""
     status = run_command(f"pct status {ctid}")
@@ -261,31 +273,35 @@ def is_container_running(ctid):
     logging.info(f"Container {ctid} is not running. Skipping adjustments.")
     return False
 
-
-# Function to backup container settings
+# Backup container settings
 def backup_container_settings(ctid, settings):
     """Backup the current settings of a container."""
-    os.makedirs(BACKUP_DIR, exist_ok=True)
-    backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-    with open(backup_file, 'w', encoding='utf-8') as f:
-        json.dump(settings, f)
-    logging.info(f"Backup saved for container {ctid}: {settings}")
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
+        with open(backup_file, 'w', encoding='utf-8') as f:
+            json.dump(settings, f)
+        logging.info(f"Backup saved for container {ctid}: {settings}")
+    except Exception as e:
+        logging.error(f"Failed to backup settings for container {ctid}: {e}")
 
-
-# Function to load backup settings
+# Load backup settings
 def load_backup_settings(ctid):
     """Load the backup settings for a container."""
-    backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-    if os.path.exists(backup_file):
-        with open(backup_file, 'r', encoding='utf-8') as f:
-            settings = json.load(f)
-        logging.info(f"Loaded backup for container {ctid}: {settings}")
-        return settings
-    logging.warning(f"No backup found for container {ctid}")
-    return None
+    try:
+        backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
+        if os.path.exists(backup_file):
+            with open(backup_file, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+            logging.info(f"Loaded backup for container {ctid}: {settings}")
+            return settings
+        logging.warning(f"No backup found for container {ctid}")
+        return None
+    except Exception as e:
+        logging.error(f"Failed to load backup settings for container {ctid}: {e}")
+        return None
 
-
-# Function to rollback container settings
+# Rollback container settings
 def rollback_container_settings(ctid):
     """Rollback container settings to the backup state."""
     settings = load_backup_settings(ctid)
@@ -298,8 +314,7 @@ def rollback_container_settings(ctid):
             "Container settings rolled back to previous state."
         )
 
-
-# Function to get total available CPU cores on the host
+# Get total available CPU cores on the host
 def get_total_cores():
     """Get the total number of available CPU cores."""
     total_cores = int(run_command("nproc"))
@@ -311,8 +326,7 @@ def get_total_cores():
     )
     return available_cores
 
-
-# Function to get total available memory on the host (in MB)
+# Get total available memory on the host (in MB)
 def get_total_memory():
     """Get the total available memory on the host in MB."""
     total_memory = int(run_command("free -m | awk '/Mem:/ {print $2}'"))
@@ -323,8 +337,7 @@ def get_total_memory():
     )
     return available_memory
 
-
-# Function to get CPU usage of a container
+# Get CPU usage of a container
 def get_cpu_usage(ctid):
     """Retrieve the CPU usage of a specific container."""
     cmd = (
@@ -339,8 +352,7 @@ def get_cpu_usage(ctid):
     logging.error(f"Failed to retrieve CPU usage for container {ctid}")
     return 0.0
 
-
-# Function to get memory usage of a container
+# Get memory usage of a container
 def get_memory_usage(ctid):
     """Retrieve the memory usage of a specific container."""
     mem_used = run_command(
@@ -355,75 +367,78 @@ def get_memory_usage(ctid):
     logging.error(f"Failed to retrieve memory usage for container {ctid}")
     return 0.0
 
+# Get container data in parallel
+def get_container_data(ctid):
+    """Retrieve CPU and memory usage for a specific container."""
+    if not is_container_running(ctid):
+        return None
 
-# Load tier configurations and associate LXC IDs with them
-TIER_CONFIGS = {}
-LXC_TIER_ASSOCIATIONS = {}
-
-for section in config.sections():
-    if section.startswith('TIER_'):
-        tier_config = {
-            'cpu_upper_threshold': config.getint(section, 'cpu_upper_threshold'),
-            'cpu_lower_threshold': config.getint(section, 'cpu_lower_threshold'),
-            'memory_upper_threshold': config.getint(section, 'memory_upper_threshold'),
-            'memory_lower_threshold': config.getint(section, 'memory_lower_threshold'),
-            'min_cores': config.getint(section, 'min_cores'),
-            'max_cores': config.getint(section, 'max_cores'),
-            'min_memory': config.getint(section, 'min_memory')
-        }
-        TIER_CONFIGS[section] = tier_config
-        nodes = config.get(section, 'nodes').split(',')
-        for ctid in nodes:
-            LXC_TIER_ASSOCIATIONS[ctid.strip()] = tier_config
-
-
-# Function to get the configuration for a specific container based on its assigned tier
-def get_container_config(ctid):
-    return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
-
-
-# Function to collect data about all containers
-def collect_container_data():
-    """Collect CPU and memory usage data for all running containers."""
-    containers = {}
-    for ctid in get_containers():
-        if not is_container_running(ctid):
-            continue
-        logging.info(f"Collecting data for container {ctid}...")
+    logging.info(f"Collecting data for container {ctid}...")
+    try:
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
         settings = {"cores": cores, "memory": memory}
         backup_container_settings(ctid, settings)
-        containers[ctid] = {
+        return {
             "cpu": get_cpu_usage(ctid),
             "mem": get_memory_usage(ctid),
             "initial_cores": cores,
             "initial_memory": memory,
         }
-        logging.debug(f"Container {ctid} data: {containers[ctid]}")
+    except Exception as e:
+        logging.error(f"Error collecting data for container {ctid}: {e}")
+        return None
+
+# Collect data about all containers in parallel
+def collect_container_data():
+    """Collect CPU and memory usage data for all running containers."""
+    containers = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:  # Adjust max_workers as needed
+        future_to_ctid = {executor.submit(get_container_data, ctid): ctid for ctid in get_containers()}
+        for future in as_completed(future_to_ctid):
+            ctid = future_to_ctid[future]
+            try:
+                data = future.result()
+                if data:
+                    containers[ctid] = data
+                    logging.debug(f"Container {ctid} data: {data}")
+            except Exception as e:
+                logging.error(f"Error retrieving data for container {ctid}: {e}")
     return containers
 
-
-# Function to prioritize containers based on resource needs
+# Prioritize containers based on resource needs
 def prioritize_containers(containers):
     """Prioritize containers based on their CPU and memory usage."""
     if not containers:
         logging.info("No containers to prioritize.")
         return []
 
-    priorities = sorted(containers.items(), key=lambda item: (item[1]['cpu'], item[1]['mem']), reverse=True)
-    logging.debug(f"Container priorities: {priorities}")
-    return priorities
+    try:
+        # Prioritize containers by their CPU and memory usage (in descending order)
+        priorities = sorted(
+            containers.items(),
+            key=lambda item: (item[1]['cpu'], item[1]['mem']),
+            reverse=True
+        )
+        logging.debug(f"Container priorities: {priorities}")
+        return priorities
+    except Exception as e:
+        logging.error(f"Error prioritizing containers: {e}")
+        return []
 
-# Function to adjust resources based on priority and available resources
+# Get the configuration for a specific container based on its assigned tier
+def get_container_config(ctid):
+    return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
+
+# Adjust resources based on priority and available resources
 def adjust_resources(containers):
     """Adjust container resources based on their priority and available host resources."""
     if not containers:
         logging.info("No containers to adjust.")
         return
 
-    total_cores = int(run_command("nproc"))
-    total_memory = int(run_command("free -m | awk '/Mem:/ {print $2}'"))
+    total_cores = get_total_cores()
+    total_memory = get_total_memory()
     
     reserved_cores = max(1, int(total_cores * RESERVE_CPU_PERCENT / 100))
     reserved_memory = RESERVE_MEMORY_MB
@@ -433,7 +448,7 @@ def adjust_resources(containers):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    for ctid, usage in containers:
+    for ctid, usage in containers.items():
         config = get_container_config(ctid)
         cpu_upper = config['cpu_upper_threshold']
         cpu_lower = config['cpu_lower_threshold']
@@ -547,17 +562,23 @@ def main_loop():
     while running:
         logging.info("Starting resource allocation process...")
 
-        # Step 1: Collect data about all containers
-        containers = collect_container_data()
+        try:
+            # Step 1: Collect data about all containers
+            containers = collect_container_data()
 
-        # Step 2: Prioritize containers based on their resource needs
-        priorities = prioritize_containers(containers)
+            # Step 2: Prioritize containers based on their resource needs
+            priorities = prioritize_containers(containers)
 
-        # Step 3: Adjust resources based on the prioritized list and available host resources
-        adjust_resources(priorities)
+            # Ensure priorities is in the correct format for adjust_resources
+            if isinstance(priorities, list) and all(isinstance(i, tuple) for i in priorities):
+                # Step 3: Adjust resources based on the prioritized list and available host resources
+                adjust_resources(dict(priorities))
 
-        logging.info(f"Resource allocation process completed. Next run in {args.poll_interval} seconds.")
-        sleep(args.poll_interval)
+            logging.info(f"Resource allocation process completed. Next run in {args.poll_interval} seconds.")
+            sleep(args.poll_interval)
+        except Exception as e:
+            logging.error(f"Error in main loop: {e}")
+            break
 
 
 # Main execution flow
