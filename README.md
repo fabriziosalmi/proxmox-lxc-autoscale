@@ -83,7 +83,7 @@ memory_lower_threshold = 10
 min_cores = 2
 max_cores = 12
 min_memory = 1024
-nodes = 100, 101, 102  # Comma-separated list of LXC IDs
+nodes = 100, 101, 102
 
 [TIER_2]
 cpu_upper_threshold = 85
@@ -93,7 +93,7 @@ memory_lower_threshold = 15
 min_cores = 1
 max_cores = 10
 min_memory = 768
-nodes = 103, 104, 105  # Comma-separated list of LXC IDs
+nodes = 103, 104, 105
 
 [TIER_3]
 cpu_upper_threshold = 80
@@ -103,7 +103,7 @@ memory_lower_threshold = 20
 min_cores = 1
 max_cores = 8
 min_memory = 512
-nodes = 106, 107, 108  # Comma-separated list of LXC IDs
+nodes = 106, 107, 108
 ```
 
 ## Service Management
