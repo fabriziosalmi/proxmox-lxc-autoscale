@@ -70,6 +70,41 @@ These settings control how the script manages the scaling of CPU and memory reso
 | `gotify_url`               | Example: http://gotify.example.com  | The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent. |
 | `gotify_token`             | Example: abcdef1234567890           | The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent. |
 
+### Tiers
+
+You can assign one or more LXC containers to different TIERS for specific thresholds assignements. You can define up to 3 different TIERS named TIER_1, TIER_2 and TIER_3. Just append and change accordingly with your needs this snippet to the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
+
+```
+[TIER_1]
+cpu_upper_threshold = 90
+cpu_lower_threshold = 10
+memory_upper_threshold = 90
+memory_lower_threshold = 10
+min_cores = 2
+max_cores = 12
+min_memory = 1024
+nodes = 100, 101, 102  # Comma-separated list of LXC IDs
+
+[TIER_2]
+cpu_upper_threshold = 85
+cpu_lower_threshold = 15
+memory_upper_threshold = 85
+memory_lower_threshold = 15
+min_cores = 1
+max_cores = 10
+min_memory = 768
+nodes = 103, 104, 105  # Comma-separated list of LXC IDs
+
+[TIER_3]
+cpu_upper_threshold = 80
+cpu_lower_threshold = 20
+memory_upper_threshold = 80
+memory_lower_threshold = 20
+min_cores = 1
+max_cores = 8
+min_memory = 512
+nodes = 106, 107, 108  # Comma-separated list of LXC IDs
+```
 
 ## Service Management
 
