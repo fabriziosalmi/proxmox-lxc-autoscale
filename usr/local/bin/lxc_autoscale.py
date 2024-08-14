@@ -356,6 +356,32 @@ def get_memory_usage(ctid):
     return 0.0
 
 
+# Load tier configurations and associate LXC IDs with them
+TIER_CONFIGS = {}
+LXC_TIER_ASSOCIATIONS = {}
+
+for section in config.sections():
+    if section.startswith('TIER_'):
+        tier_config = {
+            'cpu_upper_threshold': config.getint(section, 'cpu_upper_threshold'),
+            'cpu_lower_threshold': config.getint(section, 'cpu_lower_threshold'),
+            'memory_upper_threshold': config.getint(section, 'memory_upper_threshold'),
+            'memory_lower_threshold': config.getint(section, 'memory_lower_threshold'),
+            'min_cores': config.getint(section, 'min_cores'),
+            'max_cores': config.getint(section, 'max_cores'),
+            'min_memory': config.getint(section, 'min_memory')
+        }
+        TIER_CONFIGS[section] = tier_config
+        nodes = config.get(section, 'nodes').split(',')
+        for ctid in nodes:
+            LXC_TIER_ASSOCIATIONS[ctid.strip()] = tier_config
+
+
+# Function to get the configuration for a specific container based on its assigned tier
+def get_container_config(ctid):
+    return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
+
+
 # Function to collect data about all containers
 def collect_container_data():
     """Collect CPU and memory usage data for all running containers."""
@@ -408,7 +434,16 @@ def adjust_resources(containers):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    for ctid, usage in containers:
+    for ctid, usage in containers.items():
+        config = get_container_config(ctid)
+        cpu_upper = config['cpu_upper_threshold']
+        cpu_lower = config['cpu_lower_threshold']
+        mem_upper = config['memory_upper_threshold']
+        mem_lower = config['memory_lower_threshold']
+        min_cores = config['min_cores']
+        max_cores = config['max_cores']
+        min_memory = config['min_memory']
+
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
 
@@ -419,13 +454,13 @@ def adjust_resources(containers):
         memory_changed = False
 
         # Adjust CPU cores if needed
-        if cpu_usage > args.cpu_upper:
+        if cpu_usage > cpu_upper:
             increment = min(
                 args.core_max,
-                max(args.core_min, int((cpu_usage - args.cpu_upper) * args.core_min / 10))
+                max(args.core_min, int((cpu_usage - cpu_upper) * args.core_min / 10))
             )
-            new_cores = min(args.max_cores, current_cores + increment)
-            if available_cores >= increment and new_cores <= args.max_cores:
+            new_cores = min(max_cores, current_cores + increment)
+            if available_cores >= increment and new_cores <= max_cores:
                 logging.info(f"Increasing cores for container {ctid} by {increment}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores -= increment
@@ -436,13 +471,13 @@ def adjust_resources(containers):
                 )
             else:
                 logging.warning(f"Not enough available cores to increase for container {ctid}")
-        elif cpu_usage < args.cpu_lower and current_cores > args.min_cores:
+        elif cpu_usage < cpu_lower and current_cores > min_cores:
             decrement = min(
                 args.core_max,
-                max(args.core_min, int((args.cpu_lower - cpu_usage) * args.core_min / 10))
+                max(args.core_min, int((cpu_lower - cpu_usage) * args.core_min / 10))
             )
-            new_cores = max(args.min_cores, current_cores - decrement)
-            if new_cores >= args.min_cores:
+            new_cores = max(min_cores, current_cores - decrement)
+            if new_cores >= min_cores:
                 logging.info(f"Decreasing cores for container {ctid} by {decrement}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores += decrement
@@ -453,10 +488,10 @@ def adjust_resources(containers):
                 )
 
         # Adjust memory if needed
-        if mem_usage > args.mem_upper:
+        if mem_usage > mem_upper:
             increment = max(
                 args.mem_min,
-                int((mem_usage - args.mem_upper) * args.mem_min / 10)
+                int((mem_usage - mem_upper) * args.mem_min / 10)
             )
             if available_memory >= increment:
                 logging.info(f"Increasing memory for container {ctid} by {increment}MB...")
@@ -470,10 +505,10 @@ def adjust_resources(containers):
                 )
             else:
                 logging.warning(f"Not enough available memory to increase for container {ctid}")
-        elif mem_usage < args.mem_lower and current_memory > args.min_mem:
+        elif mem_usage < mem_lower and current_memory > min_memory:
             decrease_amount = min(
-                args.min_decrease_chunk * ((current_memory - args.min_mem) // args.min_decrease_chunk),
-                current_memory - args.min_mem
+                args.min_decrease_chunk * ((current_memory - min_memory) // args.min_decrease_chunk),
+                current_memory - min_memory
             )
             if decrease_amount > 0:
                 logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB...")
@@ -488,21 +523,21 @@ def adjust_resources(containers):
 
         # Apply energy efficiency mode if enabled
         if args.energy_mode and is_off_peak():
-            if current_cores > args.min_cores:
+            if current_cores > min_cores:
                 logging.info(f"Reducing cores for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(f"pct set {ctid} -cores {args.min_cores}")
-                available_cores += (current_cores - args.min_cores)
+                run_command(f"pct set {ctid} -cores {min_cores}")
+                available_cores += (current_cores - min_cores)
                 send_gotify_notification(
                     f"CPU Reduced for Container {ctid}",
-                    f"CPU cores reduced to {args.min_cores} for energy efficiency."
+                    f"CPU cores reduced to {min_cores} for energy efficiency."
                 )
-            if current_memory > args.min_mem:
+            if current_memory > min_memory:
                 logging.info(f"Reducing memory for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(f"pct set {ctid} -memory {args.min_mem}")
-                available_memory += (current_memory - args.min_mem)
+                run_command(f"pct set {ctid} -memory {min_memory}")
+                available_memory += (current_memory - min_memory)
                 send_gotify_notification(
                     f"Memory Reduced for Container {ctid}",
-                    f"Memory reduced to {args.min_mem}MB for energy efficiency."
+                    f"Memory reduced to {min_memory}MB for energy efficiency."
                 )
 
     # Log final available resources once, after all adjustments are made
