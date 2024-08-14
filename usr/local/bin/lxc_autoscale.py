@@ -1,3 +1,7 @@
+"""
+LXC Autoscale - A resource management daemon for LXC containers.
+"""
+
 import argparse
 import configparser
 import fcntl
