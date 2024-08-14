@@ -6,7 +6,7 @@ import fcntl
 import json
 import argparse
 import signal
-import configparser  # Add this import
+import configparser
 from time import sleep, time
 from datetime import datetime
 
@@ -51,6 +51,11 @@ if os.path.exists(CONFIG_FILE):
 LOG_FILE = config.get('DEFAULT', 'log_file')
 LOCK_FILE = config.get('DEFAULT', 'lock_file')
 BACKUP_DIR = config.get('DEFAULT', 'backup_dir')
+RESERVE_CPU_PERCENT = config.getint('DEFAULT', 'reserve_cpu_percent')
+RESERVE_MEMORY_MB = config.getint('DEFAULT', 'reserve_memory_mb')
+RESERVE_STORAGE_MB = config.getint('DEFAULT', 'reserve_storage_mb')
+OFF_PEAK_START = config.getint('DEFAULT', 'off_peak_start')
+OFF_PEAK_END = config.getint('DEFAULT', 'off_peak_end')
 
 logging.basicConfig(filename=LOG_FILE, level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -60,16 +65,6 @@ console.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 console.setFormatter(formatter)
 logging.getLogger().addHandler(console)
-
-# Function to ensure singleton script execution
-def acquire_lock():
-    lock_file = open(LOCK_FILE, 'w')
-    try:
-        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return lock_file
-    except IOError:
-        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
-        sys.exit(1)
 
 # CLI Argument Parsing
 parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
@@ -92,7 +87,6 @@ parser.add_argument("--gotify_token", type=str, default=config.get('DEFAULT', 'g
 parser.add_argument("--energy_mode", action="store_true", default=config.getboolean('DEFAULT', 'energy_mode'), help="Enable energy efficiency mode during off-peak hours")
 parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
 args = parser.parse_args()
-
 
 running = True
 
@@ -228,9 +222,6 @@ def get_storage_usage(ctid):
 def collect_container_data():
     containers = {}
     for ctid in get_containers():
-        if ctid in IGNORED_CONTAINERS:
-            logging.info(f"Ignoring container {ctid} as per configuration.")
-            continue
         logging.info(f"Collecting data for container {ctid}...")
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
