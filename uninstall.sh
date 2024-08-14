@@ -11,10 +11,17 @@ LOCK_FILE="/var/lock/lxc_autoscale.lock"
 
 # Function to kill the process if it's running
 kill_process() {
-    local pid=$(pgrep -f "$INSTALL_PATH")
-    if [ -n "$pid" ]; then
-        echo "🛑 Killing the running LXC AutoScale process (PID: $pid)..."
-        kill -9 $pid
+    local pids=$(pgrep -f "$INSTALL_PATH")
+    if [ -n "$pids" ]; then
+        echo "🛑 Killing the running LXC AutoScale process(es)..."
+        echo "$pids" | xargs kill -9
+        # Verify that the processes have been killed
+        sleep 2
+        if pgrep -f "$INSTALL_PATH" > /dev/null; then
+            echo "⚠️ Failed to kill some LXC AutoScale processes. Please check manually."
+        else
+            echo "✅ All LXC AutoScale processes have been successfully killed."
+        fi
     else
         echo "✅ No running LXC AutoScale process found."
     fi
