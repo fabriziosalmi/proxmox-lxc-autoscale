@@ -206,17 +206,26 @@ def get_memory_usage(ctid):
     logging.debug(f"Container {ctid} memory usage: {usage}%")
     return usage
 
-# Function to get storage usage of a container
 def get_storage_usage(ctid):
     storage_used = run_command(f"pct exec {ctid} -- df -h / | awk 'NR==2 {{print $4}}'")
+    if not storage_used:  # Check if the command returned an empty result
+        logging.error(f"Failed to retrieve storage usage for container {ctid}")
+        return 0  # Return a default value, or handle it as you see fit
+
     if 'G' in storage_used:
         storage_used = float(storage_used.replace('G', '')) * 1024  # Convert GB to MB
     elif 'M' in storage_used:
         storage_used = float(storage_used.replace('M', ''))  # Already in MB
     else:
-        storage_used = float(storage_used)  # Handle edge cases
+        try:
+            storage_used = float(storage_used)  # Handle edge cases
+        except ValueError as e:
+            logging.error(f"Conversion error for container {ctid}: {e}")
+            storage_used = 0  # Default value in case of error
+
     logging.debug(f"Container {ctid} storage usage: {storage_used}MB")
     return storage_used
+
 
 # Function to collect data about all containers
 def collect_container_data():
