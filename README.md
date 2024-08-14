@@ -31,7 +31,7 @@ This script will:
 1. Download the latest version of the LXC AutoScale Python script.
 2. Download and install the systemd service file.
 3. Set up the necessary directories and configuration files.
-4. Ask the user if he want to keep existing conf if present.
+4. Ask the user to keep or overwrite the existing configuration, if present.
 5. Back up any existing configuration files before updating them.
 6. Enable and start the LXC AutoScale systemd service.
 
