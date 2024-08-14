@@ -146,9 +146,10 @@ root@proxmox:~# tail -n50 /var/log/lxc_autoscale.log
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/uninstall.sh | bash
 ```
 
-If you wish to remove the LXC AutoScale daemon from your system manually, you can disable and stop the service, then delete the associated files:
+If you wish to remove the LXC AutoScale daemon from your system manually, you can force to kill, disable and stop the service, then delete the associated files:
 
 ```bash
+kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
 systemctl disable lxc_autoscale.service
 systemctl stop lxc_autoscale.service
 rm -f /usr/local/bin/lxc_autoscale.py
