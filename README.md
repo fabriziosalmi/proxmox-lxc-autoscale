@@ -169,6 +169,112 @@ rm -rf /etc/lxc_autoscale/
 rm -rf /var/lib/lxc_autoscale/
 ```
 
+## Application diagram
+
+```
++------------------------------+
+|        LXC AutoScale          |
++------------------------------+
+              |
+              v
++-----------------------------------------+
+|             Configuration               |
+| (config file: /etc/lxc_autoscale.conf)  |
+|                                         |
+| - poll_interval                         |
+| - cpu_upper_threshold                   |
+| - cpu_lower_threshold                   |
+| - memory_upper_threshold                |
+| - memory_lower_threshold                |
+| - core_min_increment                    |
+| - core_max_increment                    |
+| - memory_min_increment                  |
+| - min_cores                             |
+| - max_cores                             |
+| - min_memory                            |
+| - min_decrease_chunk                    |
+| - reserve_cpu_percent                   |
+| - reserve_memory_mb                     |
+| - log_file                              |
+| - lock_file                             |
+| - backup_dir                            |
+| - off_peak_start                        |
+| - off_peak_end                          |
+| - energy_mode                           |
+| - gotify_url                            |
+| - gotify_token                          |
++-----------------------------------------+
+              |
+              v
++-----------------------------------------+
+|          Main Script Execution          |
+|       (/usr/local/bin/lxc_autoscale.py) |
++-----------------------------------------+
+              |
+              v
++-------------------------------------------+
+|        Script Initialization               |
+| - Load configuration from file             |
+| - Setup logging                            |
+| - Acquire lock to prevent multiple         |
+|   instances                                |
+| - Setup signal handlers for graceful       |
+|   shutdown                                 |
++-------------------------------------------+
+              |
+              v
++-------------------------------------------+
+|         Main Loop                         |
+| - Runs indefinitely unless terminated     |
+| - Steps:                                  |
+|   1. Collect data about all containers    |
+|   2. Prioritize containers based on       |
+|      resource needs                       |
+|   3. Adjust resources (CPU, Memory)       |
+|      based on priorities and thresholds   |
+|   4. Apply energy efficiency mode during  |
+|      off-peak hours if enabled            |
+|   5. Sleep for the configured             |
+|      poll_interval                        |
++-------------------------------------------+
+              |
+              v
++-------------------------------------------+
+|       Container Data Collection           |
+| - Get list of all running containers      |
+| - For each container:                     |
+|   * Get CPU usage                         |
+|   * Get Memory usage                      |
+|   * Backup current settings               |
++-------------------------------------------+
+              |
+              v
++-------------------------------------------+
+|        Resource Adjustment                |
+| - For each container, based on priority:  |
+|   * Increase/Decrease CPU cores if needed |
+|   * Increase/Decrease Memory if needed    |
+| - Apply energy-saving measures if enabled |
++-------------------------------------------+
+              |
+              v
++-------------------------------------------+
+|        Notifications via Gotify           |
+| - Send notifications for significant      |
+|   actions taken (e.g., resource changes)  |
+| - Only if Gotify URL and Token are        |
+|   configured                              |
++-------------------------------------------+
+              |
+              v
++-------------------------------------------+
+|         Shutdown Handling                 |
+| - Release lock file                       |
+| - Cleanup resources                       |
+| - Ensure graceful shutdown                |
++-------------------------------------------+
+```
+
 ## Disclaimer
 
 > [!CAUTION]
