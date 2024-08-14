@@ -72,7 +72,7 @@ These settings control how the script manages the scaling of CPU and memory reso
 | `gotify_url`               | Example: `http://gotify.example.com`  | The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent. |
 | `gotify_token`             | Example: `abcdef1234567890`         | The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent. |
 | `ignore_lxc`             | Example: `101, 102, 103`        |  Add one or more LXC containers to the ignore list. Ignore hosts are not affected by the autoscaling process. |
-| `behaviour`             | Example: normal           | The behaviour acts as a multiplier for autoscaling resources tresholds. Default is `normal` and doeasn't modify nothing, `conservative` is like 0.5x and `aggressive` is like 2x. |
+| `behaviour`             | Example: normal           | The behaviour acts as a multiplier for autoscaling resources thresholds. Default is `normal` and respect configuration paramenters, `conservative` is like 0.5x and `aggressive` is like 2x. |
 
 ### Tiers
 
