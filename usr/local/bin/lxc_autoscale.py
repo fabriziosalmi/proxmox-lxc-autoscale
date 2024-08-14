@@ -26,7 +26,7 @@ DEFAULTS = {
     'core_min_increment': 1,
     'core_max_increment': 8,
     'memory_min_increment': 512,
-    'min_cores': 1,
+    'min_cores': 2,  # Changed default min_cores to 2 as per the requirement
     'max_cores': 12,
     'min_memory': 512,
     'min_decrease_chunk': 512,
@@ -507,12 +507,14 @@ def adjust_resources(containers):
             if new_cores >= min_cores:
                 logging.info(f"Decreasing cores for container {ctid} by {decrement}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
-                available_cores += decrement
+                available_cores += (current_cores - new_cores)  # Corrected available core logic
                 cores_changed = True
                 send_gotify_notification(
                     f"CPU Decreased for Container {ctid}",
                     f"CPU cores decreased to {new_cores}."
                 )
+            else:
+                logging.warning(f"Cannot decrease cores below min_cores for container {ctid}")
 
         # Adjust memory if needed
         if mem_usage > mem_upper:
@@ -592,7 +594,6 @@ def main_loop():
         except Exception as e:
             logging.error(f"Error in main loop: {e}")
             break
-
 
 # Main execution flow
 if __name__ == "__main__":
