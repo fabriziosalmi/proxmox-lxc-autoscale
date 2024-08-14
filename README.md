@@ -74,7 +74,7 @@ These settings control how the script manages the scaling of CPU and memory reso
 | `ignore_lxc`             | Example: `101, 102, 103`        |  Add one or more LXC containers to the ignore list. Ignore hosts are not affected by the autoscaling process. |
 | `behaviour`             | Example: normal           | The behaviour acts as a multiplier for autoscaling resources thresholds. Default is `normal` and respect configuration paramenters, `conservative` is like 0.5x and `aggressive` is like 2x. |
 
-### Tiers
+### Tiers (optional)
 
 You can assign one or more LXC containers to different TIERS for specific thresholds assignments. You can define up to 3 different TIERS named TIER_1, TIER_2 and TIER_3. Just append and change accordingly with your needs this snippet to the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
 
