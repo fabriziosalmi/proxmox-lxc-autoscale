@@ -9,9 +9,23 @@ LOG_PATH="/var/log/lxc_autoscale.log"
 BACKUP_DIR="/var/lib/lxc_autoscale/backups"
 LOCK_FILE="/var/lock/lxc_autoscale.lock"
 
+# Function to kill the process if it's running
+kill_process() {
+    local pid=$(pgrep -f "$INSTALL_PATH")
+    if [ -n "$pid" ]; then
+        echo "🛑 Killing the running LXC AutoScale process (PID: $pid)..."
+        kill -9 $pid
+    else
+        echo "✅ No running LXC AutoScale process found."
+    fi
+}
+
 # Stop the service if it's running
 echo "🛑 Stopping the LXC AutoScale service..."
 systemctl stop $SERVICE_NAME
+
+# Kill the process if it's still running
+kill_process
 
 # Disable the service to prevent it from starting on boot
 echo "🔧 Disabling the LXC AutoScale service..."
