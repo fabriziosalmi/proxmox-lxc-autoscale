@@ -138,6 +138,14 @@ def get_containers():
         logging.info("No containers found.")
         return []
 
+# Function to check if a container is running
+def is_container_running(ctid):
+    status = run_command(f"pct status {ctid}")
+    if status and "status: running" in status.lower():
+        return True
+    logging.info(f"Container {ctid} is not running. Skipping adjustments.")
+    return False
+
 # Function to backup container settings
 def backup_container_settings(ctid, settings):
     os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -215,6 +223,8 @@ def collect_container_data():
         return containers
 
     for ctid in container_list:
+        if not is_container_running(ctid):
+            continue
         logging.info(f"Collecting data for container {ctid}...")
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
