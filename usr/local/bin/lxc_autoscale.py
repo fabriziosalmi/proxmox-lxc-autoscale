@@ -132,7 +132,11 @@ def send_gotify_notification(title, message, priority=5):
 # Function to get all containers
 def get_containers():
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
-    return containers.splitlines() if containers else []
+    if containers:
+        return containers.splitlines()
+    else:
+        logging.info("No containers found.")
+        return []
 
 # Function to backup container settings
 def backup_container_settings(ctid, settings):
@@ -181,21 +185,36 @@ def get_total_memory():
 def get_cpu_usage(ctid):
     cmd = f"pct exec {ctid} -- awk -v cores=$(nproc) '{{usage+=$1}} END {{print usage/cores}}' /proc/stat"
     usage = run_command(cmd)
-    logging.debug(f"Container {ctid} CPU usage: {usage}%")
-    return float(usage)
+    if usage is not None:
+        try:
+            return float(usage)
+        except ValueError:
+            logging.error(f"Failed to convert CPU usage to float for container {ctid}: '{usage}'")
+    logging.error(f"Failed to retrieve CPU usage for container {ctid}")
+    return 0.0
 
 # Function to get memory usage of a container
 def get_memory_usage(ctid):
-    mem_used = int(run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{total=$2}} /MemAvailable/ {{free=$2}} END {{print total-free}}' /proc/meminfo"))
-    mem_total = int(run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{print $2}}' /proc/meminfo"))
-    usage = (mem_used * 100) / mem_total
-    logging.debug(f"Container {ctid} memory usage: {usage}%")
-    return usage
+    mem_used = run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{total=$2}} /MemAvailable/ {{free=$2}} END {{print total-free}}' /proc/meminfo")
+    mem_total = run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{print $2}}' /proc/meminfo")
+    if mem_used and mem_total:
+        try:
+            usage = (int(mem_used) * 100) / int(mem_total)
+            return usage
+        except ValueError:
+            logging.error(f"Failed to calculate memory usage for container {ctid}")
+    logging.error(f"Failed to retrieve memory usage for container {ctid}")
+    return 0.0
 
 # Function to collect data about all containers
 def collect_container_data():
     containers = {}
-    for ctid in get_containers():
+    container_list = get_containers()
+    if not container_list:
+        logging.info("No containers to process.")
+        return containers
+
+    for ctid in container_list:
         logging.info(f"Collecting data for container {ctid}...")
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
@@ -212,19 +231,27 @@ def collect_container_data():
 
 # Function to prioritize containers based on resource needs
 def prioritize_containers(containers):
+    if not containers:
+        logging.info("No containers to prioritize.")
+        return []
+
     priorities = sorted(containers.items(), key=lambda item: (item[1]['cpu'], item[1]['mem']), reverse=True)
     logging.debug(f"Container priorities: {priorities}")
     return priorities
 
 # Function to adjust resources based on priority and available resources
 def adjust_resources(containers):
+    if not containers:
+        logging.info("No containers to adjust.")
+        return
+
     initial_cores = get_total_cores()
     initial_memory = get_total_memory()
 
     available_cores = initial_cores
     available_memory = initial_memory
 
-    for ctid, usage in containers:
+    for ctid, usage in containers.items():
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
 
