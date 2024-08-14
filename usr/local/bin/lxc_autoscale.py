@@ -63,7 +63,7 @@ PROXMOX_HOSTNAME = gethostname()
 
 logging.basicConfig(
     filename=LOG_FILE,
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -259,7 +259,7 @@ def send_gotify_notification(title, message, priority=5):
         if run_command(cmd):
             logging.info(f"Notification sent: {title} - {message}")
     else:
-        logging.warning("Gotify URL or Token not provided. Notification not sent.")
+        logging.debug("Gotify URL or Token not provided. Notification not sent.")
 
 # Get all containers
 def get_containers():
@@ -284,7 +284,7 @@ def backup_container_settings(ctid, settings):
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
         with open(backup_file, 'w', encoding='utf-8') as f:
             json.dump(settings, f)
-        logging.info(f"Backup saved for container {ctid}: {settings}")
+        logging.debug(f"Backup saved for container {ctid}: {settings}")
     except Exception as e:
         logging.error(f"Failed to backup settings for container {ctid}: {e}")
 
@@ -296,7 +296,7 @@ def load_backup_settings(ctid):
         if os.path.exists(backup_file):
             with open(backup_file, 'r', encoding='utf-8') as f:
                 settings = json.load(f)
-            logging.info(f"Loaded backup for container {ctid}: {settings}")
+            logging.debug(f"Loaded backup for container {ctid}: {settings}")
             return settings
         logging.warning(f"No backup found for container {ctid}")
         return None
@@ -380,7 +380,7 @@ def get_container_data(ctid):
     if not is_container_running(ctid):
         return None
 
-    logging.info(f"Collecting data for container {ctid}...")
+    logging.debug(f"Collecting data for container {ctid}...")
     try:
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
