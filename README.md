@@ -41,10 +41,14 @@ This script will:
 
 The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.conf`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
 
-**Backup of Configuration:**
+### Configuration Backup
 Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.conf.YYYYMMDD-HHMMSS.backup`.
 
 ### Default Configuration
+
+
+> [!TIP]
+> The easiest way to test LXC AutoScale is to enable it on a testing LXC container, play and tune parameters to understand the game. You can bypass the autoscaling process just by adding LXC containers ids to the option `ignore_lxc`.
 
 These settings control how the script manages the scaling of CPU and memory resources for containers. The default configuration file contains the following sections and settings:
 
