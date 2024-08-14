@@ -69,8 +69,10 @@ These settings control how the script manages the scaling of CPU and memory reso
 | `off_peak_start`           | 22                                  | The hour (in 24-hour format) at which off-peak energy-saving mode begins. During off-peak hours, the script may reduce resources to save energy if `energy_mode` is enabled. |
 | `off_peak_end`             | 6                                   | The hour (in 24-hour format) at which off-peak energy-saving mode ends. After this time, containers may be scaled back up to handle peak load. |
 | `energy_mode`              | False                               | A boolean setting that enables or disables energy-saving mode during off-peak hours. When enabled, this mode reduces CPU and memory resources allocated to containers during off-peak hours to save energy. |
-| `gotify_url`               | Example: http://gotify.example.com  | The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent. |
-| `gotify_token`             | Example: abcdef1234567890           | The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent. |
+| `gotify_url`               | Example: `http://gotify.example.com`  | The URL for a Gotify server used for sending notifications about scaling actions or other important events. If left blank, notifications will not be sent. |
+| `gotify_token`             | Example: `abcdef1234567890`         | The authentication token for accessing the Gotify server. This token is required if `gotify_url` is set and notifications are to be sent. |
+| `ignore_lxc`             | Example: `101, 102, 103`        |  Add one or more LXC containers to the ignore list. Ignore hosts are not affected by the autoscaling process. |
+| `behaviour`             | Example: normal           | The behaviour acts as a multiplier for autoscaling resources tresholds. Default is `normal` and doeasn't modify nothing, `conservative` is like 0.5x and `aggressive` is like 2x. |
 
 ### Tiers
 
