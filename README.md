@@ -20,7 +20,7 @@ LXC AutoScale is a resource management daemon designed to **automatically adjust
 
 ## Installation
 
-The easiest way to install LXC AutoScale is by using the following `curl` command:
+The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
@@ -31,8 +31,9 @@ This script will:
 1. Download the latest version of the LXC AutoScale Python script.
 2. Download and install the systemd service file.
 3. Set up the necessary directories and configuration files.
-4. Back up any existing configuration files before updating them.
-5. Enable and start the LXC AutoScale systemd service.
+4. Ask the user if he want to keep existing conf if present.
+5. Back up any existing configuration files before updating them.
+6. Enable and start the LXC AutoScale systemd service.
 
 ## Configuration
 
