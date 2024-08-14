@@ -9,6 +9,10 @@ LOG_PATH="/var/log/lxc_autoscale.log"
 BACKUP_DIR="/var/lib/lxc_autoscale/backups"
 LOCK_FILE="/var/lock/lxc_autoscale.lock"
 
+# Dirty workaround to force existing process to terminate
+echo "⚠️ Dirty workaround to force existing process to terminate.."
+kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
+
 # Function to kill the process if it's running
 kill_process() {
     local pids=$(pgrep -f "$INSTALL_PATH")
