@@ -1,4 +1,3 @@
-# Imports
 import argparse
 import configparser
 import fcntl
@@ -40,7 +39,9 @@ DEFAULTS = {
     'off_peak_end': 6,
     'energy_mode': False,
     'gotify_url': '',
-    'gotify_token': ''
+    'gotify_token': '',
+    'ignore_lxc': '',  # New option to ignore specific containers
+    'behaviour': 'normal'  # New option for behaviour: normal, conservative, aggressive
 }
 
 # Load configuration from file
@@ -56,6 +57,8 @@ RESERVE_CPU_PERCENT = config.getint('DEFAULT', 'reserve_cpu_percent')
 RESERVE_MEMORY_MB = config.getint('DEFAULT', 'reserve_memory_mb')
 OFF_PEAK_START = config.getint('DEFAULT', 'off_peak_start')
 OFF_PEAK_END = config.getint('DEFAULT', 'off_peak_end')
+IGNORE_LXC = config.get('DEFAULT', 'ignore_lxc').split(',')
+BEHAVIOUR = config.get('DEFAULT', 'behaviour').lower()
 PROXMOX_HOSTNAME = gethostname()
 
 logging.basicConfig(
@@ -370,6 +373,10 @@ def get_memory_usage(ctid):
 # Get container data in parallel
 def get_container_data(ctid):
     """Retrieve CPU and memory usage for a specific container."""
+    if ctid in IGNORE_LXC:
+        logging.info(f"Container {ctid} is in the ignore list. Skipping...")
+        return None
+
     if not is_container_running(ctid):
         return None
 
@@ -467,11 +474,17 @@ def adjust_resources(containers):
         cores_changed = False
         memory_changed = False
 
+        behaviour_multiplier = 1.0
+        if BEHAVIOUR == 'conservative':
+            behaviour_multiplier = 0.5
+        elif BEHAVIOUR == 'aggressive':
+            behaviour_multiplier = 2.0
+
         # Adjust CPU cores if needed
         if cpu_usage > cpu_upper:
             increment = min(
-                args.core_max,
-                max(args.core_min, int((cpu_usage - cpu_upper) * args.core_min / 10))
+                int(args.core_max * behaviour_multiplier),
+                max(int(args.core_min * behaviour_multiplier), int((cpu_usage - cpu_upper) * args.core_min / 10))
             )
             new_cores = min(max_cores, current_cores + increment)
             if available_cores >= increment and new_cores <= max_cores:
@@ -487,8 +500,8 @@ def adjust_resources(containers):
                 logging.warning(f"Not enough available cores to increase for container {ctid}")
         elif cpu_usage < cpu_lower and current_cores > min_cores:
             decrement = min(
-                args.core_max,
-                max(args.core_min, int((cpu_lower - cpu_usage) * args.core_min / 10))
+                int(args.core_max * behaviour_multiplier),
+                max(int(args.core_min * behaviour_multiplier), int((cpu_lower - cpu_usage) * args.core_min / 10))
             )
             new_cores = max(min_cores, current_cores - decrement)
             if new_cores >= min_cores:
@@ -504,7 +517,7 @@ def adjust_resources(containers):
         # Adjust memory if needed
         if mem_usage > mem_upper:
             increment = max(
-                args.mem_min,
+                int(args.mem_min * behaviour_multiplier),
                 int((mem_usage - mem_upper) * args.mem_min / 10)
             )
             if available_memory >= increment:
@@ -521,7 +534,7 @@ def adjust_resources(containers):
                 logging.warning(f"Not enough available memory to increase for container {ctid}")
         elif mem_usage < mem_lower and current_memory > min_memory:
             decrease_amount = min(
-                args.min_decrease_chunk * ((current_memory - min_memory) // args.min_decrease_chunk),
+                int(args.min_decrease_chunk * behaviour_multiplier) * ((current_memory - min_memory) // int(args.min_decrease_chunk * behaviour_multiplier)),
                 current_memory - min_memory
             )
             if decrease_amount > 0:
