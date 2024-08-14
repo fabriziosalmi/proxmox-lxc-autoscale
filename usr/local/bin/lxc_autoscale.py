@@ -7,7 +7,7 @@ import json
 import argparse
 import signal
 import configparser
-from time import sleep, time
+from time import sleep
 from datetime import datetime
 
 # Configuration file path
