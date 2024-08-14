@@ -415,6 +415,9 @@ def adjust_resources(containers):
         current_cores = usage["initial_cores"]
         current_memory = usage["initial_memory"]
 
+        cores_changed = False
+        memory_changed = False
+
         # Adjust CPU cores if needed
         if cpu_usage > args.cpu_upper:
             increment = min(
@@ -426,6 +429,7 @@ def adjust_resources(containers):
                 logging.info(f"Increasing cores for container {ctid} by {increment}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores -= increment
+                cores_changed = True
                 send_gotify_notification(
                     f"CPU Increased for Container {ctid}",
                     f"CPU cores increased to {new_cores}."
@@ -442,6 +446,7 @@ def adjust_resources(containers):
                 logging.info(f"Decreasing cores for container {ctid} by {decrement}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores += decrement
+                cores_changed = True
                 send_gotify_notification(
                     f"CPU Decreased for Container {ctid}",
                     f"CPU cores decreased to {new_cores}."
@@ -458,6 +463,7 @@ def adjust_resources(containers):
                 new_memory = current_memory + increment
                 run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory -= increment
+                memory_changed = True
                 send_gotify_notification(
                     f"Memory Increased for Container {ctid}",
                     f"Memory increased by {increment}MB."
@@ -474,6 +480,7 @@ def adjust_resources(containers):
                 new_memory = current_memory - decrease_amount
                 run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory += decrease_amount
+                memory_changed = True
                 send_gotify_notification(
                     f"Memory Decreased for Container {ctid}",
                     f"Memory decreased by {decrease_amount}MB."
@@ -498,7 +505,9 @@ def adjust_resources(containers):
                     f"Memory reduced to {args.min_mem}MB for energy efficiency."
                 )
 
+    # Log final available resources once, after all adjustments are made
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
+
 
 def main_loop():
     """Main loop for resource allocation process."""
