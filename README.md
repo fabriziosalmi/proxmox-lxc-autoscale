@@ -19,8 +19,6 @@
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 - 📈 **JSON metrics:** Collect all resources changes across your autoscaling fleet. 
 
-⚠️ Upcoming changes: YAML configuration, JSON logging
-
 ## Installation
 
 The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
