@@ -17,6 +17,7 @@
 - 🚦 **Container Prioritization:** Prioritize resource allocation based on resource type.
 - 📦 **Automatic Backups:** Backup and rollback container configurations.
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
+- 📈 **JSON metrics:** Collect all resources changes across your autoscaling fleet. 
 
 ⚠️ Upcoming changes: YAML configuration, JSON logging
 
