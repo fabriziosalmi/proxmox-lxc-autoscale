@@ -41,11 +41,11 @@ This script will:
 
 ### Configuration File
 > [!IMPORTANT]  
-> The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.conf`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
+> The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.yaml`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
 
 ### Configuration Backup
 > [!NOTE]  
-> Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.conf.YYYYMMDD-HHMMSS.backup`.
+> Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.yaml.YYYYMMDD-HHMMSS.backup`. It will migrate your existing `/etc/lxc_autoscale/lxc_autoscale.conf` configuration into the new YAML format, if any.
 
 ### Default Configuration
 
@@ -87,35 +87,44 @@ These settings control how the script manages the scaling of CPU and memory reso
 You can assign one or more LXC containers to different TIERS for specific thresholds assignments. You can define up to 3 different TIERS named TIER_1, TIER_2 and TIER_3. Just append and change accordingly with your needs this snippet to the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
 
 ```
-[TIER_1]
-cpu_upper_threshold = 90
-cpu_lower_threshold = 10
-memory_upper_threshold = 90
-memory_lower_threshold = 10
-min_cores = 2
-max_cores = 12
-min_memory = 1024
-lxc_containers = 100, 101, 102
+DEFAULT:
+  poll_interval: 300
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 80
+  memory_lower_threshold: 20
+  core_min_increment: 1
+  core_max_increment: 4
+  memory_min_increment: 512
+  min_cores: 1
+  max_cores: 8
+  min_memory: 512
+  min_decrease_chunk: 512
+  reserve_cpu_percent: 10
+  reserve_memory_mb: 2048
+  log_file: /var/log/lxc_autoscale.log
+  lock_file: /var/lock/lxc_autoscale.lock
+  backup_dir: /var/lib/lxc_autoscale/backups
+  off_peak_start: 22
+  off_peak_end: 6
+  energy_mode: False
+  gotify_url: ''
+  gotify_token: ''
+  ignore_lxc: []
+  behaviour: normal
 
-[TIER_2]
-cpu_upper_threshold = 85
-cpu_lower_threshold = 15
-memory_upper_threshold = 85
-memory_lower_threshold = 15
-min_cores = 1
-max_cores = 10
-min_memory = 768
-lxc_containers = 103, 104, 105
 
-[TIER_3]
-cpu_upper_threshold = 80
-cpu_lower_threshold = 20
-memory_upper_threshold = 80
-memory_lower_threshold = 20
-min_cores = 1
-max_cores = 8
-min_memory = 512
-lxc_containers = 106, 107, 108
+TIER_1:
+  cpu_upper_threshold: 90
+  cpu_lower_threshold: 10
+  memory_upper_threshold: 90
+  memory_lower_threshold: 10
+  min_cores: 2
+  max_cores: 12
+  min_memory: 1024
+  lxc_containers: 
+  - 100
+  - 101
 ```
 
 ## Service Management
