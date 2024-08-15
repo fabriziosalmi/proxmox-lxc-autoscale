@@ -18,6 +18,8 @@
 - 📦 **Automatic Backups:** Backup and rollback container configurations.
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 
+- ⚠️ Upcoming changes: YAML configuration, JSON logging
+
 ## Installation
 
 The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
