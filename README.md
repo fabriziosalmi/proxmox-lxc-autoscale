@@ -18,7 +18,7 @@
 - 📦 **Automatic Backups:** Backup and rollback container configurations.
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 
-- ⚠️ Upcoming changes: YAML configuration, JSON logging
+⚠️ Upcoming changes: YAML configuration, JSON logging
 
 ## Installation
 
