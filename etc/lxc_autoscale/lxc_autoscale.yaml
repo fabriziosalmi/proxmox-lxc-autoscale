@@ -1,0 +1,39 @@
+DEFAULT:
+  poll_interval: 300
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 80
+  memory_lower_threshold: 20
+  core_min_increment: 1
+  core_max_increment: 4
+  memory_min_increment: 512
+  min_cores: 1
+  max_cores: 8
+  min_memory: 512
+  min_decrease_chunk: 512
+  reserve_cpu_percent: 10
+  reserve_memory_mb: 2048
+  log_file: /var/log/lxc_autoscale.log
+  lock_file: /var/lock/lxc_autoscale.lock
+  backup_dir: /var/lib/lxc_autoscale/backups
+  off_peak_start: 22
+  off_peak_end: 6
+  energy_mode: False
+  gotify_url: ''
+  gotify_token: ''
+  ignore_lxc: []
+  behaviour: normal
+
+# TIER-defined parameters
+# 
+# TIER_1:
+#   cpu_upper_threshold: 90
+#   cpu_lower_threshold: 10
+#   memory_upper_threshold: 90
+#   memory_lower_threshold: 10
+#   min_cores: 2
+#   max_cores: 12
+#   min_memory: 1024
+#   lxc_containers: 
+#   - 100
+#   - 101

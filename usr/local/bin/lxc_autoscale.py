@@ -1,5 +1,4 @@
 import argparse
-import configparser
 import fcntl
 import json
 import logging
@@ -7,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import yaml
 from contextlib import contextmanager
 from datetime import datetime
 from socket import gethostname
@@ -14,7 +14,7 @@ from time import sleep
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configuration file path
-CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.conf"
+CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
 
 # Default Configuration
 DEFAULTS = {
@@ -26,13 +26,14 @@ DEFAULTS = {
     'core_min_increment': 1,
     'core_max_increment': 8,
     'memory_min_increment': 512,
-    'min_cores': 2,  # Changed default min_cores to 2 as per the requirement
+    'min_cores': 2,
     'max_cores': 12,
     'min_memory': 512,
     'min_decrease_chunk': 512,
     'reserve_cpu_percent': 10,
     'reserve_memory_mb': 2048,
     'log_file': "/var/log/lxc_autoscale.log",
+    'json_log_file': "/var/log/lxc_autoscale.json",
     'lock_file': "/var/lock/lxc_autoscale.lock",
     'backup_dir': "/var/lib/lxc_autoscale/backups",
     'off_peak_start': 22,
@@ -40,25 +41,28 @@ DEFAULTS = {
     'energy_mode': False,
     'gotify_url': '',
     'gotify_token': '',
-    'ignore_lxc': '',  # New option to ignore specific containers
-    'behaviour': 'normal'  # New option for behaviour: normal, conservative, aggressive
+    'ignore_lxc': [],
+    'behaviour': 'normal'
 }
 
-# Load configuration from file
-config = configparser.ConfigParser(defaults=DEFAULTS)
+# Load configuration from YAML file
 if os.path.exists(CONFIG_FILE):
-    config.read(CONFIG_FILE)
+    with open(CONFIG_FILE, 'r') as file:
+        config = yaml.safe_load(file)
+else:
+    config = DEFAULTS
 
 # Set up logging
-LOG_FILE = config.get('DEFAULT', 'log_file')
-LOCK_FILE = config.get('DEFAULT', 'lock_file')
-BACKUP_DIR = config.get('DEFAULT', 'backup_dir')
-RESERVE_CPU_PERCENT = config.getint('DEFAULT', 'reserve_cpu_percent')
-RESERVE_MEMORY_MB = config.getint('DEFAULT', 'reserve_memory_mb')
-OFF_PEAK_START = config.getint('DEFAULT', 'off_peak_start')
-OFF_PEAK_END = config.getint('DEFAULT', 'off_peak_end')
-IGNORE_LXC = config.get('DEFAULT', 'ignore_lxc').split(',')
-BEHAVIOUR = config.get('DEFAULT', 'behaviour').lower()
+LOG_FILE = config.get('log_file', DEFAULTS['log_file'])
+JSON_LOG_FILE = config.get('json_log_file', DEFAULTS['json_log_file'])
+LOCK_FILE = config.get('lock_file', DEFAULTS['lock_file'])
+BACKUP_DIR = config.get('backup_dir', DEFAULTS['backup_dir'])
+RESERVE_CPU_PERCENT = config.get('reserve_cpu_percent', DEFAULTS['reserve_cpu_percent'])
+RESERVE_MEMORY_MB = config.get('reserve_memory_mb', DEFAULTS['reserve_memory_mb'])
+OFF_PEAK_START = config.get('off_peak_start', DEFAULTS['off_peak_start'])
+OFF_PEAK_END = config.get('off_peak_end', DEFAULTS['off_peak_end'])
+IGNORE_LXC = config.get('ignore_lxc', DEFAULTS['ignore_lxc'])
+BEHAVIOUR = config.get('behaviour', DEFAULTS['behaviour']).lower()
 PROXMOX_HOSTNAME = gethostname()
 
 logging.basicConfig(
@@ -74,96 +78,108 @@ formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:
 console.setFormatter(formatter)
 logging.getLogger().addHandler(console)
 
+# Function for logging JSON events
+def log_json_event(ctid, action, resource_change):
+    log_data = {
+        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "proxmox_host": PROXMOX_HOSTNAME,
+        "container_id": ctid,
+        "action": action,
+        "change": resource_change
+    }
+    with open(JSON_LOG_FILE, 'a') as json_log_file:
+        json_log_file.write(json.dumps(log_data) + '\n')
+
 # CLI Argument Parsing
 parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
 parser.add_argument(
     "--poll_interval",
     type=int,
-    default=config.getint('DEFAULT', 'poll_interval'),
+    default=config.get('poll_interval', DEFAULTS['poll_interval']),
     help="Polling interval in seconds"
 )
 parser.add_argument(
     "--cpu_upper",
     type=int,
-    default=config.getint('DEFAULT', 'cpu_upper_threshold'),
+    default=config.get('cpu_upper_threshold', DEFAULTS['cpu_upper_threshold']),
     help="CPU usage upper threshold"
 )
 parser.add_argument(
     "--cpu_lower",
     type=int,
-    default=config.getint('DEFAULT', 'cpu_lower_threshold'),
+    default=config.get('cpu_lower_threshold', DEFAULTS['cpu_lower_threshold']),
     help="CPU usage lower threshold"
 )
 parser.add_argument(
     "--mem_upper",
     type=int,
-    default=config.getint('DEFAULT', 'memory_upper_threshold'),
+    default=config.get('memory_upper_threshold', DEFAULTS['memory_upper_threshold']),
     help="Memory usage upper threshold"
 )
 parser.add_argument(
     "--mem_lower",
     type=int,
-    default=config.getint('DEFAULT', 'memory_lower_threshold'),
+    default=config.get('memory_lower_threshold', DEFAULTS['memory_lower_threshold']),
     help="Memory usage lower threshold"
 )
 parser.add_argument(
     "--core_min",
     type=int,
-    default=config.getint('DEFAULT', 'core_min_increment'),
+    default=config.get('core_min_increment', DEFAULTS['core_min_increment']),
     help="Minimum core increment"
 )
 parser.add_argument(
     "--core_max",
     type=int,
-    default=config.getint('DEFAULT', 'core_max_increment'),
+    default=config.get('core_max_increment', DEFAULTS['core_max_increment']),
     help="Maximum core increment"
 )
 parser.add_argument(
     "--mem_min",
     type=int,
-    default=config.getint('DEFAULT', 'memory_min_increment'),
+    default=config.get('memory_min_increment', DEFAULTS['memory_min_increment']),
     help="Minimum memory increment"
 )
 parser.add_argument(
     "--min_cores",
     type=int,
-    default=config.getint('DEFAULT', 'min_cores'),
+    default=config.get('min_cores', DEFAULTS['min_cores']),
     help="Minimum number of cores per container"
 )
 parser.add_argument(
     "--max_cores",
     type=int,
-    default=config.getint('DEFAULT', 'max_cores'),
+    default=config.get('max_cores', DEFAULTS['max_cores']),
     help="Maximum number of cores per container"
 )
 parser.add_argument(
     "--min_mem",
     type=int,
-    default=config.getint('DEFAULT', 'min_memory'),
+    default=config.get('min_memory', DEFAULTS['min_memory']),
     help="Minimum memory per container in MB"
 )
 parser.add_argument(
     "--min_decrease_chunk",
     type=int,
-    default=config.getint('DEFAULT', 'min_decrease_chunk'),
+    default=config.get('min_decrease_chunk', DEFAULTS['min_decrease_chunk']),
     help="Minimum memory decrease chunk in MB"
 )
 parser.add_argument(
     "--gotify_url",
     type=str,
-    default=config.get('DEFAULT', 'gotify_url'),
+    default=config.get('gotify_url', DEFAULTS['gotify_url']),
     help="Gotify server URL for notifications"
 )
 parser.add_argument(
     "--gotify_token",
     type=str,
-    default=config.get('DEFAULT', 'gotify_token'),
+    default=config.get('gotify_token', DEFAULTS['gotify_token']),
     help="Gotify server token for authentication"
 )
 parser.add_argument(
     "--energy_mode",
     action="store_true",
-    default=config.getboolean('DEFAULT', 'energy_mode'),
+    default=config.get('energy_mode', DEFAULTS['energy_mode']),
     help="Enable energy efficiency mode during off-peak hours"
 )
 parser.add_argument(
@@ -222,20 +238,11 @@ def acquire_lock():
 LXC_TIER_ASSOCIATIONS = {}
 
 # Load tier configurations and associate LXC IDs with them
-for section in config.sections():
+for section, tier_config in config.items():
     if section.startswith('TIER_'):
-        tier_config = {
-            'cpu_upper_threshold': config.getint(section, 'cpu_upper_threshold'),
-            'cpu_lower_threshold': config.getint(section, 'cpu_lower_threshold'),
-            'memory_upper_threshold': config.getint(section, 'memory_upper_threshold'),
-            'memory_lower_threshold': config.getint(section, 'memory_lower_threshold'),
-            'min_cores': config.getint(section, 'min_cores'),
-            'max_cores': config.getint(section, 'max_cores'),
-            'min_memory': config.getint(section, 'min_memory')
-        }
-        nodes = config.get(section, 'lxc_containers').split(',')
+        nodes = tier_config.get('lxc_containers', [])
         for ctid in nodes:
-            LXC_TIER_ASSOCIATIONS[ctid.strip()] = tier_config
+            LXC_TIER_ASSOCIATIONS[str(ctid)] = tier_config
 
 # Check if we are in off-peak hours
 def is_off_peak():
@@ -400,7 +407,7 @@ def get_container_data(ctid):
 def collect_container_data():
     """Collect CPU and memory usage data for all running containers."""
     containers = {}
-    with ThreadPoolExecutor(max_workers=8) as executor:  # Adjust max_workers as needed
+    with ThreadPoolExecutor(max_workers=8) as executor:
         future_to_ctid = {executor.submit(get_container_data, ctid): ctid for ctid in get_containers()}
         for future in as_completed(future_to_ctid):
             ctid = future_to_ctid[future]
@@ -421,7 +428,6 @@ def prioritize_containers(containers):
         return []
 
     try:
-        # Prioritize containers by their CPU and memory usage (in descending order)
         priorities = sorted(
             containers.items(),
             key=lambda item: (item[1]['cpu'], item[1]['mem']),
@@ -492,6 +498,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores -= increment
                 cores_changed = True
+                log_json_event(ctid, "Increase Cores", f"{increment}")
                 send_gotify_notification(
                     f"CPU Increased for Container {ctid}",
                     f"CPU cores increased to {new_cores}."
@@ -507,8 +514,9 @@ def adjust_resources(containers):
             if new_cores >= min_cores:
                 logging.info(f"Decreasing cores for container {ctid} by {decrement}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
-                available_cores += (current_cores - new_cores)  # Corrected available core logic
+                available_cores += (current_cores - new_cores)
                 cores_changed = True
+                log_json_event(ctid, "Decrease Cores", f"{decrement}")
                 send_gotify_notification(
                     f"CPU Decreased for Container {ctid}",
                     f"CPU cores decreased to {new_cores}."
@@ -528,6 +536,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory -= increment
                 memory_changed = True
+                log_json_event(ctid, "Increase Memory", f"{increment}MB")
                 send_gotify_notification(
                     f"Memory Increased for Container {ctid}",
                     f"Memory increased by {increment}MB."
@@ -545,6 +554,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -memory {new_memory}")
                 available_memory += decrease_amount
                 memory_changed = True
+                log_json_event(ctid, "Decrease Memory", f"{decrease_amount}MB")
                 send_gotify_notification(
                     f"Memory Decreased for Container {ctid}",
                     f"Memory decreased by {decrease_amount}MB."
@@ -556,6 +566,7 @@ def adjust_resources(containers):
                 logging.info(f"Reducing cores for energy efficiency during off-peak hours for container {ctid}...")
                 run_command(f"pct set {ctid} -cores {min_cores}")
                 available_cores += (current_cores - min_cores)
+                log_json_event(ctid, "Reduce Cores (Off-Peak)", f"{current_cores - min_cores}")
                 send_gotify_notification(
                     f"CPU Reduced for Container {ctid}",
                     f"CPU cores reduced to {min_cores} for energy efficiency."
@@ -564,6 +575,7 @@ def adjust_resources(containers):
                 logging.info(f"Reducing memory for energy efficiency during off-peak hours for container {ctid}...")
                 run_command(f"pct set {ctid} -memory {min_memory}")
                 available_memory += (current_memory - min_memory)
+                log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
                 send_gotify_notification(
                     f"Memory Reduced for Container {ctid}",
                     f"Memory reduced to {min_memory}MB for energy efficiency."

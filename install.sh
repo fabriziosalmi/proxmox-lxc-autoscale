@@ -1,13 +1,15 @@
 #!/bin/bash
 
 # Variables
-SCRIPT_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/usr/local/bin/lxc_autoscale.py"
-SERVICE_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/etc/systemd/system/lxc_autoscale.service"
-CONF_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/etc/lxc_autoscale/lxc_autoscale.conf"
+REPO_BASE_URL="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main"
+SCRIPT_URL="${REPO_BASE_URL}/usr/local/bin/lxc_autoscale.py"
+SERVICE_URL="${REPO_BASE_URL}/etc/systemd/system/lxc_autoscale.service"
+CONF_URL="${REPO_BASE_URL}/etc/lxc_autoscale/lxc_autoscale.yaml"
 INSTALL_PATH="/usr/local/bin/lxc_autoscale.py"
 SERVICE_PATH="/etc/systemd/system/lxc_autoscale.service"
 CONF_DIR="/etc/lxc_autoscale"
-CONF_PATH="${CONF_DIR}/lxc_autoscale.conf"
+INI_CONF_PATH="${CONF_DIR}/lxc_autoscale.conf"
+YAML_CONF_PATH="${CONF_DIR}/lxc_autoscale.yaml"
 LOG_PATH="/var/log/lxc_autoscale.log"
 BACKUP_DIR="/var/lib/lxc_autoscale/backups"
 
@@ -45,11 +47,11 @@ enable_service() {
 
 # Function to backup existing configuration file
 backup_existing_conf() {
-    if [ -f "$CONF_PATH" ]; then
+    if [ -f "$YAML_CONF_PATH" ]; then
         timestamp=$(date +"%Y%m%d-%H%M%S")
-        backup_conf="${CONF_PATH}.${timestamp}.backup"
+        backup_conf="${YAML_CONF_PATH}.${timestamp}.backup"
         echo "💾 Backing up existing configuration file to $backup_conf..."
-        cp "$CONF_PATH" "$backup_conf"
+        cp "$YAML_CONF_PATH" "$backup_conf"
         if [ $? -ne 0 ]; then
             echo "❌ Error: Failed to backup the existing configuration file."
             exit 1
@@ -59,8 +61,8 @@ backup_existing_conf() {
 
 # Function to prompt user for overwriting the configuration file
 prompt_overwrite_conf() {
-    if [ -f "$CONF_PATH" ]; then
-        read -p "⚠️ A configuration file already exists at $CONF_PATH. Do you want to overwrite it? [y/N]: " -n 1 -r
+    if [ -f "$YAML_CONF_PATH" ]; then
+        read -p "⚠️ A configuration file already exists at $YAML_CONF_PATH. Do you want to overwrite it? [y/N]: " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             echo "🚫 Keeping the existing configuration file."
@@ -70,18 +72,52 @@ prompt_overwrite_conf() {
     return 0
 }
 
+# Function to migrate INI to YAML
+migrate_ini_to_yaml() {
+    if [ -f "$INI_CONF_PATH" ]; then
+        echo "🔄 Migrating existing INI configuration to YAML..."
+        
+        # Read INI file and convert to YAML format
+        yaml_data="DEFAULT:\n"
+        while IFS=' = ' read -r key value; do
+            # Skip section headers
+            if [[ $key == \[*] ]]; then
+                section=$(echo $key | tr -d '[]')
+                yaml_data+="$section:\n"
+            elif [[ -n $key ]]; then
+                # Append key-value pairs with proper indentation
+                yaml_data+="  $key: $value\n"
+            fi
+        done < "$INI_CONF_PATH"
+        
+        # Write YAML data to the new YAML config file
+        echo -e "$yaml_data" > "$YAML_CONF_PATH"
+        
+        if [ $? -ne 0 ]; then
+            echo "❌ Error: Failed to migrate INI configuration to YAML."
+            exit 1
+        else
+            echo "✅ Migration to YAML completed successfully."
+            mv "$INI_CONF_PATH" "${INI_CONF_PATH}.migrated.$(date +"%Y%m%d-%H%M%S").backup"
+        fi
+    fi
+}
+
 # Stop the service if it's already running
 stop_service_if_running
 
-# Download the Python script
-echo "📥 Downloading the LXC AutoScale script..."
+# Migrate INI to YAML if needed
+migrate_ini_to_yaml
+
+# Download the main Python script
+echo "📥 Downloading the LXC AutoScale main script..."
 curl -sSL -o $INSTALL_PATH $SCRIPT_URL
 if [ $? -ne 0 ]; then
-    echo "❌ Error: Failed to download the script."
+    echo "❌ Error: Failed to download the main script."
     exit 1
 fi
 
-# Make the script executable
+# Make the main script executable
 chmod +x $INSTALL_PATH
 
 # Download the systemd service file
@@ -97,7 +133,7 @@ echo "📂 Setting up configuration directory and file..."
 mkdir -p $CONF_DIR
 if prompt_overwrite_conf; then
     backup_existing_conf
-    curl -sSL -o $CONF_PATH $CONF_URL
+    curl -sSL -o $YAML_CONF_PATH $CONF_URL
     if [ $? -ne 0 ]; then
         echo "❌ Error: Failed to download the configuration file."
         exit 1
