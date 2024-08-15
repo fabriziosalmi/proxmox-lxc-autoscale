@@ -189,7 +189,7 @@ rm -rf /var/lib/lxc_autoscale/
 ## Disclaimer
 
 > [!CAUTION]
-> Initial version can be bugged, use at your own risk. I am not responsible for any damage on your lovely stuff by using this tool.
+> Initial version can be bugged, use at your own risk. I am not responsible for any damage to your lovely stuff by using this tool.
 
 ## Contributing
 
