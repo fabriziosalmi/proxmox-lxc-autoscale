@@ -8,7 +8,7 @@ import subprocess
 import sys
 import yaml
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from socket import gethostname
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -55,6 +55,9 @@ logging.getLogger().addHandler(console)
 # Lock for thread-safe operations
 lock = Lock()
 
+# Track last scale out operations for horizontal scaling groups
+scale_last_action = {}
+
 # Singleton enforcement
 @contextmanager
 def acquire_lock():
@@ -95,18 +98,16 @@ signal.signal(signal.SIGHUP, handle_signal)
 # Helper function to execute shell commands
 def run_command(cmd, timeout=30):
     try:
-        result = subprocess.check_output(cmd, shell=True, timeout=timeout).decode('utf-8').strip()
-        logging.debug(f"Command '{cmd}' executed successfully.")
+        result = subprocess.check_output(cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT).decode('utf-8').strip()
+        logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
         return result
     except subprocess.TimeoutExpired:
         logging.error(f"Command '{cmd}' timed out after {timeout} seconds.")
-        return None
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command '{cmd}' failed with error: {e}")
-        return None
+        logging.error(f"Command '{cmd}' failed with error: {e.output.decode('utf-8')}")
     except Exception as e:
         logging.error(f"Unexpected error during command execution '{cmd}': {e}")
-        return None
+    return None
 
 # Send notification via Gotify
 def send_gotify_notification(title, message, priority=5):
@@ -130,6 +131,14 @@ for section, tier_config in config.items():
         nodes = tier_config.get('lxc_containers', [])
         for ctid in nodes:
             LXC_TIER_ASSOCIATIONS[str(ctid)] = tier_config
+
+# Load horizontal scaling groups
+HORIZONTAL_SCALING_GROUPS = {}
+for section, group_config in config.items():
+    if section.startswith('HORIZONTAL_SCALING_GROUP_'):
+        if group_config.get('lxc_containers'):
+            group_config['lxc_containers'] = set(map(str, group_config.get('lxc_containers', [])))
+            HORIZONTAL_SCALING_GROUPS[section] = group_config
 
 # CLI Argument Parsing
 parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
@@ -318,6 +327,74 @@ def prioritize_containers(containers):
 def get_container_config(ctid):
     return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
 
+def generate_unique_snapshot_name(base_name):
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    return f"{base_name}-{timestamp}"
+
+def generate_cloned_hostname(base_name, clone_number):
+    return f"{base_name}-cloned-{clone_number}"
+
+def scale_out(group_name, group_config):
+    current_instances = sorted(map(int, group_config['lxc_containers']))
+    starting_clone_id = group_config['starting_clone_id']
+    max_instances = group_config['max_instances']
+
+    if len(current_instances) >= max_instances:
+        logging.info(f"Max instances reached for {group_name}. No scale out performed.")
+        return
+
+    # Determine the next available clone ID
+    new_ctid = starting_clone_id + len([ctid for ctid in current_instances if int(ctid) >= starting_clone_id])
+    base_snapshot = group_config['base_snapshot_name']
+
+    # Create a unique snapshot name
+    unique_snapshot_name = generate_unique_snapshot_name("snap")
+
+    logging.info(f"Creating snapshot {unique_snapshot_name} of container {base_snapshot}...")
+
+    # Create the snapshot
+    snapshot_cmd = f"pct snapshot {base_snapshot} {unique_snapshot_name} --description 'Auto snapshot for scaling'"
+    if run_command(snapshot_cmd):
+        logging.info(f"Snapshot {unique_snapshot_name} created successfully.")
+
+        logging.info(f"Cloning container {base_snapshot} to create {new_ctid} using snapshot {unique_snapshot_name}...")
+
+        # Clone the container using the snapshot, with an extended timeout
+        clone_hostname = generate_cloned_hostname(base_snapshot, len(current_instances) + 1)
+        clone_cmd = f"pct clone {base_snapshot} {new_ctid} --snapname {unique_snapshot_name} --hostname {clone_hostname}"
+        if run_command(clone_cmd, timeout=300):  # Extended timeout to 300 seconds
+            # Network setup
+            if group_config['clone_network_type'] == "dhcp":
+                run_command(f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip=dhcp")
+            elif group_config['clone_network_type'] == "static":
+                static_ip_range = group_config.get('static_ip_range', [])
+                if static_ip_range:
+                    available_ips = [ip for ip in static_ip_range if ip not in current_instances]
+                    if available_ips:
+                        ip_address = available_ips[0]
+                        run_command(f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip={ip_address}/24")
+                    else:
+                        logging.warning("No available IPs in the specified range for static IP assignment.")
+
+            # Start the new container
+            run_command(f"pct start {new_ctid}")
+            current_instances.append(new_ctid)
+
+            # Update the configuration
+            group_config['lxc_containers'] = set(map(str, current_instances))
+            scale_last_action[group_name] = datetime.now()
+
+            logging.info(f"Container {new_ctid} started successfully as part of {group_name}.")
+            send_gotify_notification(f"Scale Out: {group_name}", f"New container {new_ctid} with hostname {clone_hostname} started.")
+
+            # Log the scale-out event to JSON
+            log_json_event(new_ctid, "Scale Out", f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.")
+
+        else:
+            logging.error(f"Failed to clone container {base_snapshot} using snapshot {unique_snapshot_name}.")
+    else:
+        logging.error(f"Failed to create snapshot {unique_snapshot_name} of container {base_snapshot}.")
+
 # Adjust resources based on priority and available resources
 def adjust_resources(containers):
     if not containers:
@@ -460,6 +537,38 @@ def adjust_resources(containers):
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
 
+def manage_horizontal_scaling(containers):
+    for group_name, group_config in HORIZONTAL_SCALING_GROUPS.items():
+        current_time = datetime.now()
+        last_action_time = scale_last_action.get(group_name, current_time - timedelta(hours=1))
+
+        # Calculate average CPU and memory usage for the group
+        total_cpu_usage = sum(containers[ctid]['cpu'] for ctid in group_config['lxc_containers'] if ctid in containers)
+        total_mem_usage = sum(containers[ctid]['mem'] for ctid in group_config['lxc_containers'] if ctid in containers)
+        num_containers = len(group_config['lxc_containers'])
+        
+        if num_containers > 0:
+            avg_cpu_usage = total_cpu_usage / num_containers
+            avg_mem_usage = total_mem_usage / num_containers
+        else:
+            avg_cpu_usage = 0
+            avg_mem_usage = 0
+
+        logging.debug(f"Group: {group_name} | Average CPU Usage: {avg_cpu_usage}% | Average Memory Usage: {avg_mem_usage}%")
+
+        # Check if scaling out is needed based on thresholds
+        if (avg_cpu_usage > group_config['horiz_cpu_upper_threshold'] or 
+            avg_mem_usage > group_config['horiz_memory_upper_threshold']):
+            logging.debug(f"Thresholds exceeded for {group_name}. Evaluating scale-out conditions.")
+            
+            # Ensure enough time has passed since the last scaling action
+            if current_time - last_action_time >= timedelta(seconds=group_config.get('scale_out_grace_period', 300)):
+                scale_out(group_name, group_config)
+        else:
+            logging.debug(f"No scaling needed for {group_name}. Average usage below thresholds.")
+
+
+
 def is_off_peak():
     if args.energy_mode:
         current_hour = datetime.now().hour
@@ -475,6 +584,7 @@ def main_loop():
             priorities = prioritize_containers(containers)
             if isinstance(priorities, list) and all(isinstance(i, tuple) for i in priorities):
                 adjust_resources(dict(priorities))
+                manage_horizontal_scaling(containers)
 
             logging.info(f"Resource allocation process completed. Next run in {args.poll_interval} seconds.")
             sleep(args.poll_interval)
