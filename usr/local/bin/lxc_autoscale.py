@@ -34,7 +34,7 @@ RESERVE_CPU_PERCENT = DEFAULTS.get('reserve_cpu_percent', 10)
 RESERVE_MEMORY_MB = DEFAULTS.get('reserve_memory_mb', 2048)
 OFF_PEAK_START = DEFAULTS.get('off_peak_start', 22)
 OFF_PEAK_END = DEFAULTS.get('off_peak_end', 6)
-IGNORE_LXC = set(DEFAULTS.get('ignore_lxc', []))  # Use set for faster lookup
+IGNORE_LXC = set(map(str, DEFAULTS.get('ignore_lxc', [])))  # Ensuring all ignore IDs are strings
 BEHAVIOUR = DEFAULTS.get('behaviour', 'normal').lower()
 PROXMOX_HOSTNAME = gethostname()
 
@@ -156,7 +156,7 @@ def get_containers():
 
 # Check if a container is running
 def is_container_running(ctid):
-    if ctid in IGNORE_LXC:
+    if str(ctid) in IGNORE_LXC:  # Convert ctid to string to ensure comparison is correct
         logging.info(f"Container {ctid} is in the ignore list. Skipping...")
         return False
     
@@ -168,7 +168,7 @@ def is_container_running(ctid):
 
 # Backup container settings
 def backup_container_settings(ctid, settings):
-    if ctid in IGNORE_LXC:
+    if str(ctid) in IGNORE_LXC:
         return
     
     try:
@@ -183,7 +183,7 @@ def backup_container_settings(ctid, settings):
 
 # Load backup settings
 def load_backup_settings(ctid):
-    if ctid in IGNORE_LXC:
+    if str(ctid) in IGNORE_LXC:
         return None
     
     try:
@@ -202,7 +202,7 @@ def load_backup_settings(ctid):
 
 # Rollback container settings
 def rollback_container_settings(ctid):
-    if ctid in IGNORE_LXC:
+    if str(ctid) in IGNORE_LXC:
         return
     
     settings = load_backup_settings(ctid)
@@ -264,9 +264,13 @@ def get_memory_usage(ctid):
     logging.error(f"Failed to retrieve memory usage for container {ctid}")
     return 0.0
 
-# Get container data in parallel
+# Helper function to check if container is in the ignore list
+def is_ignored(ctid):
+    return str(ctid) in IGNORE_LXC
+
+# Function to get container data
 def get_container_data(ctid):
-    if ctid in IGNORE_LXC:
+    if is_ignored(ctid):  # Ensure ignored containers are skipped
         logging.info(f"Container {ctid} is in the ignore list. Skipping...")
         return None
 
@@ -413,7 +417,8 @@ def adjust_resources(containers):
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
     for ctid, usage in containers.items():
-        if ctid in IGNORE_LXC:
+        if is_ignored(ctid):
+            logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
             continue
 
         config = get_container_config(ctid)
@@ -566,8 +571,6 @@ def manage_horizontal_scaling(containers):
                 scale_out(group_name, group_config)
         else:
             logging.debug(f"No scaling needed for {group_name}. Average usage below thresholds.")
-
-
 
 def is_off_peak():
     if args.energy_mode:
