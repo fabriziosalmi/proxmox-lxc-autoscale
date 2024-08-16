@@ -112,7 +112,7 @@ DEFAULT:
   behaviour: normal
 
 
-TIER_1:
+TIER_TEST:
   cpu_upper_threshold: 90
   cpu_lower_threshold: 10
   memory_upper_threshold: 90
