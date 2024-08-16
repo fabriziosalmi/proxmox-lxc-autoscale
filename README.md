@@ -19,6 +19,11 @@
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 - 📈 **JSON metrics:** Collect all resources changes across your autoscaling fleet. 
 
+### API
+> [!TIP]
+> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
+
+
 ## Installation
 
 The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
