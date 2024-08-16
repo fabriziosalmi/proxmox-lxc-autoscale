@@ -161,8 +161,8 @@ systemctl enable lxc_autoscale.service
 ```
 
 ## Logging
-> [!TIP]
-> Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log`. You can monitor this log file to observe the daemon's operations and troubleshoot any issues.
+> [!IMPORTANT]
+> Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log` and `/var/log/lxc_autoscale.json` (resources changes only). You can check and monitor log files to observe the daemon's operations and troubleshoot any issues or to implement additional scaling logic.
 
 ```
 root@proxmox:~# tail /var/log/lxc_autoscale.log 
@@ -175,6 +175,33 @@ root@proxmox:~# tail /var/log/lxc_autoscale.log
 2024-08-14 22:04:50 - INFO - Resource allocation process completed. Next run in 300 seconds.
 ```
 
+> [!TIP]
+> You can easily check JSON logs by installing and using `jq` like this:
+
+```
+root@proxmox:~# cat /var/log/lxc_autoscale.json | jq .
+{
+  "timestamp": "2024-08-14 22:04:45",
+  "proxmox_host": "proxmox",
+  "container_id": "114",
+  "action": "Decrease Cores",
+  "change": "2"
+}
+{
+  "timestamp": "2024-08-14 22:04:47",
+  "proxmox_host": "proxmox",
+  "container_id": "102",
+  "action": "Decrease Cores",
+  "change": "2"
+}
+{
+  "timestamp": "2024-08-14 22:04:48",
+  "proxmox_host": "proxmox",
+  "container_id": "102",
+  "action": "Decrease Memory",
+  "change": "6656MB"
+}
+```
 ## Uninstallation
 
 > [!TIP]
