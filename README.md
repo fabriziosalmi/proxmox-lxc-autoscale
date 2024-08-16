@@ -82,7 +82,7 @@ These settings control how the script manages the scaling of CPU and memory reso
 
 ### Tiers (optional)
 
-You can assign one or more LXC containers to different TIERS for specific thresholds assignments. You can define different TIERS. Each TIER to be recognized must prefixed with TIER_, like TIER_TEST. Just change options accordingly with your needs in the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
+You can assign one or more LXC containers to different TIERS for specific thresholds assignments. Each TIER to be recognized must be prefixed with `TIER_`, like `TIER_TEST`. Just change the TIER options accordingly with your needs in the `/etc/lcx_autoscale/lcx_autoscale.conf` configuration file and restart the service by running `systemctl restart lxc_autoscale`:
 
 ```
 DEFAULT:
