@@ -26,7 +26,7 @@ else:
 
 DEFAULTS = config.get('DEFAULT', {})
 
-# Set up logging
+# Constants
 LOG_FILE = DEFAULTS.get('log_file', '/var/log/lxc_autoscale.log')
 LOCK_FILE = DEFAULTS.get('lock_file', '/var/lock/lxc_autoscale.lock')
 BACKUP_DIR = DEFAULTS.get('backup_dir', '/var/lib/lxc_autoscale/backups')
@@ -34,10 +34,11 @@ RESERVE_CPU_PERCENT = DEFAULTS.get('reserve_cpu_percent', 10)
 RESERVE_MEMORY_MB = DEFAULTS.get('reserve_memory_mb', 2048)
 OFF_PEAK_START = DEFAULTS.get('off_peak_start', 22)
 OFF_PEAK_END = DEFAULTS.get('off_peak_end', 6)
-IGNORE_LXC = DEFAULTS.get('ignore_lxc', [])
+IGNORE_LXC = set(DEFAULTS.get('ignore_lxc', []))  # Use set for faster lookup
 BEHAVIOUR = DEFAULTS.get('behaviour', 'normal').lower()
 PROXMOX_HOSTNAME = gethostname()
 
+# Set up logging
 logging.basicConfig(
     filename=LOG_FILE,
     level=logging.INFO,
@@ -54,6 +55,19 @@ logging.getLogger().addHandler(console)
 # Lock for thread-safe operations
 lock = Lock()
 
+# Singleton enforcement
+@contextmanager
+def acquire_lock():
+    lock_file = open(LOCK_FILE, 'w')
+    try:
+        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield lock_file
+    except IOError:
+        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
+        sys.exit(1)
+    finally:
+        lock_file.close()
+
 # Function for logging JSON events
 def log_json_event(ctid, action, resource_change):
     log_data = {
@@ -66,15 +80,6 @@ def log_json_event(ctid, action, resource_change):
     with lock:
         with open(LOG_FILE.replace('.log', '.json'), 'a') as json_log_file:
             json_log_file.write(json.dumps(log_data) + '\n')
-
-# CLI Argument Parsing
-parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
-parser.add_argument("--poll_interval", type=int, default=DEFAULTS.get('poll_interval', 300), help="Polling interval in seconds")
-parser.add_argument("--energy_mode", action="store_true", default=DEFAULTS.get('energy_mode', False), help="Enable energy efficiency mode during off-peak hours")
-parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
-args = parser.parse_args()
-
-running = True
 
 # Signal handler for graceful shutdown
 def handle_signal(signum, frame):
@@ -103,36 +108,6 @@ def run_command(cmd, timeout=30):
         logging.error(f"Unexpected error during command execution '{cmd}': {e}")
         return None
 
-# Ensure singleton script execution
-@contextmanager
-def acquire_lock():
-    lock_file = open(LOCK_FILE, 'w')
-    try:
-        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        yield lock_file
-    except IOError:
-        logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
-        sys.exit(1)
-    finally:
-        lock_file.close()
-
-# Ensure LXC_TIER_ASSOCIATIONS is defined
-LXC_TIER_ASSOCIATIONS = {}
-
-# Load tier configurations and associate LXC IDs with them
-for section, tier_config in config.items():
-    if section.startswith('TIER_'):
-        nodes = tier_config.get('lxc_containers', [])
-        for ctid in nodes:
-            LXC_TIER_ASSOCIATIONS[str(ctid)] = tier_config
-
-# Check if we are in off-peak hours
-def is_off_peak():
-    if args.energy_mode:
-        current_hour = datetime.now().hour
-        return OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END
-    return False
-
 # Send notification via Gotify
 def send_gotify_notification(title, message, priority=5):
     if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
@@ -148,13 +123,34 @@ def send_gotify_notification(title, message, priority=5):
     else:
         logging.debug("Gotify URL or Token not provided. Notification not sent.")
 
+# Load tier configurations and associate LXC IDs with them
+LXC_TIER_ASSOCIATIONS = {}
+for section, tier_config in config.items():
+    if section.startswith('TIER_'):
+        nodes = tier_config.get('lxc_containers', [])
+        for ctid in nodes:
+            LXC_TIER_ASSOCIATIONS[str(ctid)] = tier_config
+
+# CLI Argument Parsing
+parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
+parser.add_argument("--poll_interval", type=int, default=DEFAULTS.get('poll_interval', 300), help="Polling interval in seconds")
+parser.add_argument("--energy_mode", action="store_true", default=DEFAULTS.get('energy_mode', False), help="Enable energy efficiency mode during off-peak hours")
+parser.add_argument("--rollback", action="store_true", help="Rollback to previous container configurations")
+args = parser.parse_args()
+
+running = True
+
 # Get all containers
 def get_containers():
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
-    return containers.splitlines() if containers else []
+    return [ctid for ctid in containers.splitlines() if ctid not in IGNORE_LXC]
 
 # Check if a container is running
 def is_container_running(ctid):
+    if ctid in IGNORE_LXC:
+        logging.info(f"Container {ctid} is in the ignore list. Skipping...")
+        return False
+    
     status = run_command(f"pct status {ctid}")
     if status and "status: running" in status.lower():
         return True
@@ -163,6 +159,9 @@ def is_container_running(ctid):
 
 # Backup container settings
 def backup_container_settings(ctid, settings):
+    if ctid in IGNORE_LXC:
+        return
+    
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
@@ -175,6 +174,9 @@ def backup_container_settings(ctid, settings):
 
 # Load backup settings
 def load_backup_settings(ctid):
+    if ctid in IGNORE_LXC:
+        return None
+    
     try:
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
         if os.path.exists(backup_file):
@@ -191,6 +193,9 @@ def load_backup_settings(ctid):
 
 # Rollback container settings
 def rollback_container_settings(ctid):
+    if ctid in IGNORE_LXC:
+        return
+    
     settings = load_backup_settings(ctid)
     if settings:
         logging.info(f"Rolling back container {ctid} to backup settings")
@@ -331,6 +336,9 @@ def adjust_resources(containers):
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
     for ctid, usage in containers.items():
+        if ctid in IGNORE_LXC:
+            continue
+
         config = get_container_config(ctid)
         cpu_upper = config['cpu_upper_threshold']
         cpu_lower = config['cpu_lower_threshold']
@@ -451,6 +459,12 @@ def adjust_resources(containers):
                 )
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
+
+def is_off_peak():
+    if args.energy_mode:
+        current_hour = datetime.now().hour
+        return OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END
+    return False
 
 def main_loop():
     while running:
