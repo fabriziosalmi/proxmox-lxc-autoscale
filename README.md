@@ -9,7 +9,7 @@
 ## Features
 
 - ⚙️ **Automatic Resource Scaling:** Dynamically adjust CPU and memory based on usage thresholds.
-- ⚖️ **Automatic Horizontal Scaling:** Dynamically clone your LXC containers based on usage thresholds..
+- ⚖️ **Automatic Horizontal Scaling:** Dynamically clone your LXC containers based on usage thresholds.
 - 📊 **Tier Defined Thresholds:** Set specific thresholds for one or more LXC containers.
 - 🛡️ **Host Resource Reservation:** Ensure that the host system remains stable and responsive.
 - 🔒 **Ignore Scaling Option:** Ensure that one or more LXC containers are not affected by the scaling process.
