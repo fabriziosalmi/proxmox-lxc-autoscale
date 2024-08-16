@@ -127,7 +127,7 @@ TIER_TEST:
 
 ### Horizontal Scaling Group  (optional)
 
-The script also supports horizontal scaling, where containers are cloned based on specific criteria. The horizontal scaling group is defined as follows:
+The script also supports horizontal scaling (currently scale-out only) where containers are cloned based on specific criteria. The horizontal scaling group is defined as follows:
 
 #### Example Configuration:
 
