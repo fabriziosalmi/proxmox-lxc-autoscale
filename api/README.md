@@ -1,4 +1,19 @@
-# API Routes Documentation
+# LXC AutoScale API
+
+## Installation
+
+The easiest way to install LXC AutoScale API is by using the following `curl` command:
+
+```
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/api/install.sh | bash
+```
+
+## Routes
+
+Here are the routes available to interact with your Proxmox host, 
+
+> [!NOTE]  
+> More routes will be added here :)
 
 | Endpoint                    | Methods | Description                                                      | Example                                                                                               |
 |-----------------------------|---------|------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
@@ -14,3 +29,10 @@
 | `/resource/node/status`     | GET     | Check the resource usage of a specific node.                     | `curl -X GET "http://proxmox:5000/resource/node/status?node_name=proxmox4"`                           |
 | `/health/check`             | GET     | Perform a health check on the API server.                        | `curl -X GET http://proxmox:5000/health/check`                                                        |
 | `/routes`                   | GET     | List all available routes.                                       | `curl -X GET http://proxmox:5000/routes`                                                              |
+## Logs
+
+As default option all log files are available at the following paths:
+
+- /var/log/autoscaleapi.log (api)
+- /var/log/autoscaleapi_access.log (gunicorn)
+- /var/log/autoscaleapi_error.log (gunicorn)
