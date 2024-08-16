@@ -37,3 +37,19 @@ DEFAULT:
 #   lxc_containers: 
 #   - 100
 #   - 101
+
+## Horizontal scaling groups
+# remove comments below to enable (WARNING: experimental)
+
+#HORIZONTAL_SCALING_GROUP_1:
+#  base_snapshot_name: "101"
+#  min_instances: 2
+#  max_instances: 5
+#  starting_clone_id: 99000  # Starting ID for clones
+#  clone_network_type: "static"  # or "dhcp"
+#  static_ip_range: ["192.168.100.195", "192.168.100.200"]
+#  horiz_cpu_upper_threshold: 5
+#  horiz_memory_upper_threshold: 5
+#  group_tag: "horiz_scaling_group_1"  # Optional tag for identifying clones of this group
+#  lxc_containers: 
+#  - 101
