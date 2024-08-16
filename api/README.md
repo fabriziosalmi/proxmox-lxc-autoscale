@@ -33,6 +33,6 @@ Here are the routes available to interact with your Proxmox host,
 
 As default option all log files are available at the following paths:
 
-- /var/log/autoscaleapi.log (api)
-- /var/log/autoscaleapi_access.log (gunicorn)
-- /var/log/autoscaleapi_error.log (gunicorn)
+- `/var/log/autoscaleapi.log` (api)
+- `/var/log/autoscaleapi_access.log` (gunicorn)
+- `/var/log/autoscaleapi_error.log` (gunicorn)
