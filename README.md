@@ -19,11 +19,6 @@
 - 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
 - 📈 **JSON metrics:** Collect all resources changes across your autoscaling fleet. 
 
-### API
-> [!TIP]
-> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
-
-
 ## Installation
 
 The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
@@ -40,6 +35,27 @@ This script will:
 4. Ask the user to keep or overwrite the existing configuration, if present.
 5. Back up any existing configuration files before updating them.
 6. Enable and start the LXC AutoScale systemd service.
+
+## ✨ Proxmox + AutoScale + AI
+
+In the meanwhile I am adding to the project everything needed to make AI take scaling decisions. To make this happen I released a simple HTTP API interface to Proxmox commands, a LXC monitor to get LXC monitoring data and a lightweight ML model to parse monitoring logs and take decisions. You are welcome to play, improve and get fun togheter.
+
+### API
+> [!TIP]
+> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
+
+**Install AutoScale API**
+```
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/api/install.sh | bash
+```
+
+### Monitor
+In the `monitor` folder you will find all files needed to run a lightweight LXC monitor service to generate the needed data to train the machine learning model.
+
+### AutoScale ML
+In the `ai` folder you will find all files needed to run the machine learning model. It will take decision against using the AutoScale API. The model is updated every cycle and  can be run in dry-run mode (--dry-run) to check its decisions before to change real-world resources.
+
+I will add accurate documentation in then next days.
 
 ## Configuration
 
