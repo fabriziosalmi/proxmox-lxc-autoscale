@@ -1,0 +1,15 @@
+logging:
+  log_file: "/var/log/lxc_monitor.log"
+  log_max_bytes: 5242880  # 5 MB
+  log_backup_count: 7
+  log_level: "INFO"
+
+monitoring:
+  export_file: "/var/log/lxc_metrics.json"
+  check_interval: 60  # seconds
+  enable_swap: true
+  enable_network: true
+  enable_filesystem: true
+  parallel_processing: true  # Toggle for parallel processing
+  max_workers: 8  # Max number of parallel workers if parallel_processing is enabled
+  excluded_devices: ['loop', 'dm-']  # Devices to exclude in I/O stats
