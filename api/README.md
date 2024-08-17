@@ -1,7 +1,7 @@
 # LXC AutoScale API
 
 ```
-curl -sSL -X POST http://192.168.100.36:5000/scale/cores \
+curl -sSL -X POST http://proxmox:5000/scale/cores \
      -H "Content-Type: application/json" \
      -d '{"vm_id": 104, "cores": 4}' | jq .
 {
