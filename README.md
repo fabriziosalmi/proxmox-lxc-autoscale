@@ -68,7 +68,11 @@ Jump to the [Configuration section](https://github.com/fabriziosalmi/proxmox-lxc
 
 ## ✨ Proxmox + AutoScale + AI
 
-In the meanwhile I am adding to the project everything needed to make AI take scaling decisions. To make this happen I released a simple HTTP API interface to Proxmox commands, a LXC monitor to get LXC monitoring data and a lightweight ML model to parse monitoring logs and take decisions. You are welcome to play, improve and get fun togheter.
+_In the meanwhile I added to the project everything needed to make autonomous AI take scaling decisions._
+
+To make this happen I released [a simple HTTP API interface](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/api) to Proxmox commands, an [LXC monitor](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/monitor) to get LXC monitoring data and [a lightweight ML model](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/ai) to parse monitoring logs and take decisions. 
+
+> You are welcome to play, improve and get fun togheter.
 
 ### API
 > [!TIP]
