@@ -1,0 +1,18 @@
+[Unit]
+Description=LXC Monitor Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/lxc_monitor.py
+WorkingDirectory=/usr/local/bin/
+StandardOutput=inherit
+StandardError=inherit
+Restart=on-failure
+User=root
+
+# Logging configuration
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/etc/lxc_monitor.yaml
+
+[Install]
+WantedBy=multi-user.target
