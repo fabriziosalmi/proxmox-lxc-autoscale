@@ -1,15 +1,35 @@
 # LXC AutoScale API
 
+## Examples
+
+You may want to make your lovely LXC perform well on the day and save resources in the night (reducing fan noise):
 ```
-curl -sSL -X POST http://proxmox:5000/scale/cores \
-     -H "Content-Type: application/json" \
-     -d '{"vm_id": 104, "cores": 4}' | jq .
-{
-  "data": "",
-  "message": "CPU cores set to 4 for container 104",
-  "status": "success"
-}
+# Increase cores at 6:00 AM
+0 6 * * * curl -sSL -X POST http://proxmox:5000/scale/cores \
+-H "Content-Type: application/json" \
+-d '{"vm_id": 104, "cores": 4}'
+
+# Decrease cores at 10:00 PM
+0 22 * * * curl -sSL -X POST http://proxmox:5000/scale/cores \
+-H "Content-Type: application/json" \
+-d '{"vm_id": 104, "cores": 2}'
 ```
+
+You might want to create a snapshot of your container every morning and then have the option to automatically roll back to that snapshot at night if something goes wrong during the day.
+```
+# Create a snapshot at 6:00 AM
+0 6 * * * curl -sSL -X POST http://proxmox:5000/snapshot/create \
+-H "Content-Type: application/json" \
+-d '{"vm_id": 104, "snapshot_name": "daily_snapshot_$(date +\%F)"}'
+
+# Rollback to the snapshot at 11:00 PM if needed
+0 23 * * * curl -sSL -X POST http://proxmox:5000/snapshot/rollback \
+-H "Content-Type: application/json" \
+-d '{"vm_id": 104, "snapshot_name": "daily_snapshot_$(date +\%F)"}'
+```
+
+The limit is your imagination :)
+
 ## Installation
 
 The easiest way to install LXC AutoScale API on your Proxmox host is by using the following `curl` command:
