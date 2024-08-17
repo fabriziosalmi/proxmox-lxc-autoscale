@@ -12,7 +12,7 @@ curl -sSL -X POST http://proxmox:5000/scale/cores \
 ```
 ## Installation
 
-The easiest way to install LXC AutoScale API is by using the following `curl` command:
+The easiest way to install LXC AutoScale API on your Proxmox host is by using the following `curl` command:
 
 ```
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/api/install.sh | bash
