@@ -1,5 +1,15 @@
 # LXC AutoScale API
 
+```
+curl -sSL -X POST http://192.168.100.36:5000/scale/cores \
+     -H "Content-Type: application/json" \
+     -d '{"vm_id": 104, "cores": 4}' | jq .
+{
+  "data": "",
+  "message": "CPU cores set to 4 for container 104",
+  "status": "success"
+}
+```
 ## Installation
 
 The easiest way to install LXC AutoScale API is by using the following `curl` command:
