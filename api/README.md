@@ -10,10 +10,7 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 
 ## Routes
 
-Here are the routes available to interact with your Proxmox host, 
-
-> [!NOTE]  
-> More routes will be added here :)
+Here are the routes available to interact with your Proxmox host:
 
 | Endpoint                    | Methods | Description                                                      | Example                                                                                               |
 |-----------------------------|---------|------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
@@ -28,10 +25,15 @@ Here are the routes available to interact with your Proxmox host,
 | `/resource/vm/status`       | GET     | Check the resource allocation and usage for an LXC container.    | `curl -X GET "http://proxmox:5000/resource/vm/status?vm_id=104"`                                      |
 | `/resource/node/status`     | GET     | Check the resource usage of a specific node.                     | `curl -X GET "http://proxmox:5000/resource/node/status?node_name=proxmox4"`                           |
 | `/health/check`             | GET     | Perform a health check on the API server.                        | `curl -X GET http://proxmox:5000/health/check`                                                        |
-| `/routes`                   | GET     | List all available routes.                                       | `curl -X GET http://proxmox:5000/routes`                                                              |
+| `/routes`                   | GET     | List all available routes.                                       | `curl -X GET http://proxmox:5000/routes`                           
+
+
+> [!NOTE]  
+> More routes will be added here :)
+
 ## Logs
 
-As default option all log files are available at the following paths:
+As default option the log files are available at the following paths:
 
 - `/var/log/autoscaleapi.log` (api)
 - `/var/log/autoscaleapi_access.log` (gunicorn)
