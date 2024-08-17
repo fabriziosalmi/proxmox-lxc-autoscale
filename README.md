@@ -36,6 +36,36 @@ This script will:
 5. Back up any existing configuration files before updating them.
 6. Enable and start the LXC AutoScale systemd service.
 
+Now the service should be running. You can check it by executing `systemctl status lxc_autoscale.service`:
+
+```
+root@proxmox:~# systemctl status lxc_autoscale.service
+● lxc_autoscale.service - LXC AutoScale Daemon
+     Loaded: loaded (/etc/systemd/system/lxc_autoscale.service; enabled; preset: enabled)
+     Active: active (running) since Sat 2024-08-17 00:42:04 CEST; 17h ago
+       Docs: https://github.com/fabriziosalmi/proxmox-lxc-autoscale
+   Main PID: 3973877 (python3)
+      Tasks: 1 (limit: 154535)
+     Memory: 13.3M
+        CPU: 3h 50min 24.891s
+     CGroup: /system.slice/lxc_autoscale.service
+             └─3973877 /usr/bin/python3 /usr/local/bin/lxc_autoscale.py
+
+Aug 17 17:45:30 dell python3[3973877]: 2024-08-17 17:45:30 - Starting resource allocation process...
+Aug 17 17:45:33 dell python3[3973877]: 2024-08-17 17:45:33 - Container 102 is not running. Skipping adjustments.
+Aug 17 17:45:33 dell python3[3973877]: 2024-08-17 17:45:33 - Container 100 is not running. Skipping adjustments.
+Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Initial resources before adjustments: 40 cores, 124750 MB m>
+Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Final resources after adjustments: 40 cores, 124750 MB memo>
+Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Resource allocation process completed. Next run in 300 seco>
+lines 1-21/21 (END)
+```
+
+### Configuration
+
+Jump to the [Configuration section](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#configuration) to understand how to customize your LXC AutoScale experience.
+
+---
+
 ## ✨ Proxmox + AutoScale + AI
 
 In the meanwhile I am adding to the project everything needed to make AI take scaling decisions. To make this happen I released a simple HTTP API interface to Proxmox commands, a LXC monitor to get LXC monitoring data and a lightweight ML model to parse monitoring logs and take decisions. You are welcome to play, improve and get fun togheter.
