@@ -33,7 +33,7 @@ Here are the routes available to interact with your Proxmox host:
 | `/clone/create`             | POST    | Clone an LXC container.                                          | `curl -X POST http://proxmox:5000/clone/create -H "Content-Type: application/json" -d '{"vm_id": 104, "new_vm_id": 105, "new_vm_name": "cloned_container"}'` |
 | `/clone/delete`             | DELETE  | Delete a cloned LXC container.                                   | `curl -X DELETE http://proxmox:5000/clone/delete -H "Content-Type: application/json" -d '{"vm_id": 105}'` |
 | `/resource/vm/status`       | GET     | Check the resource allocation and usage for an LXC container.    | `curl -X GET "http://proxmox:5000/resource/vm/status?vm_id=104"`                                      |
-| `/resource/node/status`     | GET     | Check the resource usage of a specific node.                     | `curl -X GET "http://proxmox:5000/resource/node/status?node_name=proxmox4"`                           |
+| `/resource/node/status`     | GET     | Check the resource usage of a specific node.                     | `curl -X GET "http://proxmox:5000/resource/node/status?node_name=proxmox"`                           |
 | `/health/check`             | GET     | Perform a health check on the API server.                        | `curl -X GET http://proxmox:5000/health/check`                                                        |
 | `/routes`                   | GET     | List all available routes.                                       | `curl -X GET http://proxmox:5000/routes`                           
 
