@@ -16,9 +16,6 @@ log_file = "/var/log/lxc_autoscale_api.log"
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(message)s",
-    handlers=[
-        logging.handlers.RotatingFileHandler(log_file, maxBytes=100 * 1024 * 1024, backupCount=5)
-    ]
 )
 
 app = create_app()
