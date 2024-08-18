@@ -3,21 +3,24 @@
 
 @import "{{ site.theme }}";
 
-// Dark Theme Color Palette
-$background-color: #181818;
-$background-secondary-color: #202020;
-$text-color: #e0e0e0;
-$text-muted-color: #b0b0b0;
-$link-color: #bb86fc;
-$link-hover-color: #3700b3;
-$border-color: #333333;
-$accent-color: #03dac6;
-$button-background-color: #03dac6;
-$button-hover-background-color: #02a17d;
-$input-background-color: #252525;
-$code-background-color: #282828;
-$code-text-color: #ffcb6b;
-$code-border-color: #3a3a3a;
+// GitHub Dark Theme Color Palette
+$background-color: #0d1117;
+$background-secondary-color: #161b22;
+$text-color: #c9d1d9;
+$text-muted-color: #8b949e;
+$link-color: #58a6ff;
+$link-hover-color: #1f6feb;
+$border-color: #30363d;
+$accent-color: #2f81f7;
+$button-background-color: #238636;
+$button-hover-background-color: #2ea043;
+$input-background-color: #0d1117;
+$code-background-color: #161b22;
+$code-text-color: #c9d1d9;
+$code-border-color: #30363d;
+$code-keyword-color: #ff7b72;
+$code-function-color: #d2a8ff;
+$code-string-color: #a5d6ff;
 
 // Global Styling
 body {
@@ -71,7 +74,7 @@ code {
 // Code Blocks
 pre {
   background-color: $code-background-color;
-  color: $text-color;
+  color: $code-text-color;
   border: 1px solid $code-border-color;
   padding: 1em;
   border-radius: 6px;
@@ -85,6 +88,26 @@ pre {
     color: inherit;
     padding: 0;
     border: none;
+  }
+
+  // Syntax highlighting
+  .hljs-keyword,
+  .hljs-selector-tag,
+  .hljs-literal,
+  .hljs-section,
+  .hljs-link {
+    color: $code-keyword-color;
+  }
+
+  .hljs-function .hljs-title,
+  .hljs-title.class_,
+  .hljs-title.function_ {
+    color: $code-function-color;
+  }
+
+  .hljs-string,
+  .hljs-meta .hljs-string {
+    color: $code-string-color;
   }
 }
 
@@ -133,7 +156,7 @@ input, textarea, select {
 // Buttons
 button, .button {
   background-color: $button-background-color;
-  color: $background-color;
+  color: #ffffff;
   border: none;
   padding: 0.75em 1.5em;
   border-radius: 5px;
@@ -243,4 +266,6 @@ img {
   color: $text-muted-color;
   font-size: 1em;
 }
+
+
 
