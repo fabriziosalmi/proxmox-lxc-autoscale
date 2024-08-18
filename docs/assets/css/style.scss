@@ -3,6 +3,9 @@
 
 @import "{{ site.theme }}";
 
+// Import the Merriweather font from Google Fonts
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap');
+
 // GitHub Dark Theme Color Palette
 $background-color: #0d1117;
 $background-secondary-color: #161b22;
@@ -26,7 +29,7 @@ $code-string-color: #a5d6ff;
 body {
   background-color: $background-color;
   color: $text-color;
-  font-family: 'Open Sans', sans-serif;
+  font-family: 'Merriweather', serif;
   line-height: 1.7;
   margin: 0;
   padding: 0;
@@ -36,7 +39,7 @@ body {
 // Typography
 h1, h2, h3, h4, h5, h6 {
   color: $text-color;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Merriweather', serif;
   font-weight: 700;
   margin-bottom: 1em;
   padding-bottom: 0.3em;
@@ -90,7 +93,7 @@ pre {
     border: none;
   }
 
-  // Syntax highlighting
+  // Syntax highlighting for code blocks
   .hljs-keyword,
   .hljs-selector-tag,
   .hljs-literal,
@@ -143,7 +146,7 @@ input, textarea, select {
   border-radius: 4px;
   width: 100%;
   box-sizing: border-box;
-  font-family: 'Open Sans', sans-serif;
+  font-family: 'Merriweather', serif;
   transition: background-color 0.3s, color 0.3s;
 
   &:focus {
@@ -160,7 +163,7 @@ button, .button {
   border: none;
   padding: 0.75em 1.5em;
   border-radius: 5px;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Merriweather', serif;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.3s, transform 0.2s;
@@ -257,7 +260,7 @@ img {
 }
 
 .card-title {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Merriweather', serif;
   font-size: 1.5em;
   margin-bottom: 0.5em;
 }
@@ -266,6 +269,7 @@ img {
   color: $text-muted-color;
   font-size: 1em;
 }
+
 
 
 
