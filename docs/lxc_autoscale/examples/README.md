@@ -4,6 +4,20 @@
 
 This collection provides optimized configuration files for popular self-hosted applications, helping you easily manage resource allocation and scaling in your LXC containers. Each configuration snippet is designed to balance minimal and recommended hardware requirements, ensuring efficient and scalable performance for your self-hosted environments.
 
+> [!IMPORTANT]
+>  When using the configuration snippets provided on this page for various self-hosted applications, **it is crucial to define these `TIER`-specific configurations *after* the `DEFAULT` section in your configuration file**. This ensures that any specific settings in the `TIER_` configurations will override the relevant default settings, allowing for fine-tuned control of each application’s resource allocation and scaling behavior.
+>
+> In addition to defining the `TIER` configurations after the `DEFAULT` section, you must carefully consider the following `DEFAULT` settings, as they play a critical role in the overall performance and stability of your environment:
+> - `core_min_increment` and `core_max_increment`
+>     minimum/maximum number of CPU cores that can be added or removed during a single scaling operation
+>
+> - `min_decrease_chunk`
+>     minimum amount of memory (in MB) that can be reduced in a single scaling operation
+> 
+> - `reserve_cpu_percent` and `reserve_memory_mb`
+>     % of CPU and MB of memory reserved for Proxmox to maintain system stability and performance)
+
+
 ## **Summary**
 
 Below is a list of available configuration snippets. Click on any link to jump directly to the relevant configuration:
