@@ -78,32 +78,39 @@ DEFAULT:
 ```
 
 #### Poll Interval (`poll_interval`)
-- **Description**: Sets the frequency (in seconds) at which LXC AutoScale polls container metrics.
-- **Impact**: A shorter interval means more frequent checks, which can lead to quicker scaling responses but may increase the load on the host. For high-traffic environments, a lower poll interval (e.g., 60 seconds) may be beneficial, whereas for stable environments, the default of 300 seconds may suffice.
+Sets the frequency (in seconds) at which LXC AutoScale polls container metrics.
+> [!NOTE]
+> A shorter interval means more frequent checks, which can lead to quicker scaling responses but may increase the load on the host. For high-traffic environments, a lower poll interval (e.g., 60 seconds) may be beneficial, whereas for stable environments, the default of 300 seconds may suffice.
 
 #### CPU Thresholds (`cpu_upper_threshold` and `cpu_lower_threshold`)
-- **Description**: Define the CPU usage percentages that trigger scaling actions.
-- **Impact**: If a container’s CPU usage exceeds `cpu_upper_threshold`, additional CPU cores are allocated. If usage falls below `cpu_lower_threshold`, cores are deallocated. Adjust these thresholds based on the performance requirements of your containers. For instance, a CPU-intensive application might require a lower `cpu_upper_threshold` to ensure it has enough resources during peak loads.
+Define the CPU usage percentages that trigger scaling actions.
+> [!NOTE]
+> If a container’s CPU usage exceeds `cpu_upper_threshold`, additional CPU cores are allocated. If usage falls below `cpu_lower_threshold`, cores are deallocated. Adjust these thresholds based on the performance requirements of your containers. For instance, a CPU-intensive application might require a lower `cpu_upper_threshold` to ensure it has enough resources during peak loads.
 
 #### Memory Thresholds (`memory_upper_threshold` and `memory_lower_threshold`)
-- **Description**: Control when memory scaling actions are triggered.
-- **Impact**: These settings help prevent out-of-memory (OOM) conditions by scaling up memory when usage is high and scaling down when it’s low. Memory-intensive applications, such as databases, may benefit from a higher `memory_upper_threshold` to avoid performance bottlenecks.
+Control when memory scaling actions are triggered.
+> [!NOTE]
+> These settings help prevent out-of-memory (OOM) conditions by scaling up memory when usage is high and scaling down when it’s low. Memory-intensive applications, such as databases, may benefit from a higher `memory_upper_threshold` to avoid performance bottlenecks.
 
 #### Core and Memory Increments (`core_min_increment`, `core_max_increment`, `memory_min_increment`)
-- **Description**: Define the minimum and maximum increments for scaling CPU cores and memory.
-- **Impact**: Larger increments lead to more significant changes in resource allocation, which can be useful in environments where workloads vary dramatically. Smaller increments allow for finer control, which is ideal for environments where workloads change gradually.
+Define the minimum and maximum increments for scaling CPU cores and memory.
+> [!NOTE]
+> Larger increments lead to more significant changes in resource allocation, which can be useful in environments where workloads vary dramatically. Smaller increments allow for finer control, which is ideal for environments where workloads change gradually.
 
 #### Resource Reservation (`reserve_cpu_percent` and `reserve_memory_mb`)
-- **Description**: Reserve a portion of the host’s CPU and memory resources.
-- **Impact**: This reservation ensures that the host remains responsive even under heavy container loads. It’s particularly important in homelab setups where the host may also be running other critical services.
+Reserve a portion of the host’s CPU and memory resources.
+> [!IMPORTANT]
+> This reservation ensures that the host remains responsive even under heavy container loads. It’s particularly important in homelab setups where the host may also be running other critical services.
 
 #### Logging (`log_file`)
-- **Description**: Specifies the file path for logging LXC AutoScale’s actions.
-- **Impact**: Regularly reviewing these logs helps you understand how the daemon is performing and can aid in troubleshooting any issues.
+Specifies the file path for logging LXC AutoScale’s actions.
+> [!WARNING]
+> Regularly reviewing these logs helps you understand how the daemon is performing and can aid in troubleshooting any issues.
 
 #### Energy Mode (`energy_mode`)
-- **Description**: Activates a mode that reduces resource allocation during off-peak hours.
-- **Impact**: Useful for saving energy in environments where container usage is predictable, such as a homelab that primarily operates during specific hours.
+Activates a mode that reduces resource allocation during off-peak hours.
+> [!TIP]
+> Useful for saving energy in environments where container usage is predictable, such as a homelab that primarily operates during specific hours.
 
 ### Tiers (Optional)
 
