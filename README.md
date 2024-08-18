@@ -67,7 +67,7 @@ If the conditions set in the configuration are met, you will quickly observe sca
 
 ## Configuration
 
-LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the [official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/README.md).
+LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the **[official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/README.md)**.
 
 
 ## Disclaimer
