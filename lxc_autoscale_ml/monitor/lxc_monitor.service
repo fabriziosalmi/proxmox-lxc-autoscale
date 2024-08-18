@@ -1,5 +1,6 @@
 [Unit]
 Description=LXC Monitor Service
+Documentation=https://github.com/fabriziosalmi/proxmox-lxc-autoscale
 After=network.target
 
 [Service]
@@ -12,7 +13,7 @@ User=root
 
 # Logging configuration
 Environment="PYTHONUNBUFFERED=1"
-EnvironmentFile=/etc/lxc_monitor.yaml
+EnvironmentFile=/etc/lxc_autoscale/lxc_monitor.yaml
 
 [Install]
 WantedBy=multi-user.target
