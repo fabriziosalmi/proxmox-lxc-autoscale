@@ -14,8 +14,6 @@ Perfect for new users, this variant is easy to set up and manage. Simply install
 
 A more advanced option, designed for large, automated environments or custom integrations, LXC AutoScale ML utilizes machine learning to enhance scaling decisions. It includes three services: LXC AutoScale API, LXC Monitor, and LXC AutoScale ML, offering a robust solution for complex setups.
 
-### [LXC AutoScale ML Documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_ml.md) 
-
  - [API documentation](lxc_autoscale_api/README.md)
  - [Monitor documentation](lxc_monitor/README.md)
  - [Model documentation](lxc_model/README.md)
