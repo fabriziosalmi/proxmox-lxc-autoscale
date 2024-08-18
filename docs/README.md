@@ -5,7 +5,7 @@ Welcome to the documentation for **LXC AutoScale**—a powerful and customizable
 **Which version to use?**
 
 ### LXC AutoScale
-Perfect for new users, this variant is easy to set up and manage. Simply install, run, and let it automatically handle the scaling of your LXC containers. It can be > reconfigured at any time to suit your specific environment.
+Perfect for new users, this variant is easy to set up and manage. Simply install, run, and let it automatically handle the scaling of your LXC containers. It can be reconfigured at any time to fit your needs.
 
 ### [LXC AutoScale Documentation](lxc_autoscale/README.md)
 
