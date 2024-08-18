@@ -16,6 +16,6 @@ A more advanced option, designed for large, automated environments or custom int
 
 ### [LXC AutoScale ML Documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_ml.md) 
 
- - [API documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api.md)
+ - [API documentation](lxc_autoscale_api.md)
  - [Monitor documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_monitor.md)
  - [Model documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_model.md)
