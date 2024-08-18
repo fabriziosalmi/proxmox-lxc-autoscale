@@ -38,7 +38,7 @@ body {
   line-height: 1.7;
   margin: 0;
   padding: 0;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 // Typography
@@ -49,6 +49,7 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 1em;
   padding-bottom: 0.3em;
   border-bottom: 2px solid $border-color;
+  transition: border-color 0.3s ease;
 }
 
 p {
@@ -61,7 +62,7 @@ a {
   color: $link-color;
   text-decoration: none;
   font-weight: 600;
-  transition: color 0.3s;
+  transition: color 0.3s ease, text-decoration 0.3s ease;
 
   &:hover {
     color: $link-hover-color;
@@ -77,6 +78,7 @@ code {
   border-radius: 4px;
   font-family: 'Source Code Pro', monospace;
   border: 1px solid $code-border-color;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 // Code Blocks
@@ -90,6 +92,7 @@ pre {
   font-family: 'Source Code Pro', monospace;
   font-size: 0.95em;
   line-height: 1.5;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 
   code {
     background-color: transparent;
@@ -128,11 +131,14 @@ table {
   border-radius: 8px;
   overflow: hidden;
   background-color: $background-secondary-color;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.3s ease;
 
   th, td {
     padding: 0.75em;
     border: none;
     text-align: left;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   th {
@@ -154,6 +160,7 @@ table {
     border-radius: 4px;
     padding: 0.4em 0.6em;
     color: #ffffff;
+    transition: background-color 0.3s ease;
 
     &.get {
       background-color: $get-background-color;
@@ -175,7 +182,7 @@ input, textarea, select {
   width: 100%;
   box-sizing: border-box;
   font-family: 'Merriweather', serif;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 
   &:focus {
     outline: none;
@@ -194,12 +201,13 @@ button, .button {
   font-family: 'Merriweather', serif;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s, transform 0.2s;
+  transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 
   &:hover {
     background-color: $button-hover-background-color;
     transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -210,15 +218,18 @@ button, .button {
   border-bottom: 1px solid $border-color;
   display: flex;
   justify-content: space-between;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 
   a {
     color: $text-color;
     margin: 0 1em;
     padding: 0.5em 0;
     font-weight: 600;
+    transition: color 0.3s ease, text-decoration 0.3s ease;
 
     &:hover {
       color: $accent-color;
+      text-decoration: underline;
     }
   }
 }
@@ -231,13 +242,16 @@ footer {
   padding: 1.5em;
   border-top: 1px solid $border-color;
   margin-top: 2em;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 
   a {
     color: $link-color;
     font-weight: 600;
+    transition: color 0.3s ease, text-decoration 0.3s ease;
 
     &:hover {
       color: lighten($link-hover-color, 20%);
+      text-decoration: underline;
     }
   }
 }
@@ -250,6 +264,7 @@ blockquote {
   color: lighten($text-color, 10%);
   margin: 1.5em 0;
   border-radius: 4px;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 // Horizontal Rules
@@ -257,6 +272,7 @@ hr {
   border: 1px solid $hr-color;
   margin: 2em 0;
   border-radius: 1px;
+  transition: border-color 0.3s ease;
 }
 
 // Images
@@ -266,6 +282,7 @@ img {
   border-radius: 4px;
   box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
   margin: 1.5em 0;
+  transition: box-shadow 0.3s ease, border-radius 0.3s ease;
 }
 
 // Additional Refinements
@@ -273,10 +290,12 @@ img {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 2em;
+  transition: max-width 0.3s ease;
 }
 
 .section {
   padding: 2em 0;
+  transition: padding 0.3s ease;
 }
 
 .card {
@@ -286,15 +305,22 @@ img {
   padding: 1.5em;
   margin-bottom: 2em;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  }
 }
 
 .card-title {
   font-family: 'Merriweather', serif;
   font-size: 1.5em;
   margin-bottom: 0.5em;
+  transition: font-size 0.3s ease;
 }
 
 .card-content {
   color: $text-muted-color;
   font-size: 1em;
+  transition: color 0.3s ease, font-size 0.3s ease;
 }
