@@ -1,5 +1,7 @@
 # LXC AutoScale
 
+LXC AutoScale is a dynamic scaling solution designed to automatically adjust CPU and memory resources for LXC containers based on real-time usage metrics. This service ensures that your containers always have the appropriate amount of resources allocated, optimizing performance and efficiency. 
+
 ## Configuration
 
 The **LXC AutoScale** script manages the dynamic scaling of LXC containers and/or CPU and memory resources for LXC containers based on their resource usage. The configuration file at `/etc/lxc_autoscale/lxc_autoscale.yaml` defines thresholds, settings, and behaviors for the daemon. Below is the updated documentation reflecting the latest integrations and features.
