@@ -32,12 +32,16 @@ The limit is your imagination :)
 
 ## Installation
 
-The easiest way to install LXC AutoScale API on your Proxmox host is by using the following `curl` command:
+The easiest way to install LXC AutoScale API on your Proxmox host is by using the main installer and select to install the **LXC AutoScale ML** package.
 
 ```
-curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/api/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
+You can also install the LXC AutoScale API package only bu using this command:
+```
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_api.sh | bash
+```
 ## Routes
 
 Here are the routes available to interact with your Proxmox host:
