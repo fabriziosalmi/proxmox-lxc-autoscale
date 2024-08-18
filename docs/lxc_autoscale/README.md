@@ -1,20 +1,52 @@
-# LXC AutoScale
+# LXC AutoScale Documentation
 
-LXC AutoScale is a dynamic scaling solution designed to automatically adjust CPU and memory resources for LXC containers based on real-time usage metrics. This service ensures that your containers always have the appropriate amount of resources allocated, optimizing performance and efficiency. 
+**LXC AutoScale** is a dynamic scaling solution designed to automatically adjust CPU and memory resources for LXC containers based on real-time usage metrics. This service ensures that your containers always have the appropriate amount of resources allocated, optimizing performance and efficiency in both homelab and self-hosting environments.
+
+## Summary
+
+- **[Introduction](#lxc-autoscale)**: Overview of LXC AutoScale's functionality.
+- **[Configuration](#configuration)**: Detailed guide to setting up and customizing LXC AutoScale.
+  - [Configuration File Location](#configuration-file-location)
+  - [Important Parameters](#important-parameters)
+  - [Tiers (Optional)](#tiers-optional)
+  - [Horizontal Scaling Group (Optional)](#horizontal-scaling-group-optional)
+- **[Service Management](#service-management)**: Commands to start, stop, and manage the LXC AutoScale service.
+- **[Logging](#logging)**: Instructions for accessing and interpreting LXC AutoScale logs.
+- **[Uninstallation](#uninstallation)**: Steps to remove LXC AutoScale from your system.
+- **[Use Cases](#use-cases)**: Examples of how LXC AutoScale can be used in homelab and self-hosting environments.
+- **[Best Practices and Tips](#best-practices-and-tips)**: Recommendations for optimal configuration and usage.
+
+---
+
+## LXC AutoScale
+
+**LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance.
+
+Whether you’re running a complex homelab setup or managing a small self-hosted service, LXC AutoScale helps maintain smooth operations without manual intervention.
+
+---
 
 ## Configuration
 
-The **LXC AutoScale** script manages the dynamic scaling of LXC containers and/or CPU and memory resources for LXC containers based on their resource usage. The configuration file at `/etc/lxc_autoscale/lxc_autoscale.yaml` defines thresholds, settings, and behaviors for the daemon. Below is the updated documentation reflecting the latest integrations and features.
+The core of **LXC AutoScale** lies in its configuration file, where you can fine-tune the behavior of the scaling daemon to suit your specific needs. This section provides an in-depth look at how to configure LXC AutoScale, including a breakdown of key parameters, optional tiers, and horizontal scaling.
 
-### Configuration File
-> [!IMPORTANT]  
-> The main configuration file is located at `/etc/lxc_autoscale/lxc_autoscale.yaml`. This file defines various thresholds and settings for the daemon. If you need to customize the behavior of the daemon, you can edit this file.
+### Configuration File Location
 
-### Configuration Backup
-> [!NOTE]  
-> Before any update, the installation script automatically backs up the existing configuration file to `/etc/lxc_autoscale/lxc_autoscale.yaml.YYYYMMDD-HHMMSS.backup`. It will migrate your existing `/etc/lxc_autoscale/lxc_autoscale.conf` configuration into the new YAML format, if any.
+The main configuration file for LXC AutoScale is located at:
 
-### Default Configuration Parameters
+```bash
+/etc/lxc_autoscale/lxc_autoscale.yaml
+```
+
+This file contains all the settings that control how the daemon manages resource scaling. Before making any changes, it’s recommended to back up the existing configuration file to avoid losing your settings:
+
+```bash
+cp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale/lxc_autoscale.yaml.backup
+```
+
+### Important Parameters
+
+The configuration file uses a YAML format to define various settings. Below is a detailed explanation of the default parameters and how they influence the scaling behavior.
 
 ```yaml
 DEFAULT:
@@ -44,38 +76,39 @@ DEFAULT:
   behaviour: normal
 ```
 
-The configuration file contains settings that control how the script manages scaling for CPU and memory resources. Below are the default parameters and their descriptions:
+#### Poll Interval (`poll_interval`)
+- **Description**: Sets the frequency (in seconds) at which LXC AutoScale polls container metrics.
+- **Impact**: A shorter interval means more frequent checks, which can lead to quicker scaling responses but may increase the load on the host. For high-traffic environments, a lower poll interval (e.g., 60 seconds) may be beneficial, whereas for stable environments, the default of 300 seconds may suffice.
 
-| Parameter                 | Default Value         | Description                                                                                                                                                           |
-|---------------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **poll_interval**          | 300                   | The interval, in seconds, at which the script polls container metrics to determine if scaling actions are required.                                                   |
-| **cpu_upper_threshold**    | 80                    | The CPU usage percentage that triggers scaling up (adding more CPU cores) for a container.                                                                            |
-| **cpu_lower_threshold**    | 20                    | The CPU usage percentage that triggers scaling down (reducing CPU cores) for a container.                                                                             |
-| **memory_upper_threshold** | 80                    | The memory usage percentage that triggers scaling up (increasing memory) for a container.                                                                             |
-| **memory_lower_threshold** | 20                    | The memory usage percentage that triggers scaling down (decreasing memory) for a container.                                                                           |
-| **core_min_increment**     | 1                     | The minimum number of CPU cores to add during a scaling-up operation.                                                                                                 |
-| **core_max_increment**     | 4                     | The maximum number of CPU cores to add during a single scaling-up operation.                                                                                          |
-| **memory_min_increment**   | 512                   | The minimum amount of memory (in MB) to add during a scaling-up operation.                                                                                            |
-| **min_cores**              | 1                     | The minimum number of CPU cores any container should have.                                                                                                            |
-| **max_cores**              | 8                     | The maximum number of CPU cores any container can have.                                                                                                               |
-| **min_memory**             | 512                   | The minimum amount of memory (in MB) that any container should have.                                                                                                  |
-| **min_decrease_chunk**     | 512                   | The minimum chunk size (in MB) by which memory can be reduced during a scaling-down operation.                                                                        |
-| **reserve_cpu_percent**    | 10                    | The percentage of the host's total CPU resources reserved and not allocated to containers.                                                                            |
-| **reserve_memory_mb**      | 2048                  | The amount of memory (in MB) reserved on the host and not allocated to containers.                                                                                    |
-| **log_file**               | `/var/log/lxc_autoscale.log` | The file path where the script writes its log output.                                                                                                                 |
-| **lock_file**              | `/var/lock/lxc_autoscale.lock` | The file path for the lock file used by the script to prevent multiple instances from running simultaneously.                                                         |
-| **backup_dir**             | `/var/lib/lxc_autoscale/backups` | The directory where backups of container configurations are stored before scaling actions are taken.                                                                  |
-| **off_peak_start**         | 22                    | The hour (in 24-hour format) at which off-peak energy-saving mode begins.                                                                                             |
-| **off_peak_end**           | 6                     | The hour (in 24-hour format) at which off-peak energy-saving mode ends.                                                                                               |
-| **energy_mode**            | False                 | A boolean setting that enables or disables energy-saving mode during off-peak hours.                                                                                  |
-| **gotify_url**             | ''                    | The URL for a Gotify server used for sending notifications about scaling actions or other important events.                                                           |
-| **gotify_token**           | ''                    | The authentication token for accessing the Gotify server.                                                                                                             |
-| **ignore_lxc**             | []                    | Add one or more LXC containers to the ignore list. Containers in this list are not affected by the autoscaling process.                                               |
-| **behaviour**              | `normal`              | The behavior acts as a multiplier for autoscaling resources thresholds. Options are `normal`, `conservative`, or `aggressive`.                                        |
+#### CPU Thresholds (`cpu_upper_threshold` and `cpu_lower_threshold`)
+- **Description**: Define the CPU usage percentages that trigger scaling actions.
+- **Impact**: If a container’s CPU usage exceeds `cpu_upper_threshold`, additional CPU cores are allocated. If usage falls below `cpu_lower_threshold`, cores are deallocated. Adjust these thresholds based on the performance requirements of your containers. For instance, a CPU-intensive application might require a lower `cpu_upper_threshold` to ensure it has enough resources during peak loads.
+
+#### Memory Thresholds (`memory_upper_threshold` and `memory_lower_threshold`)
+- **Description**: Control when memory scaling actions are triggered.
+- **Impact**: These settings help prevent out-of-memory (OOM) conditions by scaling up memory when usage is high and scaling down when it’s low. Memory-intensive applications, such as databases, may benefit from a higher `memory_upper_threshold` to avoid performance bottlenecks.
+
+#### Core and Memory Increments (`core_min_increment`, `core_max_increment`, `memory_min_increment`)
+- **Description**: Define the minimum and maximum increments for scaling CPU cores and memory.
+- **Impact**: Larger increments lead to more significant changes in resource allocation, which can be useful in environments where workloads vary dramatically. Smaller increments allow for finer control, which is ideal for environments where workloads change gradually.
+
+#### Resource Reservation (`reserve_cpu_percent` and `reserve_memory_mb`)
+- **Description**: Reserve a portion of the host’s CPU and memory resources.
+- **Impact**: This reservation ensures that the host remains responsive even under heavy container loads. It’s particularly important in homelab setups where the host may also be running other critical services.
+
+#### Logging (`log_file`)
+- **Description**: Specifies the file path for logging LXC AutoScale’s actions.
+- **Impact**: Regularly reviewing these logs helps you understand how the daemon is performing and can aid in troubleshooting any issues.
+
+#### Energy Mode (`energy_mode`)
+- **Description**: Activates a mode that reduces resource allocation during off-peak hours.
+- **Impact**: Useful for saving energy in environments where container usage is predictable, such as a homelab that primarily operates during specific hours.
 
 ### Tiers (Optional)
 
-You can assign LXC containers to different tiers for specific threshold assignments. Each tier must be prefixed with `TIER_` (e.g., `TIER_TEST`). Adjust the tier options in the `/etc/lxc_autoscale/lxc_autoscale.yaml` configuration file and restart the service by running `systemctl restart lxc_autoscale`.
+Tiers allow you to apply different scaling rules to groups of containers, enabling more granular control based on the specific needs of each service.
+
+#### Example Configuration:
 
 ```yaml
 TIER_TEST:
@@ -91,37 +124,36 @@ TIER_TEST:
   - 101
 ```
 
-### Horizontal Scaling Group  (optional)
+- **Usage Scenario**: You might use a tier like `TIER_TEST` for non-critical containers or testing environments. This tier allows these containers to use more resources when needed but also scales them down aggressively to free up resources for other critical containers.
 
-The script also supports horizontal scaling where containers are cloned based on specific criteria.
+### Horizontal Scaling Group (Optional)
 
-> [!WARNING]  
-> This feature is experimental and support scale-out only. If You really need to scale-in please check the [LXC AutoScale API documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/docs/lxc_autoscale_api)
-
-The horizontal scaling group is defined as follows:
+Horizontal scaling allows LXC AutoScale to clone containers based on resource demand. This feature is still experimental and is designed for environments that require scaling out services rather than just scaling up resources.
 
 #### Example Configuration:
 
 ```yaml
 HORIZONTAL_SCALING_GROUP_1:
-  base_snapshot_name: "101"    
+  base_snapshot_name: "101"
   min_instances: 2
   max_instances: 5
-  starting_clone_id: 99000  # Starting ID for clones
-  clone_network_type: "static"  # or "dhcp"
+  starting_clone_id: 99000
+  clone_network_type: "static"
   static_ip_range: ["192.168.100.195", "192.168.100.200"]
-  horiz_cpu_upper_threshold: 95  # Upper CPU threshold for triggering horizontal scaling
-  horiz_memory_upper_threshold: 95  # Upper Memory threshold for triggering horizontal scaling
-  group_tag: "horiz_scaling_group_1"  # Optional tag for identifying clones of this group
+  horiz_cpu_upper_threshold: 95
+  horiz_memory_upper_threshold: 95
+  group_tag: "horiz_scaling_group_1"
   lxc_containers: 
   - 101
 ```
 
+- **Usage Scenario**: This feature is ideal for homelab users running a web service that experiences fluctuating traffic. When traffic spikes, LXC AutoScale can clone additional instances of the service, ensuring availability without manual intervention.
+
+---
+
 ## Service Management
 
-### Starting and Stopping the Service
-
-Once installed, the LXC AutoScale daemon runs as a systemd service. You can manage the service using the following commands:
+Managing the LXC AutoScale daemon is straightforward with systemd. Here’s how to control the service:
 
 - **Start the service:**
   ```bash
@@ -143,66 +175,62 @@ Once installed, the LXC AutoScale daemon runs as a systemd service. You can mana
   systemctl status lxc_autoscale.service
   ```
 
-### Enabling the Service at Boot
-
-To ensure that the LXC AutoScale daemon starts automatically at boot, use the following command:
+To ensure that LXC AutoScale starts automatically at boot, use:
 
 ```bash
 systemctl enable lxc_autoscale.service
 ```
 
+This command ensures that the daemon is always running, providing continuous scaling based on container needs.
+
+---
+
 ## Logging
-> [!IMPORTANT]
-> Logs for the LXC AutoScale daemon are stored in `/var/log/lxc_autoscale.log` and `/var/log/lxc_autoscale.json` (resources changes only). You can check and monitor log files to observe the daemon's operations and troubleshoot any issues or to implement additional scaling logic.
 
-```
-root@proxmox:~# tail /var/log/lxc_autoscale.log 
-2024-08-14 22:04:27 - INFO - Starting resource allocation process...
-2024-08-14 22:04:45 - INFO - Initial resources before adjustments: 40 cores, 124750 MB memory
-2024-08-14 22:04:45 - INFO - Decreasing cores for container 114 by 2...
-2024-08-14 22:04:47 - INFO - Decreasing cores for container 102 by 2...
-2024-08-14 22:04:48 - INFO - Decreasing memory for container 102 by 6656MB...
-2024-08-14 22:04:50 - INFO - Final resources after adjustments: 44 cores, 131406 MB memory
-2024-08-14 22:04:50 - INFO - Resource allocation process completed. Next run in 300 seconds.
+LXC AutoScale logs its actions to help you monitor its behavior and troubleshoot any issues.
+
+### Log Files
+
+- **Main Log**: `/var/log/lxc_autoscale.log`
+- **JSON Log**: `/var/log/lxc_autoscale.json`
+
+### Monitoring Logs
+
+To view the logs in real-time:
+
+```bash
+tail -f /var/log/lxc_autoscale.log
 ```
 
-> [!TIP]
-> You can easily check JSON logs by installing and using `jq` like this:
+For the JSON logs
 
+, which provide detailed information about resource changes, you can use `jq` for better readability:
+
+```bash
+cat /var/log/lxc_autoscale.json | jq .
 ```
-root@proxmox:~# cat /var/log/lxc_autoscale.json | jq .
-{
-  "timestamp": "2024-08-14 22:04:45",
-  "proxmox_host": "proxmox",
-  "container_id": "114",
-  "action": "Decrease Cores",
-  "change": "2"
-}
-{
-  "timestamp": "2024-08-14 22:04:47",
-  "proxmox_host": "proxmox",
-  "container_id": "102",
-  "action": "Decrease Cores",
-  "change": "2"
-}
-{
-  "timestamp": "2024-08-14 22:04:48",
-  "proxmox_host": "proxmox",
-  "container_id": "102",
-  "action": "Decrease Memory",
-  "change": "6656MB"
-}
-```
+
+### Log Interpretation
+
+Understanding the logs can help you fine-tune LXC AutoScale’s configuration. For example, if you notice frequent scaling actions, you might need to adjust the thresholds or increments to reduce the load on the host.
+
+---
+
 ## Uninstallation
 
-> [!TIP]
-> The easiest way to uninstall LXC AutoScale is by using the following `curl` command:
+If you need to remove LXC AutoScale from your system, the process is straightforward.
+
+### Automated Uninstallation
+
+Use the following `curl` command to automatically uninstall LXC AutoScale:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/uninstall.sh | bash
 ```
 
-If you wish to remove the LXC AutoScale daemon from your system manually, you can force to kill, disable and stop the service, then delete the associated files:
+### Manual Uninstallation
+
+To manually remove LXC AutoScale, follow these steps:
 
 ```bash
 kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
@@ -213,3 +241,46 @@ rm -f /etc/systemd/system/lxc_autoscale.service
 rm -rf /etc/lxc_autoscale/
 rm -rf /var/lib/lxc_autoscale/
 ```
+
+This will completely remove the service and all associated files from your system.
+
+---
+
+## Use Cases
+
+### Scenario 1: Media Server
+
+**Use Case**: You’re running a self-hosted media server using Plex or Jellyfin on your homelab. During evenings and weekends, when your family is likely to be streaming content, LXC AutoScale can automatically allocate more CPU cores and memory to your media server container, ensuring smooth playback. During the day, when usage is low, it scales down resources to save energy.
+
+**Configuration Tip**: Set the `cpu_upper_threshold` and `memory_upper_threshold` to slightly lower values (e.g., 75%) to ensure quick scaling during peak times.
+
+### Scenario 2: Development Environment
+
+**Use Case**: You have a homelab where you run multiple development environments in LXC containers. Each environment has different resource needs depending on the projects you’re working on. LXC AutoScale can dynamically adjust resources based on the current workload, allowing you to focus on coding rather than managing resources.
+
+**Configuration Tip**: Create tiers for different projects, assigning higher thresholds to more demanding projects to ensure they get the resources they need without affecting other containers.
+
+### Scenario 3: Personal Web Hosting
+
+**Use Case**: You’re self-hosting a personal website or blog. Occasionally, your site experiences traffic spikes, such as when a blog post gains popularity. LXC AutoScale can clone your web server container to handle the increased load, ensuring that your site remains responsive without manual intervention.
+
+**Configuration Tip**: Enable horizontal scaling with a conservative `horiz_cpu_upper_threshold` to ensure that clones are only created when absolutely necessary, saving resources for other tasks.
+
+---
+
+## Best Practices and Tips
+
+### 1. Regularly Review and Adjust Configuration
+As your usage patterns change, revisit the LXC AutoScale configuration to ensure it remains optimal. For example, if you add new services or containers, you may need to adjust thresholds or add new tiers.
+
+### 2. Monitor Logs Frequently
+Use the log files to monitor how LXC AutoScale is managing resources. Frequent scaling actions may indicate that your thresholds are too tight, leading to unnecessary scaling.
+
+### 3. Balance Performance and Resource Efficiency
+Finding the right balance between performance and resource efficiency is key. For most homelab users, setting slightly conservative thresholds helps avoid over-allocation while still maintaining good performance.
+
+### 4. Test Configuration Changes in a Controlled Environment
+Before applying significant changes to the configuration in a production environment, test them in a controlled setting to understand their impact.
+
+### 5. Use Tiers to Group Similar Containers
+If you have multiple containers with similar resource needs, grouping them into tiers can simplify management and ensure consistent scaling behavior.
