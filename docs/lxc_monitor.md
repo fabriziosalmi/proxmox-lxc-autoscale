@@ -2,7 +2,7 @@
 
 ## Overview
 
-The LXC Monitor Service is a Python-based service designed to monitor LXC containers on a Linux system. It periodically collects metrics from running containers, including CPU usage, memory usage, I/O statistics, network usage, filesystem usage, and the number of running processes. The collected metrics are exported to a JSON file for further analysis.
+The LXC Monitor is a Python-based service designed to monitor LXC containers on a Linux system like Proxmox. It periodically collects metrics from running containers, including CPU usage, memory usage, I/O statistics, network usage, filesystem usage, and the number of running processes. The collected metrics are exported to a JSON file for further analysis.
 
 ## Features
 
