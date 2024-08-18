@@ -1,55 +1,95 @@
-# LXC AutoScale 
+# LXC AutoScale
 
-**LXC AutoScale** is a powerful resource management daemon designed to automatically adjust CPU and memory allocations, as well as clone LXC containers on Proxmox hosts based on current usage and predefined thresholds. It optimizes resource utilization, manages spikes in demand, and ensures that critical containers have the necessary resources. Additionally, it can (optionally) help save energy during off-peak hours. The autoscaling logic is highly customizable, offering a wide range of granular options to fit seamlessly into existing setups and meet specific requirements.
+**LXC AutoScale** is a powerful and flexible resource management daemon specifically designed for Proxmox environments. It automatically adjusts CPU and memory allocations and can clone LXC containers based on real-time usage metrics and predefined thresholds. This ensures that your containers are always optimized for performance, managing spikes in demand, and preserving resources during off-peak hours. With a highly customizable autoscaling logic, LXC AutoScale seamlessly integrates into your existing setup, catering to a wide range of requirements—from small homelabs to large-scale automated environments.
 
-✅ Tested on `Proxmox 8.2.4`
+**✅ Tested on `Proxmox 8.2.4`**
 
-### _LXC AutoScale, with or without AI ?_
+---
 
-- **LXC AutoScale** is the ideal choice for new users. It's straightforward: install, run, and let it handle the rest by automatically scaling the resources of your Proxmox LXC containers. You can easily reconfigure it to fit your setup at any time or use it as a one-time solution when needed.
+## Introduction
 
-- **LXC AutoScale ML** is a more advanced option, designed for large automated environments or custom integrations. This solution comprises three services: LXC AutoScale API, LXC Monitor, and LXC AutoScale ML. It is intended for scenarios where more sophisticated, machine learning-driven autoscaling is required. 
+### _LXC AutoScale: Tailored for Your Needs_
 
+LXC AutoScale offers two distinct options to suit different user profiles and environments:
+
+- **LXC AutoScale**: Ideal for new users and straightforward setups. This version provides a simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. It’s easy to install, requires minimal configuration, and works reliably to ensure your containers are always running optimally. You can reconfigure it at any time or use it as a one-time solution when needed.
+
+- **LXC AutoScale ML**: Designed for advanced users and more complex environments. This version is perfect for large automated setups or custom integrations requiring sophisticated, machine-learning-driven autoscaling. It consists of three services: LXC AutoScale API, LXC Monitor, and LXC AutoScale ML. Together, these services provide deep insights, automated scaling decisions based on real-time data, and extensive control over your container environment.
 
 > [!NOTE]
-> The current installer wait 5 seconds and then automatically install the **LXC AutoScale** standard version.
+> The default installer automatically installs the **LXC AutoScale** standard version after a 5-second delay.
+
+---
 
 ## Features
 
-- ⚙️ **Automatic Resource Scaling:** Dynamically adjust CPU and memory based on usage thresholds.
-- ⚖️ **Automatic Horizontal Scaling:** Dynamically clone your LXC containers based on usage thresholds.
-- 📊 **Tier Defined Thresholds:** Set specific thresholds for one or more LXC containers.
-- 🛡️ **Host Resource Reservation:** Ensure that the host system remains stable and responsive.
-- 🔒 **Ignore Scaling Option:** Ensure that one or more LXC containers are not affected by the scaling process.
-- 🌱 **Energy Efficiency Mode:** Reduce resource allocation during off-peak hours to save energy.
-- 🚦 **Container Prioritization:** Prioritize resource allocation based on resource type.
-- 📦 **Automatic Backups:** Backup and rollback container configurations.
-- 🔔 **Gotify Notifications:** Optional integration with Gotify for real-time notifications.
-- 📈 **JSON metrics:** Collect all resources changes across your autoscaling fleet. 
+LXC AutoScale is packed with features that make it an essential tool for managing your LXC containers on Proxmox:
+
+- ⚙️ **Automatic Resource Scaling**: Dynamically adjusts CPU and memory allocations based on predefined usage thresholds, ensuring that your containers always have the resources they need.
+
+- ⚖️ **Automatic Horizontal Scaling**: Automatically clones LXC containers when usage thresholds are exceeded, providing additional capacity during peak demand.
+
+- 📊 **Tier Defined Thresholds**: Allows you to set specific scaling thresholds for individual containers or groups of containers, giving you fine-grained control over resource allocation.
+
+- 🛡️ **Host Resource Reservation**: Ensures that the Proxmox host remains stable and responsive by reserving a portion of the CPU and memory resources.
+
+- 🔒 **Ignore Scaling Option**: Excludes specific containers from the scaling process, preventing unintended resource adjustments.
+
+- 🌱 **Energy Efficiency Mode**: Reduces resource allocations during off-peak hours to conserve energy and reduce operational costs.
+
+- 🚦 **Container Prioritization**: Prioritizes resource allocation based on container importance, ensuring critical services always have priority access to resources.
+
+- 📦 **Automatic Backups**: Automatically backs up and allows rollback of container configurations, providing an added layer of safety against unexpected changes.
+
+- 🔔 **Gotify Notifications**: Optional integration with Gotify for real-time notifications about scaling actions, container status, and other critical events.
+
+- 📈 **JSON Metrics**: Collects and exports detailed metrics on resource changes across your autoscaling fleet, enabling in-depth analysis and monitoring.
+
+---
 
 ## Installation
 
-The easiest way to install (and update) LXC AutoScale is by using the following `curl` command:
+Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
-Now the service should be running. You can check it by executing `systemctl status lxc_autoscale.service` and if some condition is reached you will quickly see scaling operations. 
+Once installed, the service should be up and running. You can verify this by executing:
+
+```bash
+systemctl status lxc_autoscale.service
+```
+
+If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
+
+---
 
 ## Configuration
 
-You can reconfigure the service any time, **please check the [documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale.md)**.
+LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the [official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale.md).
+
+---
 
 ## Disclaimer
 
 > [!CAUTION]
-> I am not responsible for any damage to your lovely stuff by using this tool.
+> Please note that while LXC AutoScale is designed to enhance your container management experience, I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
+
+---
 
 ## Contributing
 
-If you would like to contribute to the development of LXC AutoScale, feel free to submit a pull request or [open an issue](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/new/choose) on the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
+LXC AutoScale is an open-source project, and contributions are welcome! Whether you want to submit a pull request, report an issue, or suggest a new feature, your input is invaluable. To get involved, you can:
+
+- Submit a pull request to the repository.
+- [Open an issue](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/new/choose) to report bugs or request new features.
+- Fork the repository to experiment and develop your custom features.
+
+For more details, visit the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
+
+---
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+LXC AutoScale is licensed under the MIT License, which means you are free to use, modify, and distribute this software with proper attribution. For more details, please see the [LICENSE](LICENSE) file.
