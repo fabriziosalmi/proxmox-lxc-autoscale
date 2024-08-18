@@ -1,0 +1,18 @@
+[Unit]
+Description=LXC AutoScale ML Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale_ml.py
+WorkingDirectory=/usr/local/bin/
+StandardOutput=inherit
+StandardError=inherit
+Restart=on-failure
+User=root
+
+# Logging configuration
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/etc/lxc_autoscale/lxc_autoscale_ml.yaml
+
+[Install]
+WantedBy=multi-user.target
