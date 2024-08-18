@@ -11,39 +11,31 @@ echo "📁 Creating directory /usr/local/bin/autoscaleapi..."
 mkdir -p /usr/local/bin/lxc_autoscale_api
 mkdir -p /etc/lxc_autoscale
 
+# Flask testing server (gunicorn setup will be release later on)
 
 # Step 2: Install necessary packages
 echo "📦 Installing required packages..."
 apt update
-apt install git python3-flask python3-requests python3-gunicorn -y
+apt install git python3-flask python3-requests -y
 
-# Step 3: Create a symlink for gunicorn
-echo "🔗 Creating symlink for gunicorn..."
-ln -s /usr/lib/python3/dist-packages/gunicorn/app/wsgiapp.py /usr/local/bin/gunicorn
-chmod +x /usr/local/bin/gunicorn
-
-# Step 4: Add shebang to gunicorn script
-echo "✏️ Adding shebang to gunicorn script..."
-sed -i '1i #!/usr/bin/python3' /usr/local/bin/gunicorn
-
-# Step 5: Clone the repository
+# Step 3: Clone the repository
 echo "🐙 Cloning the repository..."
 git clone https://github.com/fabriziosalmi/proxmox-lxc-autoscale
 
-# Step 6: Copy service file to systemd
+# Step 4: Copy service file to systemd
 echo "📝 Copying service file to systemd directory..."
 cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/lxc_autoscale_api.service /etc/systemd/system/lxc_autoscale_api.service
 
-# Step 7: Reload systemd daemon
+# Step 5: Reload systemd daemon
 echo "🔄 Reloading systemd daemon..."
 systemctl daemon-reload
 
-# Step 8: Copy the necessary files to the appropriate directories
+# Step 6: Copy the necessary files to the appropriate directories
 echo "📂 Copying Python scripts and configuration files..."
 cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/*.py /usr/local/bin/lxc_autoscale_api/
 cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/config.yaml /etc/lxc_autoscale/lxc_autoscale_api.yaml
 
-# Step 9: Enable and start the service
+# Step 7: Enable and start the service
 echo "🚀 Enabling and starting the autoscaleapi service..."
 systemctl enable lxc_autoscale_api.service
 systemctl start lxc_autoscale_api.service
