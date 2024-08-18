@@ -30,6 +30,9 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 🔔 Gotify Notifications
 - 📈 JSON Metrics
 
+### Additional resources
+- 🎛️ [40 self-hosted apps TIER snippets](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
+
 ## Installation
 
 Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
