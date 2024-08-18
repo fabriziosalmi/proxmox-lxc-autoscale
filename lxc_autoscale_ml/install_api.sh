@@ -8,8 +8,9 @@ fi
 
 # Step 1: Create the necessary directory
 echo "📁 Creating directory /usr/local/bin/autoscaleapi..."
-mkdir -p /usr/local/bin/autoscaleapi
+mkdir -p /usr/local/bin/lxc_autoscale_api
 mkdir -p /etc/lxc_autoscale
+
 
 # Step 2: Install necessary packages
 echo "📦 Installing required packages..."
