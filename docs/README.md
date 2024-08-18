@@ -7,7 +7,7 @@ Welcome to the documentation for **LXC AutoScale**—a powerful and customizable
 ### LXC AutoScale
 Perfect for new users, this variant is easy to set up and manage. Simply install, run, and let it automatically handle the scaling of your LXC containers. It can be > reconfigured at any time to suit your specific environment.
 
-### [LXC AutoScale Documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)
+### [LXC AutoScale Documentation](lxc_autoscale/README.md)
 
 --- 
 ### LXC AutoScale ML
