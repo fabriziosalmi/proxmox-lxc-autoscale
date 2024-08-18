@@ -293,18 +293,18 @@ prompt_user_choice() {
     echo "2) ✨ LXC AutoScale ML (experimental)"
     echo -e "You have ${timeout} seconds to choose. If no choice is made, option 1 will be selected automatically.\n"
 
-    # Adding a log to indicate waiting for user input
-    log "INFO" "Waiting for user input with a ${timeout}-second timeout..."
+    # Adding a timestamp before the read command to check if it actually waits
+    log "INFO" "Timestamp before waiting for input: $(date +"%T")"
     read -r -t $timeout user_choice
+    log "INFO" "Timestamp after waiting for input: $(date +"%T")"
 
-    # Adding a log to indicate what choice was made or defaulted to
+    # If no input received, use default choice
     if [ -z "$user_choice" ]; then
-        log "INFO" "No input received, defaulting to option ${default_choice}."
+        user_choice=$default_choice
+        log "INFO" "No input received, defaulting to option ${user_choice}."
     else
         log "INFO" "User selected option ${user_choice}."
     fi
-
-    user_choice=${user_choice:-$default_choice}  # Set to default if no input
 
     echo -e "You chose option ${user_choice}."
     echo
@@ -322,6 +322,9 @@ prompt_user_choice() {
             ;;
     esac
 }
+
+
+
 
 
 # Function to install LXC AutoScale
