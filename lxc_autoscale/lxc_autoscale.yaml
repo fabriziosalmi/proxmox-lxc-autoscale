@@ -105,16 +105,41 @@ DEFAULT:
 #  # Container ID 101
 #  - 101
 
-# Horizontal scaling group
+
+# Horizontal scaling groups. Experimental!!
+# Workaround: currently base_snapshot_name and lxc_containers must be identical.
+# Change options accordingly with your setup and uncomment the whole section to enable it.
+
 #HORIZONTAL_SCALING_GROUP_1:
+#  # Base snapshot name used as a template for cloning instances in this scaling group.
 #  base_snapshot_name: "101"
+#  
+#  # Minimum number of instances to maintain in this horizontal scaling group.
 #  min_instances: 2
+#  
+#  # Maximum number of instances allowed in this horizontal scaling group.
 #  max_instances: 5
-#  starting_clone_id: 99000  # Starting ID for clones
-#  clone_network_type: "static"  # or "dhcp"
-#  static_ip_range: ["192.168.100.195", "192.168.100.200"]
-#  horiz_cpu_upper_threshold: 5
-#  horiz_memory_upper_threshold: 5
-#  group_tag: "horiz_scaling_group_1"  # Optional tag for identifying clones of this group
+#  
+#  # Starting ID for clones created from the base snapshot.
+#  starting_clone_id: 99000  # Assigns clone IDs starting from 99000.
+#  
+#  # Type of network configuration for clones. Options include "static" or "dhcp".
+#  clone_network_type: "static"  # Indicates that static IP addresses are used.
+#  
+#  # Range of static IP addresses available for assigning to clones.
+#  static_ip_range: ["192.168.100.195", "192.168.100.200"]  # Defines the IP range for static assignment.
+#  
+#  # CPU usage threshold percentage above which additional instances are created.
+#  horiz_cpu_upper_threshold: 5  # Create more instances when CPU usage exceeds 5%.
+#  
+#  # Memory usage threshold percentage above which additional instances are created.
+#  horiz_memory_upper_threshold: 5  # Create more instances when memory usage exceeds 5%.
+#  
+#  # Optional tag used to identify and categorize clones in this scaling group.
+#  group_tag: "horiz_scaling_group_1"  # Tag for recognizing instances of this horizontal scaling group.
+#  
+#  # List of LXC container IDs that are part of this horizontal scaling group.
 #  lxc_containers: 
-#  - 101
+#    # Container ID 101
+#    - 101  # Specifies that container ID 101 is included in this scaling group.
+
