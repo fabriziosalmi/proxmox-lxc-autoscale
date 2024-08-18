@@ -296,7 +296,7 @@ def get_container_data(ctid):
 # Collect data about all containers in parallel
 def collect_container_data():
     containers = {}
-    with ThreadPoolExecutor(max_workers=8) as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         future_to_ctid = {executor.submit(get_container_data, ctid): ctid for ctid in get_containers()}
         for future in as_completed(future_to_ctid):
             ctid = future_to_ctid[future]
