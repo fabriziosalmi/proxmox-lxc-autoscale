@@ -31,8 +31,8 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 📈 JSON Metrics
 
 ### Additional resources
-- 🎛️ [40 self-hosted apps TIER snippets](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
-
+- 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
+- ⏰ [LXC AutoScale API - Cron jobs examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api/examples/README.md)
 ## Installation
 
 Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
