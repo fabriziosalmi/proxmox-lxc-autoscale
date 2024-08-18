@@ -69,14 +69,6 @@ If the conditions set in the configuration are met, you will quickly observe sca
 
 LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the **[official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)**.
 
-
-## Disclaimer
-
-> [!CAUTION]
-> Please note that while LXC AutoScale is designed to enhance your container management experience, I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
-
-
-
 ## Contributing
 
 LXC AutoScale is an open-source project, and contributions are welcome! Whether you want to submit a pull request, report an issue, or suggest a new feature, your input is invaluable. To get involved, you can:
@@ -87,7 +79,10 @@ LXC AutoScale is an open-source project, and contributions are welcome! Whether 
 
 For more details, visit the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
 
+## Disclaimer
 
+> [!CAUTION]
+> Please note that while LXC AutoScale is designed to enhance your container management experience, I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
 
 ## License
 
