@@ -1,11 +1,12 @@
 # ✨ LXC AutoScale ML
 
-> ongoing update..
+> ongoing docs update..
 
-### LXC AutoScale API
+## LXC AutoScale API
 
 If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please use the LXC AutoScale API, a simple API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
 
+Check the documentation
 
 
 ### LXC Monitor
