@@ -16,7 +16,7 @@ YAML_CONF_PATH="${CONF_DIR}/lxc_autoscale_ml.yaml"
 # Function to check and stop the service if running
 stop_service_if_running() {
     if systemctl is-active --quiet lxc_autoscale_ml.service; then
-        echo "🛑 Stopping LXC AutoScale Monitor service..."
+        echo "🛑 Stopping LXC AutoScale ML service..."
         systemctl stop lxc_autoscale_ml.service
         if [ $? -ne 0 ]; then
             echo "❌ Error: Failed to stop the service."
