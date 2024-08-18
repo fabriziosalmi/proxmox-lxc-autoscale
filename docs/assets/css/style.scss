@@ -3,96 +3,96 @@
 
 @import "{{ site.theme }}";
 
-// Define Dark Theme Colors
-$background-color: #121212;
+// Dark Theme Color Palette
+$background-color: #181818;
+$background-secondary-color: #202020;
 $text-color: #e0e0e0;
+$text-muted-color: #b0b0b0;
 $link-color: #bb86fc;
 $link-hover-color: #3700b3;
 $border-color: #333333;
 $accent-color: #03dac6;
+$button-background-color: #03dac6;
+$button-hover-background-color: #02a17d;
+$input-background-color: #252525;
+$code-background-color: #282828;
+$code-text-color: #ffcb6b;
+$code-border-color: #3a3a3a;
 
-// General Styling
+// Global Styling
 body {
   background-color: $background-color;
   color: $text-color;
-  font-family: Arial, sans-serif;
-  line-height: 1.6;
+  font-family: 'Open Sans', sans-serif;
+  line-height: 1.7;
+  margin: 0;
+  padding: 0;
   transition: background-color 0.3s, color 0.3s;
 }
 
+// Typography
+h1, h2, h3, h4, h5, h6 {
+  color: $text-color;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 700;
+  margin-bottom: 1em;
+  padding-bottom: 0.3em;
+  border-bottom: 2px solid $border-color;
+}
+
+p {
+  margin-bottom: 1.5em;
+  color: $text-muted-color;
+}
+
+// Links
 a {
   color: $link-color;
   text-decoration: none;
+  font-weight: 600;
   transition: color 0.3s;
 
   &:hover {
     color: $link-hover-color;
+    text-decoration: underline;
   }
 }
 
-// Headings
-h1, h2, h3, h4, h5, h6 {
-  color: $text-color;
-  border-bottom: 2px solid $border-color;
-  padding-bottom: 0.5em;
-  margin-bottom: 1em;
-}
-
-// Navbar Styling
-.navbar {
-  background-color: darken($background-color, 10%);
-  padding: 1em;
-  border-bottom: 1px solid $border-color;
-
-  a {
-    color: $text-color;
-    margin: 0 1em;
-    padding: 0.5em 0;
-    font-weight: bold;
-
-    &:hover {
-      color: $accent-color;
-    }
-  }
-}
-
-// Buttons
-button {
-  background-color: $accent-color;
-  color: $background-color;
-  border: none;
-  padding: 0.5em 1em;
+// Inline Code
+code {
+  background-color: $code-background-color;
+  color: $code-text-color;
+  padding: 0.2em 0.4em;
   border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
-
-  &:hover {
-    background-color: lighten($accent-color, 10%);
-  }
+  font-family: 'Source Code Pro', monospace;
+  border: 1px solid $code-border-color;
 }
 
 // Code Blocks
 pre {
-  background-color: darken($background-color, 5%);
+  background-color: $code-background-color;
   color: $text-color;
-  border: 1px solid $border-color;
+  border: 1px solid $code-border-color;
   padding: 1em;
-  border-radius: 5px;
+  border-radius: 6px;
   overflow-x: auto;
-}
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.95em;
+  line-height: 1.5;
 
-code {
-  background-color: darken($background-color, 5%);
-  color: $accent-color;
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
+  code {
+    background-color: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+  }
 }
 
 // Tables
 table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1em 0;
+  margin: 1.5em 0;
 
   th, td {
     padding: 0.75em;
@@ -101,63 +101,146 @@ table {
   }
 
   th {
-    background-color: darken($background-color, 10%);
+    background-color: $background-secondary-color;
     color: $text-color;
+    font-weight: 600;
+  }
+
+  td {
+    background-color: $background-color;
   }
 }
 
-// Form Inputs
+// Forms
 input, textarea, select {
-  background-color: darken($background-color, 5%);
+  background-color: $input-background-color;
   color: $text-color;
   border: 1px solid $border-color;
-  padding: 0.5em;
+  padding: 0.75em;
   border-radius: 4px;
   width: 100%;
   box-sizing: border-box;
+  font-family: 'Open Sans', sans-serif;
   transition: background-color 0.3s, color 0.3s;
 
   &:focus {
     outline: none;
     border-color: $accent-color;
+    background-color: lighten($input-background-color, 5%);
+  }
+}
+
+// Buttons
+button, .button {
+  background-color: $button-background-color;
+  color: $background-color;
+  border: none;
+  padding: 0.75em 1.5em;
+  border-radius: 5px;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+
+  &:hover {
+    background-color: $button-hover-background-color;
+    transform: translateY(-2px);
+  }
+}
+
+// Navbar Styling
+.navbar {
+  background-color: $background-secondary-color;
+  padding: 1em 2em;
+  border-bottom: 1px solid $border-color;
+  display: flex;
+  justify-content: space-between;
+
+  a {
+    color: $text-color;
+    margin: 0 1em;
+    padding: 0.5em 0;
+    font-weight: 600;
+
+    &:hover {
+      color: $accent-color;
+    }
   }
 }
 
 // Footer
 footer {
-  background-color: darken($background-color, 10%);
-  color: lighten($text-color, 20%);
+  background-color: $background-secondary-color;
+  color: $text-muted-color;
   text-align: center;
-  padding: 1em;
+  padding: 1.5em;
   border-top: 1px solid $border-color;
+  margin-top: 2em;
 
   a {
-    color: lighten($link-color, 20%);
+    color: $link-color;
+    font-weight: 600;
+
     &:hover {
       color: lighten($link-hover-color, 20%);
     }
   }
 }
 
-// Additional Elements
+// Blockquotes
 blockquote {
   border-left: 4px solid $accent-color;
-  padding: 0.5em 1em;
-  background-color: darken($background-color, 5%);
+  padding: 0.75em 1.5em;
+  background-color: darken($background-secondary-color, 5%);
   color: lighten($text-color, 10%);
-  margin: 1em 0;
+  margin: 1.5em 0;
   border-radius: 4px;
 }
 
+// Horizontal Rules
 hr {
   border: 1px solid $border-color;
   margin: 2em 0;
 }
 
+// Images
 img {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
+  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+  margin: 1.5em 0;
+}
+
+// Additional Refinements
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 2em;
+}
+
+.section {
+  padding: 2em 0;
+}
+
+.card {
+  background-color: $background-secondary-color;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  padding: 1.5em;
+  margin-bottom: 2em;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.card-title {
+  font-family: 'Roboto', sans-serif;
+  font-size: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.card-content {
+  color: $text-muted-color;
+  font-size: 1em;
 }
 
