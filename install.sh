@@ -3,12 +3,17 @@
 # Log file
 LOGFILE="lxc_autoscale_installer.log"
 
-# Define text styles
+# Define text styles and emojis
 BOLD=$(tput bold)
 RESET=$(tput sgr0)
 GREEN=$(tput setaf 2)
 RED=$(tput setaf 1)
 YELLOW=$(tput setaf 3)
+BLUE=$(tput setaf 4)
+CHECKMARK="\xE2\x9C\x85"  # ✔️
+CROSSMARK="\xE2\x9D\x8C"  # ❌
+CLOCK="\xE2\x8F\xB3"      # ⏳
+ROCKET="\xF0\x9F\x9A\x80" # 🚀
 
 # Declare flags array to avoid uninitialized errors
 declare -A flags
@@ -19,12 +24,22 @@ log() {
     local message="$2"
     local timestamp
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    echo -e "${timestamp} [${level}] ${message}" | tee -a "$LOGFILE"
+    case $level in
+        "INFO")
+            echo -e "${timestamp} [${GREEN}${level}${RESET}] ${message}" | tee -a "$LOGFILE"
+            ;;
+        "ERROR")
+            echo -e "${timestamp} [${RED}${level}${RESET}] ${message}" | tee -a "$LOGFILE"
+            ;;
+        "WARNING")
+            echo -e "${timestamp} [${YELLOW}${level}${RESET}] ${message}" | tee -a "$LOGFILE"
+            ;;
+    esac
 }
 
 # ASCII Art Header with optional emoji
 header() {
-    echo -e "\n🎨 ${BOLD}LXC AutoScale${RESET} Installer"
+    echo -e "\n${BLUE}${BOLD}🎨 LXC AutoScale Installer${RESET}"
     echo "============================="
     echo "Welcome to the LXC AutoScale cleanup and installation script!"
     echo "============================="
@@ -276,30 +291,12 @@ prompt_user_choice() {
     echo "2) ✨ LXC AutoScale ML (experimental)"
     echo -e "You have ${timeout} seconds to choose. If no choice is made, option 1 will be selected automatically.\n"
 
-    # Start a background timer to enforce timeout
-    (
-        sleep $timeout
-        if [[ -z "$user_choice" ]]; then
-            user_choice="$default_choice"
-            echo -e "\n⏳ Time's up! Default option 1 (LXC AutoScale) selected."
-        fi
-    ) &
-
-    # Read user input
-    read -r user_choice
-
-    # Wait for the background timer to complete
-    wait
-
-    # Assign default if no input
-    if [[ -z "$user_choice" ]]; then
-        user_choice="$default_choice"
-    fi
+    read -r -t $timeout user_choice
+    user_choice=${user_choice:-$default_choice}  # Set to default if no input
 
     echo -e "You chose option ${user_choice}."
     echo
 
-    # Set flags based on user choice
     case $user_choice in
         1)
             install_flag="LXC_AUTO_SCALE"
@@ -321,27 +318,34 @@ install_lxc_autoscale() {
     mkdir -p /etc/lxc_autoscale
 
     # Download and install necessary files
-    curl -o /etc/lxc_autoscale/lxc_autoscale.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.yaml
-    curl -o /usr/local/bin/lxc_autoscale.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.py
-    curl -o /etc/systemd/system/lxc_autoscale.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.service
+    curl -sSL -o /etc/lxc_autoscale/lxc_autoscale.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.yaml
+    curl -sSL -o /usr/local/bin/lxc_autoscale.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.py
+    curl -sSL -o /etc/systemd/system/lxc_autoscale.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.service
 
     chmod +x /usr/local/bin/lxc_autoscale.py
 
     systemctl daemon-reload
     systemctl enable lxc_autoscale.service
 
-    echo -e "🚀 LXC AutoScale has been installed. Do you want to start the service now? (y/n)"
-    read -r start_service_choice
+    while true; do
+        echo -e "🚀 LXC AutoScale has been installed. Do you want to start the service now? (y/n)"
+        read -r start_service_choice
 
-    if [[ "$start_service_choice" == "y" || "$start_service_choice" == "Y" ]]; then
-        if systemctl start lxc_autoscale.service; then
-            log "INFO" "Service LXC AutoScale started successfully!"
-        else
-            log "ERROR" "Failed to start Service LXC AutoScale."
-        fi
-    else
-        log "INFO" "Service LXC AutoScale will not be started. You can start it manually using: systemctl start lxc_autoscale.service"
-    fi
+        case "$start_service_choice" in
+            [Yy]* ) 
+                if systemctl start lxc_autoscale.service; then
+                    log "INFO" "${CHECKMARK} Service LXC AutoScale started successfully!"
+                else
+                    log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+                fi
+                break;;
+            [Nn]* )
+                log "INFO" "${CROSSMARK} Service LXC AutoScale will not be started. You can start it manually using: systemctl start lxc_autoscale.service"
+                break;;
+            * )
+                echo "Please answer y or n.";;
+        esac
+    done
 }
 
 # Function to install LXC AutoScale ML
@@ -349,18 +353,18 @@ install_lxc_autoscale_ml() {
     log "INFO" "Installing LXC AutoScale ML..."
 
     # Download and execute installation scripts
-    curl -o /usr/local/bin/install_api.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_api.sh
-    curl -o /usr/local/bin/install_monitor.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_monitor.sh
-    curl -o /usr/local/bin/install_model.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_model.sh
+    curl -sSL -o /usr/local/bin/install_api.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_api.sh
+    curl -sSL -o /usr/local/bin/install_monitor.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_monitor.sh
+    curl -sSL -o /usr/local/bin/install_model.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_model.sh
 
     chmod +x /usr/local/bin/install_api.sh
     chmod +x /usr/local/bin/install_monitor.sh
     chmod +x /usr/local/bin/install_model.sh
 
     if /usr/local/bin/install_api.sh && /usr/local/bin/install_monitor.sh && /usr/local/bin/install_model.sh; then
-        log "INFO" "LXC AutoScale ML installation complete!"
+        log "INFO" "${CHECKMARK} LXC AutoScale ML installation complete!"
     else
-        log "ERROR" "LXC AutoScale ML installation failed."
+        log "ERROR" "${CROSSMARK} LXC AutoScale ML installation failed."
     fi
 }
 
@@ -384,4 +388,4 @@ case $install_flag in
         ;;
 esac
 
-log "INFO" "Installation process complete!"
+log "INFO" "${CHECKMARK} Installation process complete!"
