@@ -39,6 +39,7 @@ cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/config.yaml /etc/lxc_autoscale/lxc
 echo "🚀 Enabling and starting the autoscaleapi service..."
 systemctl enable lxc_autoscale_api.service
 systemctl start lxc_autoscale_api.service
+systemctl status lxc_autoscale_api.service
 
 # Step 10: Clean up the cloned repository
 echo "🧹 Cleaning up..."
