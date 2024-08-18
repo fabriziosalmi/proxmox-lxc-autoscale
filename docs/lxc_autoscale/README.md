@@ -5,6 +5,7 @@
 ## Summary
 
 - **[Introduction](#lxc-autoscale)**: Overview of LXC AutoScale's functionality.
+- **[Installation](#installation)**: One-click install LXC AutoScale on your Proxmox server.
 - **[Configuration](#configuration)**: Detailed guide to setting up and customizing LXC AutoScale.
   - [Configuration File Location](#configuration-file-location)
   - [Important Parameters](#important-parameters)
@@ -24,6 +25,24 @@
 **LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance.
 
 Whether you’re running a complex homelab setup or managing a small self-hosted service, LXC AutoScale helps maintain smooth operations without manual intervention.
+
+---
+
+## Installation
+
+Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
+```
+
+Once installed, the service should be up and running. You can verify this by executing:
+
+```bash
+systemctl status lxc_autoscale.service
+```
+
+If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
 
 ---
 
