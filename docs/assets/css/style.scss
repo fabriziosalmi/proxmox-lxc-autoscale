@@ -3,8 +3,9 @@
 
 @import "{{ site.theme }}";
 
-// Import the Merriweather font from Google Fonts
+// Import the Merriweather and an additional sans-serif font for headings
 @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
 
 // GitHub Dark Theme Color Palette
 $background-color: #0d1117;
@@ -25,8 +26,6 @@ $code-keyword-color: #ff7b72;
 $code-function-color: #d2a8ff;
 $code-string-color: #a5d6ff;
 $hr-color: #21262d;
-
-// HTTP Method Colors
 $get-background-color: #238636;
 $post-background-color: #d93f0b;
 
@@ -34,24 +33,27 @@ $post-background-color: #d93f0b;
 body {
   background-color: $background-color;
   color: $text-color;
-  font-family: 'Merriweather', serif;
-  line-height: 1.7;
+  font-family: 'Merriweather', serif; // Improved readability for body text
+  line-height: 1.8; // Increased line spacing for better readability
   margin: 0;
   padding: 0;
   transition: background-color 0.3s ease, color 0.3s ease;
+  scroll-behavior: smooth; // Smooth scrolling for in-page navigation
 }
 
 // Typography
 h1, h2, h3, h4, h5, h6 {
   color: $text-color;
-  font-family: 'Merriweather', serif;
+  font-family: 'Roboto', sans-serif; // Introduced a secondary font for headings
   font-weight: 700;
   margin-bottom: 1em;
   padding-bottom: 0.3em;
   border-bottom: 2px solid $border-color;
   transition: border-color 0.3s ease;
+  line-height: 1.3; // Adjusted line height for headings to match new font
 }
 
+// Paragraphs
 p {
   margin-bottom: 1.5em;
   color: $text-muted-color;
@@ -101,7 +103,6 @@ pre {
     border: none;
   }
 
-  // Syntax highlighting for code blocks
   .hljs-keyword,
   .hljs-selector-tag,
   .hljs-literal,
@@ -131,7 +132,7 @@ table {
   border-radius: 8px;
   overflow: hidden;
   background-color: $background-secondary-color;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); // Added subtle box shadow for modern look
   transition: box-shadow 0.3s ease;
 
   th, td {
@@ -153,7 +154,6 @@ table {
     color: $text-muted-color;
   }
 
-  // HTTP Method Styles
   td.method {
     text-align: center;
     font-weight: bold;
@@ -206,8 +206,8 @@ button, .button {
 
   &:hover {
     background-color: $button-hover-background-color;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px); // Subtle lift effect on hover
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); // Enhanced shadow on hover for interactivity
   }
 }
 
@@ -298,6 +298,7 @@ img {
   transition: padding 0.3s ease;
 }
 
+// Card Design
 .card {
   background-color: $background-secondary-color;
   border: 1px solid $border-color;
@@ -308,7 +309,7 @@ img {
   transition: background-color 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 
   &:hover {
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); // Enhanced shadow on hover for cards
   }
 }
 
@@ -323,4 +324,9 @@ img {
   color: $text-muted-color;
   font-size: 1em;
   transition: color 0.3s ease, font-size 0.3s ease;
+}
+
+// Smooth Scrolling
+html {
+  scroll-behavior: smooth; // Enables smooth scrolling for the entire page
 }
