@@ -1,7 +1,3 @@
----
-layout: default
----
-
 # LXC AutoScale
 
 Welcome to the documentation for **LXC AutoScale**—a powerful and customizable resource management daemon for Proxmox hosts. LXC AutoScale automates CPU and memory allocation adjustments and clones LXC containers based on real-time usage and predefined thresholds. Designed to optimize resource utilization and manage demand spikes, it ensures critical containers always have the necessary resources. The tool also offers energy efficiency during off-peak hours and integrates seamlessly into various environments.
