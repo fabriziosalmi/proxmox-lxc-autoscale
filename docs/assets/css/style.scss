@@ -24,6 +24,11 @@ $code-border-color: #30363d;
 $code-keyword-color: #ff7b72;
 $code-function-color: #d2a8ff;
 $code-string-color: #a5d6ff;
+$hr-color: #21262d;
+
+// HTTP Method Colors
+$get-background-color: #238636;
+$post-background-color: #d93f0b;
 
 // Global Styling
 body {
@@ -76,7 +81,7 @@ code {
 
 // Code Blocks
 pre {
-  background-color: $code-background-color;
+  background-color: $code-background-color !important;
   color: $code-text-color;
   border: 1px solid $code-border-color;
   padding: 1em;
@@ -117,12 +122,16 @@ pre {
 // Tables
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   margin: 1.5em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: $background-secondary-color;
 
   th, td {
     padding: 0.75em;
-    border: 1px solid $border-color;
+    border: none;
     text-align: left;
   }
 
@@ -130,10 +139,29 @@ table {
     background-color: $background-secondary-color;
     color: $text-color;
     font-weight: 600;
+    border-bottom: 1px solid $border-color;
   }
 
   td {
     background-color: $background-color;
+    color: $text-muted-color;
+  }
+
+  // HTTP Method Styles
+  td.method {
+    text-align: center;
+    font-weight: bold;
+    border-radius: 4px;
+    padding: 0.4em 0.6em;
+    color: #ffffff;
+
+    &.get {
+      background-color: $get-background-color;
+    }
+
+    &.post {
+      background-color: $post-background-color;
+    }
   }
 }
 
@@ -226,8 +254,9 @@ blockquote {
 
 // Horizontal Rules
 hr {
-  border: 1px solid $border-color;
+  border: 1px solid $hr-color;
   margin: 2em 0;
+  border-radius: 1px;
 }
 
 // Images
@@ -269,7 +298,3 @@ img {
   color: $text-muted-color;
   font-size: 1em;
 }
-
-
-
-
