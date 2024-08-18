@@ -3,8 +3,10 @@
 > ongoing update..
 
 ### LXC AutoScale API
-> [!TIP]
-> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
+
+If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please use the LXC AutoScale API, a simple API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
+
+
 
 ### LXC Monitor
 In the `monitor` folder you will find all files needed to run a lightweight LXC monitor service to generate the needed data to train the machine learning model.
