@@ -17,7 +17,6 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 > [!NOTE]
 > The default installer automatically installs the **LXC AutoScale** standard version after a 5-second delay.
 
----
 
 ## Features
 
@@ -43,7 +42,6 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 
 - 📈 **JSON Metrics**: Collects and exports detailed metrics on resource changes across your autoscaling fleet, enabling in-depth analysis and monitoring.
 
----
 
 ## Installation
 
@@ -61,20 +59,18 @@ systemctl status lxc_autoscale.service
 
 If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
 
----
 
 ## Configuration
 
 LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the [official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/README.md).
 
----
 
 ## Disclaimer
 
 > [!CAUTION]
 > Please note that while LXC AutoScale is designed to enhance your container management experience, I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
 
----
+
 
 ## Contributing
 
@@ -86,7 +82,7 @@ LXC AutoScale is an open-source project, and contributions are welcome! Whether 
 
 For more details, visit the [GitHub repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale).
 
----
+
 
 ## License
 
