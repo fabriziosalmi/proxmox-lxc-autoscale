@@ -35,37 +35,6 @@ Now the service should be running. You can check it by executing `systemctl stat
 
 ### Configuration
 
-Jump to the [Configuration section](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#configuration) to understand how to customize your LXC AutoScale experience.
-
----
-
-## ✨ Proxmox + AutoScale + AI
-
-_In the meanwhile I added to the project everything needed to make scaling decisions improved by a machine learning model._
-
-To make this happen I released [a simple HTTP API interface](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/api) to Proxmox commands, an [LXC monitor](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/monitor) to get LXC monitoring data and [a lightweight ML model](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/ai) to parse monitoring logs and take decisions. 
-
-> You are welcome to play, improve and get fun togheter.
-
-### API
-> [!TIP]
-> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
-
-**Install AutoScale API**
-```
-curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/api/install.sh | bash
-```
-
-### Monitor
-In the `monitor` folder you will find all files needed to run a lightweight LXC monitor service to generate the needed data to train the machine learning model.
-
-### AutoScale ML
-In the `ai` folder you will find all files needed to run the machine learning model. It will take decision against using the AutoScale API. The model is updated every cycle and  can be run in dry-run mode (--dry-run) to check its decisions before to change real-world resources.
-
-I will add accurate documentation in then next days.
-
-## Configuration
-
 The **LXC AutoScale** script manages the dynamic scaling of LXC containers and/or CPU and memory resources for LXC containers based on their resource usage. The configuration file at `/etc/lxc_autoscale/lxc_autoscale.yaml` defines thresholds, settings, and behaviors for the daemon. Below is the updated documentation reflecting the latest integrations and features.
 
 ### Configuration File
@@ -275,6 +244,23 @@ rm -f /etc/systemd/system/lxc_autoscale.service
 rm -rf /etc/lxc_autoscale/
 rm -rf /var/lib/lxc_autoscale/
 ```
+
+## ✨ LXC AutoScale ML
+
+> You are welcome to play, improve and get fun togheter.
+
+### LXC AutoScale API
+> [!TIP]
+> If You want to have **full control**, **precise thresholds** and consider the **integration with your existing setup** please check the **[LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md)**. LXC AutoScale API is an API HTTP interface to perform all common scaling operations with just few, simple, `curl` requests.
+
+### LXC Monitor
+In the `monitor` folder you will find all files needed to run a lightweight LXC monitor service to generate the needed data to train the machine learning model.
+
+### LXC AutoScale ML
+In the `/usr/local/bin/autoscaleapi` folder you will find all files needed to run the machine learning model. It will take decision against using the AutoScale API. The model is updated every cycle and  can be run in dry-run mode (--dry-run) to check its decisions before to change real-world resources.
+
+I will add accurate documentation in then next days.
+
 
 ## Disclaimer
 
