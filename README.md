@@ -45,7 +45,7 @@ Please check the [documentation](https://github.com/fabriziosalmi/proxmox-lxc-au
 ## Disclaimer
 
 > [!CAUTION]
-> Initial version can be bugged, use at your own risk. I am not responsible for any damage to your lovely stuff by using this tool.
+> I am not responsible for any damage to your lovely stuff by using this tool.
 
 ## Contributing
 
