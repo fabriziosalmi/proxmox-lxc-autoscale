@@ -175,7 +175,8 @@ TIER_TEST:
 
 - **Usage Scenario**: You might use a tier like `TIER_TEST` for non-critical containers or testing environments. This tier allows these containers to use more resources when needed but also scales them down aggressively to free up resources for other critical containers.
 
-For more configuration example check the [TIER collection examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md) with 40 self-hosted apps snippets crafted to meet the minimal and the recommended requirements for each application.
+> [!TIP]
+> For more configuration examples check the [TIER collection](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md) with 40 self-hosted apps snippets crafted to meet the minimal and the recommended requirements for most popular applications.
 
 ### Horizontal Scaling Group (Optional)
 
