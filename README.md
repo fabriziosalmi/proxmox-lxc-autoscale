@@ -13,7 +13,7 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 - **LXC AutoScale ML**: Designed for advanced users and more complex environments. This version is perfect for large automated setups or custom integrations requiring sophisticated, machine-learning-driven autoscaling. It consists of three components: the **API**, the **Monitor**, and the **Model**.
 
 > [!NOTE]
-> The default installer automatically installs the **LXC AutoScale** standard version after a 5-second delay.
+> The default installer automatically installs LXC AutoScale after a 5-second delay.
 
 
 ## Features
