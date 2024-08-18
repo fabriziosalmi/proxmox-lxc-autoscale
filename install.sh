@@ -349,6 +349,9 @@ install_lxc_autoscale() {
 install_lxc_autoscale_ml() {
     log "INFO" "Installing LXC AutoScale ML..."
 
+    # Install needed packages
+    apt install python3-simplejson python3-yaml python3-psutil -y
+    
     # Download and execute installation scripts
     curl -sSL -o /usr/local/bin/install_api.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_api.sh
     curl -sSL -o /usr/local/bin/install_monitor.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_monitor.sh
