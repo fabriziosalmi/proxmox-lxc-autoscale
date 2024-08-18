@@ -4,7 +4,6 @@ from config import create_app
 from scaling import scale_cpu, scale_ram, resize_storage
 from snapshot_management import create_snapshot, list_snapshots, rollback_snapshot
 from cloning_management import create_clone, delete_clone
-from cluster_management import migrate_vm
 from resource_checking import check_vm_status, check_node_status, check_cluster_status
 from health_check import health_check
 from rate_limiting import rate_limit
