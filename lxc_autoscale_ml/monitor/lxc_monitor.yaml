@@ -1,15 +1,37 @@
 logging:
+  # Path to the file where log messages are written.
   log_file: "/var/log/lxc_monitor.log"
+  
+  # Maximum size of the log file before it is rotated (in bytes). Set to 5 MB here.
   log_max_bytes: 5242880  # 5 MB
+  
+  # Number of backup log files to keep. Older files are deleted as new ones are created.
   log_backup_count: 7
+  
+  # Logging level to determine the verbosity of log messages. Options include "DEBUG", "INFO", "WARNING", "ERROR", and "CRITICAL".
   log_level: "INFO"
 
 monitoring:
+  # Path to the file where metrics data is exported in JSON format.
   export_file: "/var/log/lxc_metrics.json"
+  
+  # Interval (in seconds) at which the monitoring checks are performed.
   check_interval: 60  # seconds
+  
+  # Flag to enable or disable swap memory monitoring.
   enable_swap: true
+  
+  # Flag to enable or disable network statistics monitoring.
   enable_network: true
+  
+  # Flag to enable or disable filesystem statistics monitoring.
   enable_filesystem: true
+  
+  # Flag to enable or disable parallel processing of monitoring tasks.
   parallel_processing: true  # Toggle for parallel processing
+  
+  # Maximum number of parallel workers to use if parallel_processing is enabled.
   max_workers: 8  # Max number of parallel workers if parallel_processing is enabled
+  
+  # List of device types to exclude from I/O statistics collection.
   excluded_devices: ['loop', 'dm-']  # Devices to exclude in I/O stats
