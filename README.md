@@ -31,38 +31,7 @@ The easiest way to install (and update) LXC AutoScale is by using the following 
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
-This script will:
-
-1. Download the latest version of the LXC AutoScale Python script.
-2. Download and install the systemd service file.
-3. Set up the necessary directories and configuration files.
-4. Ask the user to keep or overwrite the existing configuration, if present.
-5. Back up any existing configuration files before updating them.
-6. Enable and start the LXC AutoScale systemd service.
-
-Now the service should be running. You can check it by executing `systemctl status lxc_autoscale.service`:
-
-```
-root@proxmox:~# systemctl status lxc_autoscale.service
-● lxc_autoscale.service - LXC AutoScale Daemon
-     Loaded: loaded (/etc/systemd/system/lxc_autoscale.service; enabled; preset: enabled)
-     Active: active (running) since Sat 2024-08-17 00:42:04 CEST; 17h ago
-       Docs: https://github.com/fabriziosalmi/proxmox-lxc-autoscale
-   Main PID: 3973877 (python3)
-      Tasks: 1 (limit: 154535)
-     Memory: 13.3M
-        CPU: 3h 50min 24.891s
-     CGroup: /system.slice/lxc_autoscale.service
-             └─3973877 /usr/bin/python3 /usr/local/bin/lxc_autoscale.py
-
-Aug 17 17:45:30 dell python3[3973877]: 2024-08-17 17:45:30 - Starting resource allocation process...
-Aug 17 17:45:33 dell python3[3973877]: 2024-08-17 17:45:33 - Container 102 is not running. Skipping adjustments.
-Aug 17 17:45:33 dell python3[3973877]: 2024-08-17 17:45:33 - Container 100 is not running. Skipping adjustments.
-Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Initial resources before adjustments: 40 cores, 124750 MB m>
-Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Final resources after adjustments: 40 cores, 124750 MB memo>
-Aug 17 17:45:50 dell python3[3973877]: 2024-08-17 17:45:50 - Resource allocation process completed. Next run in 300 seco>
-lines 1-21/21 (END)
-```
+Now the service should be running. You can check it by executing `systemctl status lxc_autoscale.service`.
 
 ### Configuration
 
