@@ -42,7 +42,29 @@ Once installed, the service should be up and running. You can verify this by exe
 systemctl status lxc_autoscale.service
 ```
 
-If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
+If the conditions set in the configuration are met, you will quickly observe scaling operations in action:
+
+```bash
+root@proxmox:~# systemctl status lxc_autoscale.service
+● lxc_autoscale.service - LXC AutoScale Daemon
+     Loaded: loaded (/etc/systemd/system/lxc_autoscale.service; enabled; preset: enabled)
+     Active: active (running) since Mon 2024-08-19 01:38:07 CEST; 7s ago
+       Docs: https://github.com/fabriziosalmi/proxmox-lxc-autoscale
+   Main PID: 40462 (python3)
+      Tasks: 1 (limit: 18849)
+     Memory: 9.1M
+        CPU: 5.766s
+     CGroup: /system.slice/lxc_autoscale.service
+             └─40462 /usr/bin/python3 /usr/local/bin/lxc_autoscale.py
+
+Aug 19 01:38:07 proxmox systemd[1]: Started lxc_autoscale.service - LXC AutoScale Daemon.
+Aug 19 01:38:07 proxmox python3[40462]: 2024-08-19 01:38:07 - Starting resource allocation process...
+Aug 19 01:38:09 proxmox python3[40462]: 2024-08-19 01:38:09 - Container 1006 is not running. Skipping adjustments.
+Aug 19 01:38:12 proxmox python3[40462]: 2024-08-19 01:38:12 - Initial resources before adjustments: 2 cores, 11678 MB>
+Aug 19 01:38:12 proxmox python3[40462]: 2024-08-19 01:38:12 - Decreasing cores for container 104 by 2...
+Aug 19 01:38:13 proxmox python3[40462]: 2024-08-19 01:38:13 - Final resources after adjustments: 4 cores, 11678 MB me>
+Aug 19 01:38:13 proxmox python3[40462]: 2024-08-19 01:38:13 - Resource allocation process completed. Next run in 300
+```
 
 ---
 
