@@ -28,7 +28,28 @@ Below is a list of available configuration snippets. Click on any link to jump d
 18. [Trilium Notes Configuration](#trilium-notes-configuration)
 19. [Vaultwarden Configuration](#vaultwarden-configuration)
 20. [PhotoPrism Configuration](#photoprism-configuration)
+21. [Ghost Configuration](#ghost-configuration)
+22. [Miniflux Configuration](#miniflux-configuration)
+23. [Trilium Notes Configuration](#trilium-notes-configuration)
+24. [Vaultwarden Configuration](#vaultwarden-configuration)
+25. [PhotoPrism Configuration](#photoprism-configuration)
+26. [Ampache Configuration](#ampache-configuration)
+27. [OpenProject Configuration](#openproject-configuration)
+28. [Kanboard Configuration](#kanboard-configuration)
+29. [Etherpad Configuration](#etherpad-configuration)
+30. [MediaGoblin Configuration](#mediagoblin-configuration)
+31. [Tiny Tiny RSS Configuration](#tiny-tiny-rss-configuration)
+32. [Redmine Configuration](#redmine-configuration)
+33. [Seafile Configuration](#seafile-configuration)
+34. [Wallabag Configuration](#wallabag-configuration)
+35. [Rocket.Chat Configuration](#rocketchat-configuration)
+36. [Paperwork Configuration](#paperwork-configuration)
+37. [Diaspora Configuration](#diaspora-configuration)
+38. [Limesurvey Configuration](#limesurvey-configuration)
+39. [Paperless Configuration](#paperless-configuration)
+40. [Matomo Configuration](#matomo-configuration)
 
+These internal links make it easy to navigate directly to the relevant configuration within the document.
 ## **Configuration Snippets**
 
 ### **Nextcloud Configuration**
@@ -253,3 +274,306 @@ TIER_PIHOLE:
   min_memory: 512  # in MB
   max_memory: 1024  # in MB
   lxc
+```
+
+### **Ghost Configuration**
+```yaml
+TIER_GHOST:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 2
+  max_cores: 4
+  min_memory: 1024  # in MB
+  max_memory: 4096  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Ghost container ID
+```
+
+### **Miniflux Configuration**
+```yaml
+TIER_MINIFLUX:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Miniflux container ID
+```
+
+### **Trilium Notes Configuration**
+```yaml
+TIER_TRILIUM_NOTES:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 4
+  min_memory: 1024  # in MB
+  max_memory: 4096  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Trilium Notes container ID
+```
+
+### **Vaultwarden Configuration**
+```yaml
+TIER_VAULTWARDEN:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Vaultwarden container ID
+```
+
+### **PhotoPrism Configuration**
+```yaml
+TIER_PHOTOPRISM:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the PhotoPrism container ID
+```
+
+### **Ampache Configuration**
+```yaml
+TIER_AMPACHE:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 2
+  max_cores: 4
+  min_memory: 1024  # in MB
+  max_memory: 4096  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Ampache container ID
+```
+
+### **OpenProject Configuration**
+```yaml
+TIER_OPENPROJECT:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the OpenProject container ID
+```
+
+### **Kanboard Configuration**
+```yaml
+TIER_KANBOARD:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Kanboard container ID
+```
+
+### **Etherpad Configuration**
+```yaml
+TIER_ETHERPAD:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 2
+  max_cores: 4
+  min_memory: 1024  # in MB
+  max_memory: 4096  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Etherpad container ID
+```
+
+### **MediaGoblin Configuration**
+```yaml
+TIER_MEDIAGOBLIN:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the MediaGoblin container ID
+```
+
+### **Tiny Tiny RSS Configuration**
+```yaml
+TIER_TINY_TINY_RSS:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Tiny Tiny RSS container ID
+```
+
+### **Redmine Configuration**
+```yaml
+TIER_REDMINE:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Redmine container ID
+```
+
+### **Seafile Configuration**
+```yaml
+TIER_SEAFILE:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Seafile container ID
+```
+
+### **Wallabag Configuration**
+```yaml
+TIER_WALLABAG:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Wallabag container ID
+```
+
+### **Rocket.Chat Configuration**
+```yaml
+TIER_ROCKETCHAT:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Rocket.Chat container ID
+```
+
+### **Paperwork Configuration**
+```yaml
+TIER_PAPERWORK:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512  # in MB
+  max_memory: 1024  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Paperwork container ID
+```
+
+### **Diaspora Configuration**
+```yaml
+TIER_DIASPORA:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 8
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Diaspora container ID
+```
+
+### **Limesurvey Configuration**
+```yaml
+TIER_LIMESURVEY:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 1
+  max_cores: 4
+  min_memory: 512  # in MB
+  max_memory: 2048  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Limesurvey container ID
+```
+
+Certainly! Here are the configuration snippets for **Paperless** and **Matomo**:
+
+### **Paperless Configuration**
+```yaml
+TIER_PAPERLESS:
+  cpu_upper_threshold: 80
+  cpu_lower_threshold: 15
+  memory_upper_threshold: 80
+  memory_lower_threshold: 15
+  min_cores: 2
+  max_cores: 4
+  min_memory: 1024  # in MB
+  max_memory: 4096  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Paperless container ID
+```
+
+### **Matomo Configuration**
+```yaml
+TIER_MATOMO:
+  cpu_upper_threshold: 85
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 85
+  memory_lower_threshold: 20
+  min_cores: 2
+  max_cores: 4
+  min_memory: 2048  # in MB
+  max_memory: 8192  # in MB
+  lxc_containers: 
+    - 999  # Replace with the Matomo container ID
+```
