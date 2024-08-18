@@ -110,35 +110,35 @@ The LXC AutoScale ML Service starts automatically after installation. You can al
 
 ## Core Functions
 
-### `load_data(file_path)`
+- `load_data(file_path)`
 
 Loads the container metrics data from a JSON file and preprocesses it into a Pandas DataFrame for further analysis.
 
-### `feature_engineering(df, spike_threshold)`
+- `feature_engineering(df, spike_threshold)`
 
 Performs feature engineering, including calculating rolling means and standard deviations, and detecting spikes in resource usage.
 
-### `train_anomaly_model(X_train)`
+- `train_anomaly_model(X_train)`
 
 Trains an Isolation Forest model to detect anomalies in the data. The model is used to predict when scaling actions may be needed.
 
-### `save_best_model(model)`
+- `save_best_model(model)`
 
 Saves the trained machine learning model to a file for future use.
 
-### `predict_scaling(model, X, container_id)`
+- `predict_scaling(model, X, container_id)`
 
 Predicts whether scaling is needed for a specific container based on the trained model.
 
-### `suggest_scaling(cpu_usage, memory_usage, target_cpu, target_memory, ram_chunk_size, ram_upper_limit, smoothing_factor, ml_prediction)`
+- `suggest_scaling(cpu_usage, memory_usage, target_cpu, target_memory, ram_chunk_size, ram_upper_limit, smoothing_factor, ml_prediction)`
 
 Generates scaling suggestions (up/down) for CPU and RAM based on the container's current resource usage and the machine learning model's predictions.
 
-### `log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_action)`
+- `log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_action)`
 
 Logs the scaling suggestion to the JSON log file to keep a history of scaling decisions.
 
-### `apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount)`
+- `apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount)`
 
 Executes the scaling actions by making API calls to adjust the container's CPU cores and RAM.
 
