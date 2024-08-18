@@ -1,28 +1,76 @@
 DEFAULT:
+  # Interval (in seconds) between polling for resource usage and making scaling decisions.
   poll_interval: 300
+
+  # Threshold for CPU usage percentage that triggers scaling up (when CPU usage exceeds this value).
   cpu_upper_threshold: 80
+
+  # Threshold for CPU usage percentage that triggers scaling down (when CPU usage falls below this value).
   cpu_lower_threshold: 20
+
+  # Threshold for memory usage percentage that triggers scaling up (when memory usage exceeds this value).
   memory_upper_threshold: 80
+
+  # Threshold for memory usage percentage that triggers scaling down (when memory usage falls below this value).
   memory_lower_threshold: 20
+
+  # Minimum number of CPU cores to add or remove in a single scaling operation.
   core_min_increment: 1
+
+  # Maximum number of CPU cores to add or remove in a single scaling operation.
   core_max_increment: 4
+
+  # Minimum amount of memory (in MB) to add or remove in a single scaling operation.
   memory_min_increment: 512
+
+  # Minimum number of CPU cores allocated to an instance. 
   min_cores: 1
+
+  # Maximum number of CPU cores allocated to an instance.
   max_cores: 8
+
+  # Minimum amount of memory (in MB) allocated to an instance.
   min_memory: 512
+
+  # Minimum chunk size (in MB) to reduce memory allocation by when scaling down.
   min_decrease_chunk: 512
+
+  # Percentage of CPU reserved to ensure stability and performance of the system.
   reserve_cpu_percent: 10
+
+  # Amount of memory (in MB) reserved to ensure stability and performance of the system.
   reserve_memory_mb: 2048
+
+  # Path to the log file where scaling operations and errors are recorded.
   log_file: /var/log/lxc_autoscale.log
+
+  # Path to the lock file used to prevent concurrent scaling operations.
   lock_file: /var/lock/lxc_autoscale.lock
+
+  # Directory for storing backup files related to scaling operations.
   backup_dir: /var/lib/lxc_autoscale/backups
+
+  # Start hour for off-peak times when scaling decisions may be adjusted for lower activity.
   off_peak_start: 22
+
+  # End hour for off-peak times when scaling decisions may be adjusted for lower activity.
   off_peak_end: 6
+
+  # Whether to enable energy-saving mode, which may affect scaling behavior to optimize for lower power usage.
   energy_mode: False
+
+  # URL for Gotify notifications, used for sending alerts about scaling operations.
   gotify_url: ''
+
+  # Token for Gotify notifications, used for authentication when sending alerts.
   gotify_token: ''
+
+  # List of LXC container IDs to ignore for automatic scaling; these containers will not be scaled automatically.
   ignore_lxc: []
+
+  # Behavior setting for scaling operations, which can be adjusted based on desired scaling strategy.
   behaviour: normal
+
 
 # TIER-defined parameters
 # 
@@ -37,6 +85,14 @@ DEFAULT:
 #   lxc_containers: 
 #   - 100
 #   - 101
+
+# Notes:
+# - `cpu_upper_threshold` and `memory_upper_threshold` define when to scale up.
+# - `cpu_lower_threshold` and `memory_lower_threshold` define when to scale down.
+# - `core_min_increment` and `core_max_increment` control how many cores to add or remove at a time.
+# - `memory_min_increment` controls the size of memory increments.
+# - `reserve_cpu_percent` and `reserve_memory_mb` ensure that a portion of resources is reserved for stability.
+# - `lxc_containers` lists the IDs of containers that will be scaled using such parameters
 
 # Horizontal scaling group
 #HORIZONTAL_SCALING_GROUP_1:
