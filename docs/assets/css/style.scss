@@ -3,7 +3,161 @@
 
 @import "{{ site.theme }}";
 
-b, strong {
-font-weight: 600;
-color: blue;
+// Define Dark Theme Colors
+$background-color: #121212;
+$text-color: #e0e0e0;
+$link-color: #bb86fc;
+$link-hover-color: #3700b3;
+$border-color: #333333;
+$accent-color: #03dac6;
+
+// General Styling
+body {
+  background-color: $background-color;
+  color: $text-color;
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  transition: background-color 0.3s, color 0.3s;
 }
+
+a {
+  color: $link-color;
+  text-decoration: none;
+  transition: color 0.3s;
+
+  &:hover {
+    color: $link-hover-color;
+  }
+}
+
+// Headings
+h1, h2, h3, h4, h5, h6 {
+  color: $text-color;
+  border-bottom: 2px solid $border-color;
+  padding-bottom: 0.5em;
+  margin-bottom: 1em;
+}
+
+// Navbar Styling
+.navbar {
+  background-color: darken($background-color, 10%);
+  padding: 1em;
+  border-bottom: 1px solid $border-color;
+
+  a {
+    color: $text-color;
+    margin: 0 1em;
+    padding: 0.5em 0;
+    font-weight: bold;
+
+    &:hover {
+      color: $accent-color;
+    }
+  }
+}
+
+// Buttons
+button {
+  background-color: $accent-color;
+  color: $background-color;
+  border: none;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: lighten($accent-color, 10%);
+  }
+}
+
+// Code Blocks
+pre {
+  background-color: darken($background-color, 5%);
+  color: $text-color;
+  border: 1px solid $border-color;
+  padding: 1em;
+  border-radius: 5px;
+  overflow-x: auto;
+}
+
+code {
+  background-color: darken($background-color, 5%);
+  color: $accent-color;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+}
+
+// Tables
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+
+  th, td {
+    padding: 0.75em;
+    border: 1px solid $border-color;
+    text-align: left;
+  }
+
+  th {
+    background-color: darken($background-color, 10%);
+    color: $text-color;
+  }
+}
+
+// Form Inputs
+input, textarea, select {
+  background-color: darken($background-color, 5%);
+  color: $text-color;
+  border: 1px solid $border-color;
+  padding: 0.5em;
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background-color 0.3s, color 0.3s;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-color;
+  }
+}
+
+// Footer
+footer {
+  background-color: darken($background-color, 10%);
+  color: lighten($text-color, 20%);
+  text-align: center;
+  padding: 1em;
+  border-top: 1px solid $border-color;
+
+  a {
+    color: lighten($link-color, 20%);
+    &:hover {
+      color: lighten($link-hover-color, 20%);
+    }
+  }
+}
+
+// Additional Elements
+blockquote {
+  border-left: 4px solid $accent-color;
+  padding: 0.5em 1em;
+  background-color: darken($background-color, 5%);
+  color: lighten($text-color, 10%);
+  margin: 1em 0;
+  border-radius: 4px;
+}
+
+hr {
+  border: 1px solid $border-color;
+  margin: 2em 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
