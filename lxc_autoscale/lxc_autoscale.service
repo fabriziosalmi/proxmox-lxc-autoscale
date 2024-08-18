@@ -1,0 +1,18 @@
+[Unit]
+Description=LXC AutoScale Daemon
+Documentation=https://github.com/fabriziosalmi/proxmox-lxc-autoscale
+Maintainer=Fabrizio Salmi <fabrizio.salmi@gmail.com>
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py
+Restart=no
+User=root
+
+# Ensure that the service is killed if it runs away
+KillMode=process
+KillSignal=SIGTERM
+SendSIGKILL=yes
+
+[Install]
+WantedBy=multi-user.target
