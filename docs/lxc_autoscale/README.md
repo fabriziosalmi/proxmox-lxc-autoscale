@@ -14,6 +14,7 @@
 - **[Logging](#logging)**: Instructions for accessing and interpreting LXC AutoScale logs.
 - **[Uninstallation](#uninstallation)**: Steps to remove LXC AutoScale from your system.
 - **[Use Cases](#use-cases)**: Examples of how LXC AutoScale can be used in homelab and self-hosting environments.
+- **[Examples](examples/README.md)**: TIER defined snippets for 40 popular self-hosted applications.
 - **[Best Practices and Tips](#best-practices-and-tips)**: Recommendations for optimal configuration and usage.
 
 ---
