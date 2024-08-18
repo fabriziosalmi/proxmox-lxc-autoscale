@@ -9,6 +9,7 @@ fi
 # Step 1: Create the necessary directory
 echo "📁 Creating directory /usr/local/bin/autoscaleapi..."
 mkdir -p /usr/local/bin/autoscaleapi
+mkdir -p /etc/lxc_autoscale
 
 # Step 2: Install necessary packages
 echo "📦 Installing required packages..."
@@ -39,7 +40,7 @@ systemctl daemon-reload
 # Step 8: Copy the necessary files to the appropriate directories
 echo "📂 Copying Python scripts and configuration files..."
 cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/*.py /usr/local/bin/lxc_autoscale_api/
-cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/config.yaml /etc/lxc_autoscale_api.yaml
+cp proxmox-lxc-autoscale/lxc_autoscale_ml/api/config.yaml /etc/lxc_autoscale/lxc_autoscale_api.yaml
 
 # Step 9: Enable and start the service
 echo "🚀 Enabling and starting the autoscaleapi service..."
