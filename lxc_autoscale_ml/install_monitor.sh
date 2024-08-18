@@ -133,10 +133,10 @@ start_service
 
 # Check the status of the service
 echo "🔍 Checking service status..."
-systemctl status lxc_autoscale.service --no-pager
+systemctl status lxc_monitor.service --no-pager
 
 # Verify that the service is running
-if systemctl is-active --quiet lxc_autoscale.service; then
+if systemctl is-active --quiet lxc_monitor.service; then
     echo "✅ LXC Monitor service is running successfully."
 else
     echo "❌ Error: LXC Monitor service failed to start."
