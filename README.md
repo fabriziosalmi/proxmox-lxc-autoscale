@@ -37,10 +37,9 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 
 Now the service should be running. You can check it by executing `systemctl status lxc_autoscale.service` and if some condition is reached you will quickly see scaling operations. 
 
-### Configuration
+## Configuration
 
-You can reconfigure the service any time by editing the `/etc/lxc_autoscale/lxc_autoscale.yaml` configuration file.
-Please check the [documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale.md).
+You can reconfigure the service any time, **please check the [documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale.md)**.
 
 ## Disclaimer
 
