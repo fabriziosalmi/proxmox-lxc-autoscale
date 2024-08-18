@@ -96,7 +96,7 @@ TIER_TEST:
 The script also supports horizontal scaling where containers are cloned based on specific criteria.
 
 > [!WARNING]  
-> This feature is experimental and support scale-out only. If You really need to scale-in please check the [LXC AutoScale API](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/api/README.md).
+> This feature is experimental and support scale-out only. If You really need to scale-in please check the [LXC AutoScale API documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/docs/lxc_autoscale_api)
 
 The horizontal scaling group is defined as follows:
 
