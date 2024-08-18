@@ -210,11 +210,10 @@ To view the logs in real-time:
 tail -f /var/log/lxc_autoscale.log
 ```
 
-For the JSON logs
-
-, which provide detailed information about resource changes, you can use `jq` for better readability:
+For the JSON log install and use `jq` for better readability:
 
 ```bash
+apt install jq -y
 cat /var/log/lxc_autoscale.json | jq .
 ```
 
