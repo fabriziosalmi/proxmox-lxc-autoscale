@@ -44,7 +44,7 @@ systemctl status lxc_autoscale.service
 
 If the conditions set in the configuration are met, you will quickly observe scaling operations in action:
 
-```bash
+```
 root@proxmox:~# systemctl status lxc_autoscale.service
 ● lxc_autoscale.service - LXC AutoScale Daemon
      Loaded: loaded (/etc/systemd/system/lxc_autoscale.service; enabled; preset: enabled)
