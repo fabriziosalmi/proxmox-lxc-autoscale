@@ -293,17 +293,12 @@ prompt_user_choice() {
     echo "2) ✨ LXC AutoScale ML (experimental)"
     echo -e "You have ${timeout} seconds to choose. If no choice is made, option 1 will be selected automatically.\n"
 
-    # Adding a timestamp before the read command to check if it actually waits
-    log "INFO" "Timestamp before waiting for input: $(date +"%T")"
-    read -r -t $timeout user_choice
-    log "INFO" "Timestamp after waiting for input: $(date +"%T")"
-
-    # If no input received, use default choice
-    if [ -z "$user_choice" ]; then
+    # Using /dev/tty to read input from the terminal directly
+    if read -r -t $timeout user_choice < /dev/tty; then
+        log "INFO" "User selected option ${user_choice}."
+    else
         user_choice=$default_choice
         log "INFO" "No input received, defaulting to option ${user_choice}."
-    else
-        log "INFO" "User selected option ${user_choice}."
     fi
 
     echo -e "You chose option ${user_choice}."
@@ -322,7 +317,6 @@ prompt_user_choice() {
             ;;
     esac
 }
-
 
 
 
