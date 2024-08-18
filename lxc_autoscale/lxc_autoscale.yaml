@@ -72,27 +72,38 @@ DEFAULT:
   behaviour: normal
 
 
-# TIER-defined parameters
-# 
-# TIER_1:
-#   cpu_upper_threshold: 90
-#   cpu_lower_threshold: 10
-#   memory_upper_threshold: 90
-#   memory_lower_threshold: 10
-#   min_cores: 2
-#   max_cores: 12
-#   min_memory: 1024
-#   lxc_containers: 
-#   - 100
-#   - 101
 
-# Notes:
-# - `cpu_upper_threshold` and `memory_upper_threshold` define when to scale up.
-# - `cpu_lower_threshold` and `memory_lower_threshold` define when to scale down.
-# - `core_min_increment` and `core_max_increment` control how many cores to add or remove at a time.
-# - `memory_min_increment` controls the size of memory increments.
-# - `reserve_cpu_percent` and `reserve_memory_mb` ensure that a portion of resources is reserved for stability.
-# - `lxc_containers` lists the IDs of containers that will be scaled using such parameters
+# TIER defined configurations. Change lxc_containers IDs and uncomment the whole section to enable it.
+
+#TIER_1:
+#  # Threshold for CPU usage percentage that triggers scaling up.
+#  cpu_upper_threshold: 90
+#  
+#  # Threshold for CPU usage percentage that triggers scaling down.
+#  cpu_lower_threshold: 10
+#  
+#  # Threshold for memory usage percentage that triggers scaling up.
+#  memory_upper_threshold: 90
+#  
+#  # Threshold for memory usage percentage that triggers scaling down.
+#  memory_lower_threshold: 10
+#  
+#  # Minimum number of CPU cores allocated to an instance.
+#  min_cores: 2
+#  
+#  # Maximum number of CPU cores allocated to an instance.
+#  max_cores: 12
+#  
+#  # Minimum amount of memory (in MB) allocated to an instance.
+#  min_memory: 1024
+#  
+#  # List of LXC container IDs that use this tier's configuration.
+#  lxc_containers: 
+#  # Container ID 100
+#  - 100
+#  
+#  # Container ID 101
+#  - 101
 
 # Horizontal scaling group
 #HORIZONTAL_SCALING_GROUP_1:
