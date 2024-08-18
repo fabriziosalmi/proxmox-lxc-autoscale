@@ -7,7 +7,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # Step 1: Create the necessary directory
-echo "📁 Creating directory /usr/local/bin/autoscaleapi..."
+echo "📁 Creating directory /usr/local/bin/lxc_autoscale_api..."
 mkdir -p /usr/local/bin/lxc_autoscale_api
 mkdir -p /etc/lxc_autoscale
 
