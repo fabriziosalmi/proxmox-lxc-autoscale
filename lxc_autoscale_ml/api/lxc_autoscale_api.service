@@ -1,5 +1,6 @@
 [Unit]
 Description=LXC AutoScale API
+Documentation=https://github.com/fabriziosalmi/proxmox-lxc-autoscale
 After=network.target
 
 [Service]
