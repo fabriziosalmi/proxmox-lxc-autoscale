@@ -1,15 +1,20 @@
+#!/usr/bin/env python3
+
 import json
 import pandas as pd
 import numpy as np
 import os
 import argparse
 from datetime import datetime
+import time
 import requests
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from joblib import dump, load
 import logging
+import signal  # For handling termination signals
+import sys  # For exiting the script
 
 # Constants
 TOTAL_CORES = 48  # Total number of CPU cores available on the server
@@ -27,6 +32,10 @@ MODEL_SAVE_PATH = "scaling_model.pkl"
 DATA_FILE = "/var/log/lxc_metrics.json"
 LOG_FILE = "/var/log/lxc_autoscale_ml.log"
 JSON_LOG_FILE = "/var/log/lxc_autoscale_suggestions.json"
+LOCK_FILE = "/tmp/lxc_autoscale_ml.lock"  # Lock file path
+
+# Interval between script runs in seconds
+INTERVAL_SECONDS = 300  # Adjust this to your desired interval (e.g., 300 seconds = 5 minutes)
 
 # Initialize Logging
 logging.basicConfig(
@@ -63,6 +72,34 @@ parser.add_argument('--max_samples', type=int, default=256, help="The number of 
 parser.add_argument('--random_state', type=int, default=42, help="The seed used by the random number generator.")
 
 args = parser.parse_args()
+
+def create_lock_file(lock_file):
+    """Create a lock file to prevent multiple instances."""
+    if os.path.exists(lock_file):
+        logging.error("Another instance of the script is already running. Exiting.")
+        sys.exit(1)
+    else:
+        with open(lock_file, 'w') as lf:
+            lf.write(str(os.getpid()))
+        logging.info(f"Lock file created at {lock_file}.")
+
+def remove_lock_file(lock_file):
+    """Remove the lock file upon script completion or termination."""
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
+        logging.info(f"Lock file {lock_file} removed.")
+    else:
+        logging.warning(f"Lock file {lock_file} was not found.")
+
+def signal_handler(signum, frame):
+    """Handle termination signals to ensure the lock file is removed."""
+    logging.info(f"Received signal {signum}. Exiting gracefully.")
+    remove_lock_file(LOCK_FILE)
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 def load_data(file_path):
     try:
@@ -232,49 +269,59 @@ def apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount):
 def main():
     logging.info("Starting the scaling prediction script...")
 
-    df = load_data(DATA_FILE)
-    if df is None:
-        logging.error("Exiting due to data loading error.")
-        return
+    create_lock_file(LOCK_FILE)  # Create a lock file to prevent multiple instances
 
-    df = feature_engineering(df, args.spike_threshold)
+    try:
+        while True:  # Run indefinitely
+            df = load_data(DATA_FILE)
+            if df is None:
+                logging.error("Exiting due to data loading error.")
+                return
 
-    X = df[['cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff']]
+            df = feature_engineering(df, args.spike_threshold)
 
-    model, train_scores = train_anomaly_model(X)
-    if model:
-        save_best_model(model)
+            X = df[['cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff']]
 
-        # Evaluate and log the anomaly score distribution
-        logging.info(f"Anomaly scores distribution:\n{pd.Series(train_scores).describe()}")
+            model, train_scores = train_anomaly_model(X)
+            if model:
+                save_best_model(model)
 
-        unique_containers = df['container_id'].unique()
-        for container_id in unique_containers:
-            container_data = df[df['container_id'] == container_id]
-            latest_metrics = container_data.iloc[-1:][['cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff']]
-            scaling_decision, lxc_id = predict_scaling(model, latest_metrics, container_id)
-            if scaling_decision is not None:
-                final_cpu_action, cpu_amount, final_ram_action, ram_amount = suggest_scaling(
-                    latest_metrics['cpu_usage_percent'].values[0],
-                    latest_metrics['memory_usage_mb'].values[0],
-                    CPU_SCALE_UP_THRESHOLD,
-                    RAM_SCALE_UP_THRESHOLD,
-                    args.ram_chunk_size,
-                    args.ram_upper_limit,
-                    args.smoothing_factor,
-                    scaling_decision
-                )
-                if final_cpu_action != "No Scaling" or final_ram_action != "No Scaling":
-                    logging.info(f"Scaling suggestion for LXC ID {lxc_id}: {final_cpu_action} {cpu_amount} CPU core(s), {final_ram_action} {ram_amount} MB RAM")
-                    log_scaling_suggestion(lxc_id, cpu_amount, final_cpu_action, ram_amount, final_ram_action)
-                    if not args.dry_run:
-                        apply_scaling(lxc_id, final_cpu_action, cpu_amount, final_ram_action, ram_amount)
-            else:
-                logging.info(f"No scaling needed for LXC ID {lxc_id}")
+                # Evaluate and log the anomaly score distribution
+                logging.info(f"Anomaly scores distribution:\n{pd.Series(train_scores).describe()}")
 
-    # Write JSON log at the end of processing
-    with open(JSON_LOG_FILE, 'w') as json_log_file, open(JSON_LOG_FILE, 'w') as json_log_file:
-        json.dump(scaling_suggestions, json_log_file, indent=4)
+                unique_containers = df['container_id'].unique()
+                for container_id in unique_containers:
+                    container_data = df[df['container_id'] == container_id]
+                    latest_metrics = container_data.iloc[-1:][['cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff']]
+                    scaling_decision, lxc_id = predict_scaling(model, latest_metrics, container_id)
+                    if scaling_decision is not None:
+                        final_cpu_action, cpu_amount, final_ram_action, ram_amount = suggest_scaling(
+                            latest_metrics['cpu_usage_percent'].values[0],
+                            latest_metrics['memory_usage_mb'].values[0],
+                            CPU_SCALE_UP_THRESHOLD,
+                            RAM_SCALE_UP_THRESHOLD,
+                            args.ram_chunk_size,
+                            args.ram_upper_limit,
+                            args.smoothing_factor,
+                            scaling_decision
+                        )
+                        if final_cpu_action != "No Scaling" or final_ram_action != "No Scaling":
+                            logging.info(f"Scaling suggestion for LXC ID {lxc_id}: {final_cpu_action} {cpu_amount} CPU core(s), {final_ram_action} {ram_amount} MB RAM")
+                            log_scaling_suggestion(lxc_id, cpu_amount, final_cpu_action, ram_amount, final_ram_action)
+                            if not args.dry_run:
+                                apply_scaling(lxc_id, final_cpu_action, cpu_amount, final_ram_action, ram_amount)
+                    else:
+                        logging.info(f"No scaling needed for LXC ID {lxc_id}")
+
+            # Write JSON log at the end of each iteration
+            with open(JSON_LOG_FILE, 'w') as json_log_file:
+                json.dump(scaling_suggestions, json_log_file, indent=4)
+
+            # Wait for the next iteration
+            logging.info(f"Sleeping for {INTERVAL_SECONDS} seconds before next run.")
+            time.sleep(INTERVAL_SECONDS)
+    finally:
+        remove_lock_file(LOCK_FILE)  # Ensure the lock file is removed
 
 if __name__ == "__main__":
     main()
