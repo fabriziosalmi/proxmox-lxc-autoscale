@@ -1,0 +1,37 @@
+lxc:
+  node: "proxmox"  # Replace with your Proxmox node name or IP
+  verify_ssl: false  # Not applicable since we are using local commands
+  default_storage: "local-lvm"  # Default storage location
+  timeout_seconds: 10
+  max_retries: 3
+
+rate_limiting:
+  max_requests_per_minute: 60
+
+logging:
+  level: "INFO"
+  rotate: true
+  max_log_size_mb: 100
+  backup_count: 5
+  structured_logging: false
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"  # Log format
+  access_log_file: "access.log"  # Separate access log for HTTP requests
+  error_log_file: "error.log"  # Separate error log for exceptions and errors
+
+error_handling:
+  show_stack_traces: false
+  log_errors: true
+  notify_on_critical_errors: false
+  notification_recipients:
+    - "your-email@inbox.com"
+
+gunicorn:
+  workers: 2  # Number of worker processes
+  timeout_seconds: 120  # Worker timeout in seconds
+  log_level: "info"  # Log level for Gunicorn
+  access_log_file: "/var/log/lxc_autoscale_api_access.log"  # Access log path for Gunicorn
+  error_log_file: "/var/log/lxc_autoscale_api_error.log"  # Error log path for Gunicorn
+  preload_app: true  # Preload app before forking workers to reduce startup time
+  graceful_timeout_seconds: 30  # Time to wait before forcefully killing workers
+  max_requests: 500  # Restart workers after handling this many requests
+  max_requests_jitter: 50  # Adds a jitter to max_requests to avoid all workers restarting at the same time
