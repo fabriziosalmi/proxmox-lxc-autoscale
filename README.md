@@ -15,28 +15,37 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 
 
 ## Features
-
 LXC AutoScale is packed with features that make it an essential tool for managing your LXC containers on Proxmox:
 
-- ⚙️ **Automatic Resource Scaling**: Dynamically adjusts CPU and memory allocations based on predefined usage thresholds, ensuring that your containers always have the resources they need.
+### ⚙️ Automatic Resource Scaling
+  - Dynamically adjusts CPU and memory allocations based on predefined usage thresholds, ensuring that your containers always have the resources they need.
 
-- ⚖️ **Automatic Horizontal Scaling**: Automatically clones LXC containers when usage thresholds are exceeded, providing additional capacity during peak demand.
+### ⚖️ Automatic Horizontal Scaling
+  - Automatically clones LXC containers when usage thresholds are exceeded, providing additional capacity during peak demand.
 
-- 📊 **Tier Defined Thresholds**: Allows you to set specific scaling thresholds for individual containers or groups of containers, giving you fine-grained control over resource allocation.
+### 📊 Tier Defined Thresholds
+  - Allows you to set specific scaling thresholds for individual containers or groups of containers, giving you fine-grained control over resource allocation.
 
-- 🛡️ **Host Resource Reservation**: Ensures that the Proxmox host remains stable and responsive by reserving a portion of the CPU and memory resources.
+### 🛡️ Host Resource Reservation
+  - Ensures that the Proxmox host remains stable and responsive by reserving a portion of the CPU and memory resources.
 
-- 🔒 **Ignore Scaling Option**: Excludes specific containers from the scaling process, preventing unintended resource adjustments.
+### 🔒 Ignore Scaling Option
+  - Excludes specific containers from the scaling process, preventing unintended resource adjustments.
 
-- 🌱 **Energy Efficiency Mode**: Reduces resource allocations during off-peak hours to conserve energy and reduce operational costs.
+### 🌱 Energy Efficiency Mode
+  - Reduces resource allocations during off-peak hours to conserve energy and reduce operational costs.
 
-- 🚦 **Container Prioritization**: Prioritizes resource allocation based on container importance, ensuring critical services always have priority access to resources.
+### 🚦 Container Prioritization
+  - Prioritizes resource allocation based on container importance, ensuring critical services always have priority access to resources.
 
-- 📦 **Automatic Backups**: Automatically backs up and allows rollback of container configurations, providing an added layer of safety against unexpected changes.
+### 📦 Automatic Backups
+  - Automatically backs up and allows rollback of container configurations, providing an added layer of safety against unexpected changes.
 
-- 🔔 **Gotify Notifications**: Optional integration with Gotify for real-time notifications about scaling actions, container status, and other critical events.
+### 🔔 Gotify Notifications
+  - Optional integration with Gotify for real-time notifications about scaling actions, container status, and other critical events.
 
-- 📈 **JSON Metrics**: Collects and exports detailed metrics on resource changes across your autoscaling fleet, enabling in-depth analysis and monitoring.
+### 📈 JSON Metrics
+  - Collects and exports detailed metrics on resource changes across your autoscaling fleet, enabling in-depth analysis and monitoring.
 
 
 ## Installation
