@@ -327,25 +327,12 @@ install_lxc_autoscale() {
     systemctl daemon-reload
     systemctl enable lxc_autoscale.service
 
-    while true; do
-        echo -e "🚀 LXC AutoScale has been installed. Do you want to start the service now? (y/n)"
-        read -r start_service_choice
-
-        case "$start_service_choice" in
-            [Yy]* ) 
-                if systemctl start lxc_autoscale.service; then
-                    log "INFO" "${CHECKMARK} Service LXC AutoScale started successfully!"
-                else
-                    log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
-                fi
-                break;;
-            [Nn]* )
-                log "INFO" "${CROSSMARK} Service LXC AutoScale will not be started. You can start it manually using: systemctl start lxc_autoscale.service"
-                break;;
-            * )
-                echo "Please answer y or n.";;
-        esac
-    done
+    # Automatically start the service after installation
+    if systemctl start lxc_autoscale.service; then
+        log "INFO" "${CHECKMARK} Service LXC AutoScale started successfully!"
+    else
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+    fi
 }
 
 # Function to install LXC AutoScale ML
