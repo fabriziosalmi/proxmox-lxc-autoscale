@@ -4,10 +4,6 @@
 
 **✅ Tested on `Proxmox 8.2.4`**
 
----
-
-## Introduction
-
 LXC AutoScale offers two distinct options to suit different user profiles and environments:
 
 - **LXC AutoScale**: Ideal for new users and straightforward setups. This version provides a simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. It’s easy to install, requires minimal configuration, and works reliably to ensure your containers are always running optimally. You can reconfigure it at any time or use it as a one-time solution when needed.
