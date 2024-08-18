@@ -1,37 +1,87 @@
 lxc:
-  node: "proxmox"  # Replace with your Proxmox node name or IP
+  # Name or IP address of the Proxmox node where LXC containers are managed.
+  node: "proxmox"  # Replace with your Proxmox node name or IP. Note: if node name or hostname won't work use IP address instead, should work as expected.
+  
+  # Whether to verify SSL certificates. Set to false for local commands.
   verify_ssl: false  # Not applicable since we are using local commands
+  
+  # Default storage location for LXC containers.
   default_storage: "local-lvm"  # Default storage location
+  
+  # Timeout for operations in seconds.
   timeout_seconds: 10
+  
+  # Maximum number of retry attempts for operations.
   max_retries: 3
 
 rate_limiting:
+  # Maximum number of requests allowed per minute to prevent abuse.
   max_requests_per_minute: 60
 
 logging:
+  # Logging level that controls the verbosity of logs. Options include "DEBUG", "INFO", "WARNING", "ERROR", and "CRITICAL".
   level: "INFO"
+  
+  # Whether to enable log rotation to manage log file size.
   rotate: true
+  
+  # Maximum size of the log file in megabytes before it is rotated.
   max_log_size_mb: 100
+  
+  # Number of backup log files to keep. Older files are deleted when new ones are created.
   backup_count: 5
+  
+  # Whether to use structured logging (e.g., JSON format).
   structured_logging: false
+  
+  # Format for log messages. Uses Python's logging format string.
   log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"  # Log format
+  
+  # Path to the file where access logs are written.
   access_log_file: "access.log"  # Separate access log for HTTP requests
+  
+  # Path to the file where error logs are written.
   error_log_file: "error.log"  # Separate error log for exceptions and errors
 
 error_handling:
+  # Whether to display stack traces in error messages.
   show_stack_traces: false
+  
+  # Whether to log errors to the error log file.
   log_errors: true
+  
+  # Whether to send notifications for critical errors.
   notify_on_critical_errors: false
+  
+  # List of email addresses to notify in case of critical errors.
   notification_recipients:
+    # Email address to receive notifications.
     - "your-email@inbox.com"
 
 gunicorn:
-  workers: 2  # Number of worker processes
-  timeout_seconds: 120  # Worker timeout in seconds
-  log_level: "info"  # Log level for Gunicorn
-  access_log_file: "/var/log/lxc_autoscale_api_access.log"  # Access log path for Gunicorn
-  error_log_file: "/var/log/lxc_autoscale_api_error.log"  # Error log path for Gunicorn
-  preload_app: true  # Preload app before forking workers to reduce startup time
-  graceful_timeout_seconds: 30  # Time to wait before forcefully killing workers
-  max_requests: 500  # Restart workers after handling this many requests
-  max_requests_jitter: 50  # Adds a jitter to max_requests to avoid all workers restarting at the same time
+  # Number of worker processes to handle incoming requests.
+  workers: 2 
+  
+  # Timeout for worker processes in seconds. Defines how long a worker can handle a request before being killed.
+  timeout_seconds: 120 
+  
+  # Log level for Gunicorn, which affects the verbosity of logs.
+  log_level: "info" 
+  
+  # Path to the file where Gunicorn access logs are written.
+  access_log_file: "/var/log/lxc_autoscale_api_access.log"  
+  
+  # Path to the file where Gunicorn error logs are written.
+  error_log_file: "/var/log/lxc_autoscale_api_error.log"
+  
+  # Whether to preload the application before forking worker processes. Reduces startup time but uses more memory.
+  preload_app: true 
+  
+  # Time to wait before forcefully killing workers during a graceful restart.
+  graceful_timeout_seconds: 30  
+  
+  # Number of requests a worker will handle before being restarted. Helps to prevent memory leaks.
+  max_requests: 500  
+  
+  # Adds a random jitter to `max_requests` to avoid all workers restarting at the same time.
+  max_requests_jitter: 50  
