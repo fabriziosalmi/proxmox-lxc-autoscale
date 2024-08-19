@@ -17,8 +17,8 @@ import signal  # For handling termination signals
 import sys  # For exiting the script
 
 # Constants
-TOTAL_CORES = 48  # Total number of CPU cores available on the server
-TOTAL_RAM_MB = 128000  # Total RAM available on the server in MB (e.g., 128 GB)
+TOTAL_CORES = 4  # Total number of CPU cores available on the server
+TOTAL_RAM_MB = 16384  # Total RAM available on the server in MB (e.g., 128 GB)
 TARGET_CPU_LOAD_PERCENT = 50  # Target CPU load percentage after scaling
 DEFAULT_RAM_CHUNK_SIZE = 50
 DEFAULT_RAM_UPPER_LIMIT = 1024
@@ -35,7 +35,7 @@ JSON_LOG_FILE = "/var/log/lxc_autoscale_suggestions.json"
 LOCK_FILE = "/tmp/lxc_autoscale_ml.lock"  # Lock file path
 
 # Interval between script runs in seconds
-INTERVAL_SECONDS = 300  # Adjust this to your desired interval (e.g., 300 seconds = 5 minutes)
+INTERVAL_SECONDS = 60  # Adjust this to your desired interval (e.g., 300 seconds = 5 minutes)
 
 # Initialize Logging
 logging.basicConfig(
@@ -68,7 +68,7 @@ parser.add_argument('--dry-run', action='store_true', help="If true, perform a d
 # Customizable Isolation Forest Parameters
 parser.add_argument('--contamination', type=float, default='0.05', help="The amount of contamination of the data set, i.e., the proportion of outliers in the data set.")
 parser.add_argument('--n_estimators', type=int, default=100, help="The number of base estimators in the ensemble.")
-parser.add_argument('--max_samples', type=int, default=256, help="The number of samples to draw from X to train each base estimator.")
+parser.add_argument('--max_samples', type=int, default=64, help="The number of samples to draw from X to train each base estimator.")
 parser.add_argument('--random_state', type=int, default=42, help="The seed used by the random number generator.")
 
 args = parser.parse_args()
@@ -105,7 +105,7 @@ def load_data(file_path):
     try:
         with open(file_path, 'r') as f:
             data = json.load(f)
-        logging.info("Data loaded successfully from lxc_metrics.json")
+        logging.info("Data loaded successfully from the metrics file.")
     except FileNotFoundError:
         logging.error(f"Error: File {file_path} not found.")
         return None
@@ -117,14 +117,23 @@ def load_data(file_path):
     for snapshot in data:
         for container_id, metrics in snapshot.items():
             if container_id == "summary":
-                continue
+                continue  # Skip the summary, focus on container data
+
             record = {
                 "container_id": container_id,
                 "timestamp": metrics["timestamp"],
                 "cpu_usage_percent": metrics["cpu_usage_percent"],
                 "memory_usage_mb": metrics["memory_usage_mb"],
-                "swap_usage_mb": metrics["swap_usage_mb"],
-                "process_count": metrics["process_count"]
+                "swap_usage_mb": metrics.get("swap_usage_mb", 0),
+                "swap_total_mb": metrics.get("swap_total_mb", 0),
+                "process_count": metrics["process_count"],
+                "io_reads": metrics["io_stats"]["reads"],
+                "io_writes": metrics["io_stats"]["writes"],
+                "network_rx_bytes": metrics["network_usage"]["rx_bytes"],
+                "network_tx_bytes": metrics["network_usage"]["tx_bytes"],
+                "filesystem_usage_gb": metrics["filesystem_usage_gb"],
+                "filesystem_total_gb": metrics["filesystem_total_gb"],
+                "filesystem_free_gb": metrics["filesystem_free_gb"],
             }
             records.append(record)
 
@@ -133,21 +142,30 @@ def load_data(file_path):
     logging.info("Data preprocessed successfully.")
     return df
 
+
 def feature_engineering(df, spike_threshold):
     df['cpu_per_process'] = df['cpu_usage_percent'] / df['process_count']
     df['memory_per_process'] = df['memory_usage_mb'] / df['process_count']
     df['time_diff'] = df.groupby('container_id')['timestamp'].diff().dt.total_seconds().fillna(0)
 
+    # Rolling statistics for spike detection
     df['rolling_mean_cpu'] = df.groupby('container_id')['cpu_usage_percent'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
     df['rolling_std_cpu'] = df.groupby('container_id')['cpu_usage_percent'].transform(lambda x: x.rolling(window=5, min_periods=1).std()).fillna(0)
     df['rolling_mean_memory'] = df.groupby('container_id')['memory_usage_mb'].transform(lambda x: x.rolling(window=5, min_periods=1).mean())
     df['rolling_std_memory'] = df.groupby('container_id')['memory_usage_mb'].transform(lambda x: x.rolling(window=5, min_periods=1).std()).fillna(0)
 
+    # Spike detection
     df['cpu_spike'] = np.abs(df['cpu_usage_percent'] - df['rolling_mean_cpu']) > (spike_threshold * df['rolling_std_cpu'])
     df['memory_spike'] = np.abs(df['memory_usage_mb'] - df['rolling_mean_memory']) > (spike_threshold * df['rolling_std_memory'])
 
+    # Add more features based on other metrics
+    df['io_activity'] = df['io_reads'] + df['io_writes']
+    df['network_activity'] = df['network_rx_bytes'] + df['network_tx_bytes']
+
     logging.info("Feature engineering and spike detection completed.")
     return df
+
+
 
 def train_anomaly_model(X_train):
     try:
@@ -189,28 +207,32 @@ def predict_scaling(model, X, container_id):
         logging.error(f"Error during prediction for container {container_id}: {e}")
         return None, container_id
 
+
 def suggest_scaling(cpu_usage, memory_usage, target_cpu, target_memory, ram_chunk_size, ram_upper_limit, smoothing_factor, ml_prediction, min_cpu_cores=MIN_CPU_CORES, min_ram_mb=MIN_RAM_MB):
     # Initialize scaling suggestion variables
-    cpu_amount = 0
-    ram_amount = 0
+    cpu_amount = max(cpu_usage / 100 * TOTAL_CORES, min_cpu_cores)  # Ensure at least min_cpu_cores are maintained
+    ram_amount = max(memory_usage, min_ram_mb)  # Ensure at least min_ram_mb is maintained
     final_cpu_action = "No Scaling"
     final_ram_action = "No Scaling"
 
-    # Calculate the number of cores needed to keep CPU usage under the target load
-    current_cores = TOTAL_CORES * (cpu_usage / 100)  # Estimate current cores based on usage
-    target_cores = current_cores / (TARGET_CPU_LOAD_PERCENT / 100)
-    additional_cores = max(0, int(np.ceil(target_cores - current_cores)))
-
-    # Ensure we don't exceed the total available cores
-    if cpu_usage > CPU_SCALE_UP_THRESHOLD and additional_cores > 0:
-        cpu_amount = min(additional_cores, TOTAL_CORES)
+    # Determine if CPU scaling is needed
+    if cpu_amount < min_cpu_cores:
+        cpu_amount = min_cpu_cores
+        final_cpu_action = "Scale Up"
+    elif cpu_usage > CPU_SCALE_UP_THRESHOLD:
+        target_cores = TOTAL_CORES * (TARGET_CPU_LOAD_PERCENT / 100)
+        cpu_amount = max(target_cores, min_cpu_cores)
         final_cpu_action = "Scale Up"
     elif cpu_usage < CPU_SCALE_DOWN_THRESHOLD:
-        cpu_amount = max(min_cpu_cores, int(np.floor(current_cores - target_cores)))
+        target_cores = TOTAL_CORES * (TARGET_CPU_LOAD_PERCENT / 100)
+        cpu_amount = max(min_cpu_cores, int(np.floor(target_cores)))
         final_cpu_action = "Scale Down"
 
-    # Calculate RAM scaling suggestion
-    if memory_usage > RAM_SCALE_UP_THRESHOLD:
+    # Determine if RAM scaling is needed
+    if memory_usage < min_ram_mb:
+        ram_amount = min_ram_mb
+        final_ram_action = "Scale Up"
+    elif memory_usage > RAM_SCALE_UP_THRESHOLD:
         ram_amount = min(TOTAL_RAM_MB, max(ram_chunk_size, int(np.ceil(memory_usage - target_memory))))
         final_ram_action = "Scale Up"
     elif memory_usage < RAM_SCALE_DOWN_THRESHOLD:
@@ -226,6 +248,8 @@ def suggest_scaling(cpu_usage, memory_usage, target_cpu, target_memory, ram_chun
 
     return final_cpu_action, min(cpu_amount, TOTAL_CORES), final_ram_action, min(ram_amount, TOTAL_RAM_MB)
 
+
+
 def log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_action):
     suggestion = {
         "timestamp": datetime.now().isoformat(),
@@ -235,6 +259,9 @@ def log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_actio
         "ram_action": ram_action,
         "ram_amount": ram_amount
     }
+
+    # Log the scaling suggestion
+    logging.info(f"Logging scaling suggestion for LXC ID {lxc_id}: CPU - {cpu_action} to {cpu_amount} core(s), RAM - {ram_action} to {ram_amount} MB.")
 
     # Avoid duplicates by checking if a similar suggestion already exists
     if not any(
@@ -246,25 +273,44 @@ def log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_actio
         for s in scaling_suggestions
     ):
         scaling_suggestions.append(suggestion)
+        logging.info(f"Scaling suggestion added for LXC ID {lxc_id}.")
+    else:
+        logging.info(f"Duplicate scaling suggestion detected for LXC ID {lxc_id}; suggestion not added.")
 
-def apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount):
+
+def apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount, max_retries=3, retry_delay=2):
+    def perform_request(url, data, resource_type, lxc_id):
+        resource_key = "cores" if resource_type == "CPU" else "memory"
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=data)
+                response.raise_for_status()
+                logging.info(f"Successfully scaled {resource_type} for LXC ID {lxc_id} to {data[resource_key]} {resource_type} units.")
+                return True
+            except requests.RequestException as e:
+                logging.error(f"Attempt {attempt + 1} failed to scale {resource_type} for LXC ID {lxc_id}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                else:
+                    logging.error(f"Scaling {resource_type} for LXC ID {lxc_id} failed after {max_retries} attempts.")
+                    return False
+
+    # Apply CPU scaling if necessary
     if cpu_action in ["Scale Up", "Scale Down"]:
-        # Make API call to adjust CPU cores
-        try:
-            response = requests.post("http://127.0.0.1:5000/scale/cores", json={"vm_id": lxc_id, "cores": cpu_amount})
-            response.raise_for_status()
-            logging.info(f"Successfully scaled CPU for LXC ID {lxc_id} to {cpu_amount} cores.")
-        except requests.RequestException as e:
-            logging.error(f"Failed to scale CPU for LXC ID {lxc_id}: {e}")
-    
+        cpu_data = {"vm_id": lxc_id, "cores": cpu_amount}
+        cpu_url = "http://127.0.0.1:5000/scale/cores"
+        if not perform_request(cpu_url, cpu_data, "CPU", lxc_id):
+            logging.error(f"Scaling operation aborted for LXC ID {lxc_id} due to CPU scaling failure.")
+
+    # Apply RAM scaling if necessary
     if ram_action in ["Scale Up", "Scale Down"]:
-        # Make API call to adjust RAM
-        try:
-            response = requests.post("http://127.0.0.1:5000/scale/ram", json={"vm_id": lxc_id, "memory": ram_amount})
-            response.raise_for_status()
-            logging.info(f"Successfully scaled RAM for LXC ID {lxc_id} to {ram_amount} MB.")
-        except requests.RequestException as e:
-            logging.error(f"Failed to scale RAM for LXC ID {lxc_id}: {e}")
+        ram_data = {"vm_id": lxc_id, "memory": ram_amount}
+        ram_url = "http://127.0.0.1:5000/scale/ram"
+        if not perform_request(ram_url, ram_data, "RAM", lxc_id):
+            logging.error(f"Scaling operation aborted for LXC ID {lxc_id} due to RAM scaling failure.")
+
+
+
 
 def main():
     logging.info("Starting the scaling prediction script...")
