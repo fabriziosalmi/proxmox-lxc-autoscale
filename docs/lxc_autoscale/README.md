@@ -315,18 +315,26 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 To manually remove LXC AutoScale, follow these steps:
 
 ```bash
-# execute this if the service seems to be still running
-# kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
-
+# Disable and stop service
 systemctl disable lxc_autoscale.service
 systemctl stop lxc_autoscale.service
-rm -rf /usr/local/bin/lxc_autoscale/
+
+# Use this to force kill the application if needed:
+# kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
+
+# Make backup of configuration file if needed
+# cp -rp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale.yaml.backup
+
+# Remove files
 rm -f /etc/systemd/system/lxc_autoscale.service
-cp -rp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale.yaml.uninstall.backup
+rm -rf /usr/local/bin/lxc_autoscale/
 rm -rf /etc/lxc_autoscale/
 rm -rf /var/lib/lxc_autoscale/
 rm -f /var/log/lxc_autoscale.log
 rm -f /var/log/lxc_autoscale.json
+
+# Reload systemd
+systemctl daemon-reload
 ```
 
 This will completely remove the service and all associated files from your system.
