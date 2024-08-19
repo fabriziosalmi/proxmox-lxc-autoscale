@@ -10,16 +10,18 @@ from threading import Lock  # For thread-safe operations
 lock = Lock()
 
 def run_command(cmd, timeout=30):
-    """
-    Execute a shell command with a specified timeout.
+    use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
+    logging.debug(f"Inside run_command: use_remote_proxmox = {use_remote_proxmox}")
+    
+    if use_remote_proxmox:
+        logging.debug("Executing command remotely.")
+        return run_remote_command(cmd, timeout)
+    else:
+        logging.debug("Executing command locally.")
+        return run_local_command(cmd, timeout)
 
-    Args:
-        cmd (str): The command to execute.
-        timeout (int): Timeout for the command in seconds.
 
-    Returns:
-        str: The output of the command if successful, otherwise None.
-    """
+def run_local_command(cmd, timeout=30):
     try:
         result = subprocess.check_output(cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT).decode('utf-8').strip()
         logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
@@ -31,6 +33,39 @@ def run_command(cmd, timeout=30):
     except Exception as e:
         logging.error(f"Unexpected error during command execution '{cmd}': {e}")
     return None
+
+
+def run_remote_command(cmd, timeout=30):
+    logging.debug(f"Running remote command: {cmd}")
+    ssh = None
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        logging.debug("Attempting to connect to Proxmox host via SSH...")
+        ssh.connect(
+            hostname=config.get('DEFAULT', {}).get('proxmox_host'),
+            port=config.get('DEFAULT', {}).get('ssh_port', 22),
+            username=config.get('DEFAULT', {}).get('ssh_user'),
+            password=config.get('DEFAULT', {}).get('ssh_password'),
+            key_filename=config.get('DEFAULT', {}).get('ssh_key_path')
+        )
+        logging.debug("SSH connection established successfully.")
+
+        stdin, stdout, stderr = ssh.exec_command(cmd, timeout=timeout)
+        output = stdout.read().decode('utf-8').strip()
+        logging.debug(f"Remote command '{cmd}' executed successfully. Output: {output}")
+        return output
+
+    except paramiko.SSHException as e:
+        logging.error(f"SSH command execution failed: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error during SSH command execution '{cmd}': {e}")
+    finally:
+        if ssh:
+            ssh.close()
+    return None
+
 
 def get_containers():
     """
