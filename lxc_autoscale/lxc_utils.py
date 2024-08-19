@@ -22,6 +22,7 @@ def run_command(cmd, timeout=30):
         return run_local_command(cmd, timeout)
 
 
+
 def run_local_command(cmd, timeout=30):
     try:
         result = subprocess.check_output(cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT).decode('utf-8').strip()
