@@ -8,7 +8,7 @@
 
 LXC AutoScale offers two distinct options to suit different user profiles and environments:
 
-- **LXC AutoScale**: Ideal for new users and straightforward setups. This version provides a simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. You can reconfigure it at any time or use it as a one-time solution when needed.
+- **LXC AutoScale**: Ideal for new users and straightforward setups. This version provides a simple, out-of-the-box solution that automatically scale the resources of your Proxmox LXC containers. You can reconfigure it at any time or use it as a one-time solution when needed.
 
 - **LXC AutoScale ML**: Designed for advanced users and more complex environments. This version is perfect for large automated setups or custom integrations requiring sophisticated, machine-learning-driven autoscaling. It consists of three components: the **API**, the **Monitor**, and the **Model**.
 
