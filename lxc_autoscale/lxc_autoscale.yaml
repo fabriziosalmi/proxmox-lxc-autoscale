@@ -88,8 +88,9 @@ DEFAULT:
 
   # List of recipient email addresses for notifications.
   # smtp_to:
-    - ''
-    
+  # - ''
+  #
+  #
   # Webhook URL for Uptime Kuma notifications.
   # uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
 
