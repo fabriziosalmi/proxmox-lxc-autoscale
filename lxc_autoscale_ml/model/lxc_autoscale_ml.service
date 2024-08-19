@@ -13,7 +13,7 @@ User=root
 
 # Logging configuration
 Environment="PYTHONUNBUFFERED=1"
-EnvironmentFile=/etc/lxc_autoscale/lxc_autoscale_ml.yaml
+# EnvironmentFile=/etc/lxc_autoscale/lxc_autoscale_ml.yaml
 
 [Install]
 WantedBy=multi-user.target
