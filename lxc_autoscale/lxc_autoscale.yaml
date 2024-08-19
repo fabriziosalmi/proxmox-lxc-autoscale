@@ -71,6 +71,7 @@ DEFAULT:
   # Behavior setting for scaling operations, which can be adjusted based on desired scaling strategy.
   behaviour: normal
 
+  # Mail notification settings
   # SMTP server address for sending email notifications.
   # smtp_server: ''
 
@@ -89,18 +90,27 @@ DEFAULT:
   # List of recipient email addresses for notifications.
   # smtp_to:
   # - ''
-  #
-  #
-  # Webhook URL for Uptime Kuma notifications.
+  
+  # Uptime Kuma (webpush, useful only to be notified on scaling operation)
   # uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
 
-  # Remote Proxmox SSH Configuration
-  use_remote_proxmox: false
-  proxmox_host: ''
-  ssh_port: 22
-  ssh_user: ''
-  ssh_password: ''
-  # ssh_key_path: '/path/to/private/key'  # Optional: For SSH key authentication
+  # You can now scale a remote Proxmox host via SSH. If enabled, local commands will be proxied to remote Proxmox host. Note that valid credentials must be provided.
+  use_remote_proxmox: false  
+  
+  # The hostname or IP address of the Proxmox server. Use IP to avoid DNS resolution issues.
+  proxmox_host: ''  
+  
+  # The port number used for SSH connections to Proxmox.
+  ssh_port: 22  
+  
+  # The SSH username for authenticating with the Proxmox server. Must have sufficient permissions for pct operations.
+  ssh_user: ''  
+  
+  # The SSH password for authenticating with the Proxmox server. Ensure the password is correct and secure.
+  ssh_password: ''  
+  
+  # Optional: Path to the private key for SSH key authentication. More secure than using a password.
+  # ssh_key_path: '/path/to/private/key'  
 
 # TIER defined configurations. Change lxc_containers IDs and uncomment the whole section to enable it.
 
