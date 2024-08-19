@@ -277,7 +277,20 @@ Understanding the logs can help you fine-tune LXC AutoScale’s configuration. F
 
 ### Notifications
 
-Notifications on scaling events can be sent to one or more endpoints like E-Mail, Gotify and Uptime Kuma (push webhook). Change options accordingly with your setup in the `/etc/lxc_autoscale/lxc_autoscale.yaml` configuration file.
+Notifications on scaling events can be sent to one or more endpoints like E-Mail, Gotify and Uptime Kuma (push webhook). Change options accordingly with your setup in the `/etc/lxc_autoscale/lxc_autoscale.yaml` configuration file:
+
+```
+  gotify_url: 'http://gotify-host'
+  gotify_token: 'XXXXXXXXXX'
+  smtp_server: 'live.smtp.mailtrap.io'
+  smtp_port: 587
+  smtp_username: 'api'
+  smtp_password: 'XXXXXXXXXXXXXXXXXXXXXX'
+  smtp_from: 'mailtrap@yourdomain.com'
+  smtp_to:
+    - 'fabrizio.salmi@gmail.com'
+  uptime_kuma_webhook_url: 'http://uptime-kuma-host:3001/api/push/XXXXXXXXX?status=up&msg=OK&ping='
+```
 
 
 ## Uninstallation
