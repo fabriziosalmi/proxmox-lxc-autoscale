@@ -144,10 +144,10 @@ class UptimeKumaNotification(NotificationProxy):
             logging.error(f"Error sending Uptime Kuma notification: {e}")
 
 # Initialize Notifiers
-notifiers = []
 email_notifier = None
 gotify_notifier = None
 uptime_kuma_notifier = None
+notifiers = []
 
 # Email Notifier
 if DEFAULTS.get('smtp_server') and DEFAULTS.get('smtp_username') and DEFAULTS.get('smtp_password'):
