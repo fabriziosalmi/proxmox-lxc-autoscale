@@ -63,7 +63,6 @@ Below is a list of available configuration snippets. Click on any link to jump d
 39. [Paperless](#paperless-configuration)
 40. [Matomo](#matomo-configuration)
 
-These internal links make it easy to navigate directly to the relevant configuration within the document.
 ## **Configuration Snippets**
 
 ### **Nextcloud Configuration**
@@ -558,9 +557,7 @@ TIER_LIMESURVEY:
   max_memory: 2048  # in MB
   lxc_containers: 
     - 999  # Replace with the Limesurvey container ID
-```
-
-Certainly! Here are the configuration snippets for **Paperless** and **Matomo**:
+```e
 
 ### **Paperless Configuration**
 ```yaml
