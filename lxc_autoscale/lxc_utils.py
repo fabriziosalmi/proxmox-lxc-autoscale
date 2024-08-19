@@ -1,3 +1,4 @@
+from config import config
 import subprocess  # For executing shell commands
 import logging  # For logging events and errors
 import json  # For handling JSON data
