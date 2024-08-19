@@ -36,10 +36,10 @@ services:
       SMTP_TO: ''
       UPTIME_KUMA_WEBHOOK_URL: ''
       USE_REMOTE_PROXMOX: 'True'
-      PROXMOX_HOST: ''
+      PROXMOX_HOST: 'proxmox.homelab.me'
       SSH_PORT: 22
-      SSH_USER: ''
-      SSH_PASSWORD: ''  # Consider using Docker secrets for sensitive data
+      SSH_USER: 'root'
+      SSH_PASSWORD: 'weak-password'  # Consider using Docker secrets for sensitive data
       SSH_KEY_PATH: ''
     volumes:
       - /var/log/lxc_autoscale:/var/log/lxc_autoscale  # Ensure this directory is specific to your app
