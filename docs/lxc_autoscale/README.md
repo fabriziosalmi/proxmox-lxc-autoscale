@@ -56,7 +56,7 @@ root@proxmox:~# systemctl status lxc_autoscale.service
      Memory: 9.1M
         CPU: 5.766s
      CGroup: /system.slice/lxc_autoscale.service
-             └─40462 /usr/bin/python3 /usr/local/bin/lxc_autoscale.py
+             └─40462 /usr/bin/python3 /usr/local/bin/lxc_autoscale/lxc_autoscale.py
 
 Aug 19 01:38:07 proxmox systemd[1]: Started lxc_autoscale.service - LXC AutoScale Daemon.
 Aug 19 01:38:07 proxmox python3[40462]: 2024-08-19 01:38:07 - Starting resource allocation process...
