@@ -6,7 +6,9 @@ import os
 import signal
 import subprocess
 import sys
+import requests
 import yaml
+import paramiko
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from socket import gethostname
@@ -16,7 +18,6 @@ from threading import Lock
 from abc import ABC, abstractmethod
 import smtplib
 from email.mime.text import MIMEText
-import requests
 
 # Configuration file path
 CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
@@ -55,6 +56,11 @@ console.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 console.setFormatter(formatter)
 logging.getLogger().addHandler(console)
+
+# Ensure use_remote_proxmox is being loaded correctly
+use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
+logging.debug(f"use_remote_proxmox is set to: {use_remote_proxmox}")
+
 
 # Lock for thread-safe operations
 lock = Lock()
@@ -177,18 +183,6 @@ if DEFAULTS.get('uptime_kuma_webhook_url'):
 # Debugging output
 logging.debug(f"Initialized notifiers: {notifiers}")
 
-# def test_email_notification():
-#     if email_notifier:
-#         email_notifier.send_notification(
-#             title="Test Email",
-#             message="This is a test email to verify notification functionality."
-#         )
-#         logging.info("Test email notification sent.")
-#     else:
-#         logging.error("EmailNotifier is not initialized correctly.")
-# 
-# test_email_notification()
-
 # Add Email Notifier first if you want it prioritized
 if email_notifier:
     notification_proxy = email_notifier
@@ -199,12 +193,6 @@ elif uptime_kuma_notifier:
 else:
     notification_proxy = None
 
-
-# Use the first notifier as the primary method or combine them
-#if notifiers:
-#    notification_proxy = notifiers[0]
-#else:
-#    notification_proxy = None
 
 # Singleton enforcement
 @contextmanager
@@ -243,8 +231,19 @@ signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGHUP, handle_signal)
 
-# Helper function to execute shell commands
 def run_command(cmd, timeout=30):
+    use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
+    logging.debug(f"Inside run_command: use_remote_proxmox = {use_remote_proxmox}")
+    
+    if use_remote_proxmox:
+        logging.debug("Executing command remotely.")
+        return run_remote_command(cmd, timeout)
+    else:
+        logging.debug("Executing command locally.")
+        return run_local_command(cmd, timeout)
+
+
+def run_local_command(cmd, timeout=30):
     try:
         result = subprocess.check_output(cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT).decode('utf-8').strip()
         logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
@@ -256,6 +255,56 @@ def run_command(cmd, timeout=30):
     except Exception as e:
         logging.error(f"Unexpected error during command execution '{cmd}': {e}")
     return None
+
+
+def run_remote_command(cmd, timeout=30):
+    logging.debug(f"Running remote command: {cmd}")
+    ssh = None
+    try:
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        logging.debug("Attempting to connect to Proxmox host via SSH...")
+        ssh.connect(
+            hostname=config.get('DEFAULT', {}).get('proxmox_host'),
+            port=config.get('DEFAULT', {}).get('ssh_port', 22),
+            username=config.get('DEFAULT', {}).get('ssh_user'),
+            password=config.get('DEFAULT', {}).get('ssh_password'),
+            key_filename=config.get('DEFAULT', {}).get('ssh_key_path')
+        )
+        logging.debug("SSH connection established successfully.")
+
+        stdin, stdout, stderr = ssh.exec_command(cmd, timeout=timeout)
+        output = stdout.read().decode('utf-8').strip()
+        logging.debug(f"Remote command '{cmd}' executed successfully. Output: {output}")
+        return output
+
+    except paramiko.SSHException as e:
+        logging.error(f"SSH command execution failed: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error during SSH command execution '{cmd}': {e}")
+    finally:
+        if ssh:
+            ssh.close()
+    return None
+
+
+
+
+
+# Helper function to execute shell commands
+#def run_command(cmd, timeout=30):
+#    try:
+#        result = subprocess.check_output(cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT).decode('utf-8').strip()
+#        logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
+#        return result
+#    except subprocess.TimeoutExpired:
+#        logging.error(f"Command '{cmd}' timed out after {timeout} seconds.")
+#    except subprocess.CalledProcessError as e:
+#        logging.error(f"Command '{cmd}' failed with error: {e.output.decode('utf-8')}")
+#    except Exception as e:
+#        logging.error(f"Unexpected error during command execution '{cmd}': {e}")
+#    return None
 
 # Load tier configurations and associate LXC IDs with them
 LXC_TIER_ASSOCIATIONS = {}
