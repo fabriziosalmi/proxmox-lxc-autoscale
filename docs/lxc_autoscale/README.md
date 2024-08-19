@@ -118,13 +118,18 @@ DEFAULT:
   ignore_lxc: []
   behaviour: normal
   smtp_server: ''
-  smtp_port: 
-  smtp_username: ''
+  smtp_port: 587
+  smtp_username: 'api'
   smtp_password: ''
   smtp_from: ''
-  smtp_to:
-    - ''
-  uptime_kuma_webhook_url: ''
+  - ''
+  uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
+  use_remote_proxmox: false  
+  proxmox_host: ''  
+  ssh_port: 22  
+  ssh_user: ''  
+  ssh_password: ''  
+  # ssh_key_path: '/path/to/private/key' 
 ```
 
 #### Poll Interval (`poll_interval`)
@@ -313,8 +318,9 @@ To manually remove LXC AutoScale, follow these steps:
 kill -9 $(ps aux | grep lxc_autoscale | grep -v grep | awk '{print $2}')
 systemctl disable lxc_autoscale.service
 systemctl stop lxc_autoscale.service
-rm -f /usr/local/bin/lxc_autoscale.py
+rm -rf /usr/local/bin/lxc_autoscale/
 rm -f /etc/systemd/system/lxc_autoscale.service
+cp -rp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale.yaml.uninstall.backup
 rm -rf /etc/lxc_autoscale/
 rm -rf /var/lib/lxc_autoscale/
 ```
