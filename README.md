@@ -31,10 +31,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 📈 JSON Metrics
 - 💻 Local or remote execution
 
-### Additional resources
-- 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
-- ⏰ [LXC AutoScale API - Cron jobs examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api/examples/README.md)
-## Installation
+## Quick Start
 
 Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
 
@@ -55,6 +52,12 @@ If the conditions set in the configuration are met, you will quickly observe sca
 
 LXC AutoScale is designed to be highly customizable. You can reconfigure the service at any time to better suit your specific needs. For detailed instructions on how to adjust the settings, please refer to the **[official documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)**.
 
+### Resources
+
+LXC AutoScale and LXC AutoScale ML can be used and extended in many ways, here some useful additional resources:
+- 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
+- ⏰ [LXC AutoScale API - Cron jobs examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api/examples/README.md)
+  
 ## Contributing
 
 LXC AutoScale is an open-source project, and contributions are welcome! Whether you want to submit a pull request, report an issue, or suggest a new feature, your input is invaluable. To get involved, you can:
