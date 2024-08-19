@@ -1,3 +1,4 @@
+from config import config
 import logging  # For logging events and errors
 from time import sleep  # To introduce delays in the main loop
 from lxc_utils import (  # Import various utility functions related to LXC container management
