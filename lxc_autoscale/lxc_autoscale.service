@@ -4,7 +4,7 @@ Documentation=https://github.com/fabriziosalmi/proxmox-lxc-autoscale
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale.py
+ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale/lxc_autoscale.py
 Restart=no
 User=root
 
