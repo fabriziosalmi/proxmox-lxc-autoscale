@@ -68,7 +68,7 @@ For more details, visit the [GitHub repository](https://github.com/fabriziosalmi
 ## Disclaimer
 
 > [!CAUTION]
-> Please note that while LXC AutoScale is designed to enhance your container management experience, I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
+> I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
 
 ## License
 
