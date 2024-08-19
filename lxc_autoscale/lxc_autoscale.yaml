@@ -71,6 +71,27 @@ DEFAULT:
   # Behavior setting for scaling operations, which can be adjusted based on desired scaling strategy.
   behaviour: normal
 
+  # SMTP server address for sending email notifications.
+  # smtp_server: ''
+
+  # SMTP port for sending email notifications.
+  # smtp_port: 587
+
+  # SMTP username for sending email notifications.
+  # smtp_username: 'api'
+
+  # SMTP password for sending email notifications.
+  # smtp_password: ''
+
+  # From address for sending email notifications. (mail@domain.com)
+  # smtp_from: ''
+
+  # List of recipient email addresses for notifications.
+  # smtp_to:
+    - ''
+
+  # Webhook URL for Uptime Kuma notifications.
+  # uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
 
 
 # TIER defined configurations. Change lxc_containers IDs and uncomment the whole section to enable it.
