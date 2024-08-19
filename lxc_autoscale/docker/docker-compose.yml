@@ -35,7 +35,7 @@ services:
       SMTP_FROM: ''
       SMTP_TO: ''
       UPTIME_KUMA_WEBHOOK_URL: ''
-      USE_REMOTE_PROXMOX: 'False'
+      USE_REMOTE_PROXMOX: 'True'
       PROXMOX_HOST: ''
       SSH_PORT: 22
       SSH_USER: ''
