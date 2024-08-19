@@ -33,7 +33,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 
 ## Quick Start
 
-Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
+Getting started with LXC AutoScale is quick and simple:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
