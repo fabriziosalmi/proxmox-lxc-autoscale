@@ -33,7 +33,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 
 ## Quick Start
 
-Getting started with LXC AutoScale is quick and simple:
+Getting started with LXC AutoScale on your Proxmox host is quick and simple:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
