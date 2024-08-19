@@ -13,6 +13,7 @@
   - [Horizontal Scaling Group (Optional)](#horizontal-scaling-group-optional)
 - **[Service Management](#service-management)**: Commands to start, stop, and manage the LXC AutoScale service.
 - **[Logging](#logging)**: Instructions for accessing and interpreting LXC AutoScale logs.
+- **[Notifications](#notifications)**: How to configure the notifications for endpoints like e-mail, Gotify or Uptime Kuma.
 - **[Uninstallation](#uninstallation)**: Steps to remove LXC AutoScale from your system.
 - **[Use Cases](#use-cases)**: Examples of how LXC AutoScale can be used in homelab and self-hosting environments.
 - **[Examples](examples/README.md)**: TIER defined snippets for 40 popular self-hosted applications.
@@ -116,6 +117,14 @@ DEFAULT:
   gotify_token: ''
   ignore_lxc: []
   behaviour: normal
+  smtp_server: ''
+  smtp_port: 
+  smtp_username: ''
+  smtp_password: ''
+  smtp_from: ''
+  smtp_to:
+    - ''
+  uptime_kuma_webhook_url: ''
 ```
 
 #### Poll Interval (`poll_interval`)
@@ -265,7 +274,11 @@ cat /var/log/lxc_autoscale.json | jq .
 
 Understanding the logs can help you fine-tune LXC AutoScale’s configuration. For example, if you notice frequent scaling actions, you might need to adjust the thresholds or increments to reduce the load on the host.
 
----
+
+### Notifications
+
+Notifications on scaling events can be sent to one or more endpoints like E-Mail, Gotify and Uptime Kuma (push webhook). Change options accordingly with your setup in the `/etc/lxc_autoscale/lxc_autoscale.yaml` configuration file.
+
 
 ## Uninstallation
 
