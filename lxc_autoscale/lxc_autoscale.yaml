@@ -89,10 +89,17 @@ DEFAULT:
   # List of recipient email addresses for notifications.
   # smtp_to:
     - ''
-
+    
   # Webhook URL for Uptime Kuma notifications.
   # uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
 
+  # Remote Proxmox SSH Configuration
+  use_remote_proxmox: false
+  proxmox_host: ''
+  ssh_port: 22
+  ssh_user: ''
+  ssh_password: ''
+  # ssh_key_path: '/path/to/private/key'  # Optional: For SSH key authentication
 
 # TIER defined configurations. Change lxc_containers IDs and uncomment the whole section to enable it.
 
