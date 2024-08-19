@@ -22,6 +22,9 @@ Designed for more complex environments, this version can be easily extended to f
 
 --- 
 
-#### Additional resources
+### Additional resources
 
 - [Q&A](q%26a/README.md)
+- [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
+- [LXC AutoScale API - Cron jobs examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api/examples/README.md)
+  
