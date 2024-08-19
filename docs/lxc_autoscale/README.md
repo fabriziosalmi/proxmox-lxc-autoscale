@@ -23,7 +23,7 @@
 
 ## LXC AutoScale
 
-**LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance. LXC AutoScale can operate both locally or by remotely connecting via SSH to Proxmox hosts.
+**LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance. LXC AutoScale can operate both locally or by remotely connecting via SSH to your Proxmox hosts.
 
 ---
 
