@@ -7,7 +7,7 @@ After=network.target
 User=root
 Group=root
 Environment="PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin"
-WorkingDirectory=/usr/local/bin/autoscaleapi/
+WorkingDirectory=/usr/local/bin/lxc_autoscale_api/
 ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale_api/app.py
 
 # Restart on failure
