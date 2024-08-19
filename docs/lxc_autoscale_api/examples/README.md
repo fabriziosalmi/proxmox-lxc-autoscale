@@ -221,9 +221,7 @@ if [ $(jq '.cpu' response.json) -gt 75 ]; then curl -X POST http://proxmox:5000/
 
 ---
 
-## Autom
-
-ate Cleanup Tasks
+## Automate Cleanup Tasks
 
 Remove old snapshots after a specified number of days to save space.
 
