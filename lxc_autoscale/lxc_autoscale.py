@@ -1,3 +1,5 @@
+from config import config
+
 # Importing necessary modules and functions
 from config import get_config_value, LOG_FILE, DEFAULTS, BACKUP_DIR, PROXMOX_HOSTNAME, IGNORE_LXC  # Importing configuration constants and utility functions
 from logging_setup import setup_logging  # Importing the logging setup function
