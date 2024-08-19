@@ -204,8 +204,8 @@ HORIZONTAL_SCALING_GROUP_1:
   min_instances: 2
   max_instances: 5
   starting_clone_id: 99000
-  clone_network_type: "static"
-  static_ip_range: ["192.168.100.195", "192.168.100.200"]
+  clone_network_type: "static"                               # or "dhcp", in that case better to set static_ip_range: []
+  static_ip_range: ["192.168.100.195", "192.168.100.200"]    # if you enabled dhcp for clones set static_ip_range: []
   horiz_cpu_upper_threshold: 95
   horiz_memory_upper_threshold: 95
   group_tag: "horiz_scaling_group_1"
