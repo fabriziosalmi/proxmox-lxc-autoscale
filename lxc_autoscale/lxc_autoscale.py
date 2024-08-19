@@ -31,16 +31,21 @@ else:
 
 DEFAULTS = config.get('DEFAULT', {})
 
-# Constants
-LOG_FILE = DEFAULTS.get('log_file', '/var/log/lxc_autoscale.log')
-LOCK_FILE = DEFAULTS.get('lock_file', '/var/lock/lxc_autoscale.lock')
-BACKUP_DIR = DEFAULTS.get('backup_dir', '/var/lib/lxc_autoscale/backups')
-RESERVE_CPU_PERCENT = DEFAULTS.get('reserve_cpu_percent', 10)
-RESERVE_MEMORY_MB = DEFAULTS.get('reserve_memory_mb', 2048)
-OFF_PEAK_START = DEFAULTS.get('off_peak_start', 22)
-OFF_PEAK_END = DEFAULTS.get('off_peak_end', 6)
-IGNORE_LXC = set(map(str, DEFAULTS.get('ignore_lxc', [])))  # Ensuring all ignore IDs are strings
-BEHAVIOUR = DEFAULTS.get('behaviour', 'normal').lower()
+# Function to get the value from environment variables or fallback to YAML config
+def get_config_value(section, key, default=None):
+    env_key = f"{section.upper()}_{key.upper()}"
+    return os.getenv(env_key, config.get(section, {}).get(key, default))
+
+# Constants (from DEFAULTS section)
+LOG_FILE = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')
+LOCK_FILE = get_config_value('DEFAULT', 'lock_file', '/var/lock/lxc_autoscale.lock')
+BACKUP_DIR = get_config_value('DEFAULT', 'backup_dir', '/var/lib/lxc_autoscale/backups')
+RESERVE_CPU_PERCENT = int(get_config_value('DEFAULT', 'reserve_cpu_percent', 10))
+RESERVE_MEMORY_MB = int(get_config_value('DEFAULT', 'reserve_memory_mb', 2048))
+OFF_PEAK_START = int(get_config_value('DEFAULT', 'off_peak_start', 22))
+OFF_PEAK_END = int(get_config_value('DEFAULT', 'off_peak_end', 6))
+IGNORE_LXC = set(map(str, get_config_value('DEFAULT', 'ignore_lxc', [])))  # Ensuring all ignore IDs are strings
+BEHAVIOUR = get_config_value('DEFAULT', 'behaviour', 'normal').lower()
 PROXMOX_HOSTNAME = gethostname()
 
 # Set up logging
