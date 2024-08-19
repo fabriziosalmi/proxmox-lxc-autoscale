@@ -27,7 +27,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 🌱 Energy Efficiency Mode
 - 🚦 Container Prioritization
 - 📦 Automatic Backups
-- 🔔 Gotify Notifications
+- 🔔 Mail and Push Notifications
 - 📈 JSON Metrics
 
 ### Additional resources
