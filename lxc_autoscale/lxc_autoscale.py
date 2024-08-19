@@ -13,6 +13,10 @@ from socket import gethostname
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+from abc import ABC, abstractmethod
+import smtplib
+from email.mime.text import MIMEText
+import requests
 
 # Configuration file path
 CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
@@ -41,7 +45,7 @@ PROXMOX_HOSTNAME = gethostname()
 # Set up logging
 logging.basicConfig(
     filename=LOG_FILE,
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
@@ -57,6 +61,150 @@ lock = Lock()
 
 # Track last scale out operations for horizontal scaling groups
 scale_last_action = {}
+
+# Abstract Notification Proxy
+class NotificationProxy(ABC):
+    @abstractmethod
+    def send_notification(self, title: str, message: str, priority: int = 5):
+        pass
+
+# Gotify Notification
+class GotifyNotification(NotificationProxy):
+    def __init__(self, url: str, token: str):
+        self.url = url
+        self.token = token
+
+    def send_notification(self, title: str, message: str, priority: int = 5):
+        payload = {
+            'title': title,
+            'message': message,
+            'priority': priority
+        }
+        headers = {
+            'X-Gotify-Key': self.token
+        }
+
+        try:
+            response = requests.post(f"{self.url}/message", data=payload, headers=headers)
+            response.raise_for_status()  # Raises an exception for HTTP errors
+            logging.info(f"Gotify notification sent: {title} - {message}")
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(f"Gotify notification failed: HTTP error occurred: {http_err}")
+        except requests.exceptions.RequestException as req_err:
+            logging.error(f"Gotify notification failed: Request exception: {req_err}")
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+
+
+# Email Notification
+class EmailNotification(NotificationProxy):
+    def __init__(self, smtp_server: str, port: int, username: str, password: str, from_addr: str, to_addrs: list):
+        self.smtp_server = smtp_server
+        self.port = port
+        self.username = username
+        self.password = password
+        self.from_addr = from_addr
+        self.to_addrs = to_addrs
+
+    def send_notification(self, title: str, message: str, priority: int = 5):
+        msg = MIMEText(message)
+        msg['Subject'] = title
+        msg['From'] = self.from_addr
+        msg['To'] = ', '.join(self.to_addrs)
+
+        try:
+            with smtplib.SMTP(self.smtp_server, self.port) as server:
+                server.starttls()  # Upgrades the connection to TLS
+                server.login(self.username, self.password)
+                server.sendmail(self.from_addr, self.to_addrs, msg.as_string())
+            logging.info(f"Email sent: {title} - {message}")
+        except Exception as e:
+            logging.error(f"Failed to send email: {e}")
+
+
+# Uptime Kuma Notification
+class UptimeKumaNotification(NotificationProxy):
+    def __init__(self, webhook_url: str):
+        self.webhook_url = webhook_url
+
+    def send_notification(self, priority: int = 5):
+        try:
+            response = requests.get(self.webhook_url)
+            if response.status_code == 200:
+                logging.info("Uptime Kuma notification sent successfully")
+            else:
+                logging.error(f"Failed to send Uptime Kuma notification: {response.status_code}")
+        except Exception as e:
+            logging.error(f"Error sending Uptime Kuma notification: {e}")
+
+# Initialize Notifiers
+notifiers = []
+
+# Email Notifier
+if DEFAULTS.get('smtp_server') and DEFAULTS.get('smtp_username') and DEFAULTS.get('smtp_password'):
+    try:
+        email_notifier = EmailNotification(
+            smtp_server=DEFAULTS['smtp_server'],
+            port=DEFAULTS.get('smtp_port', 587),
+            username=DEFAULTS['smtp_username'],
+            password=DEFAULTS['smtp_password'],
+            from_addr=DEFAULTS['smtp_from'],
+            to_addrs=DEFAULTS['smtp_to']
+        )
+        notifiers.append(email_notifier)
+        logging.debug("Email notifier initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize Email notifier: {e}")
+
+# Gotify Notifier
+if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
+    try:
+        gotify_notifier = GotifyNotification(DEFAULTS['gotify_url'], DEFAULTS['gotify_token'])
+        notifiers.append(gotify_notifier)
+        logging.debug("Gotify notifier initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize Gotify notifier: {e}")
+
+# Uptime Kuma Notifier (if used)
+if DEFAULTS.get('uptime_kuma_webhook_url'):
+    try:
+        uptime_kuma_notifier = UptimeKumaNotification(DEFAULTS['uptime_kuma_webhook_url'])
+        notifiers.append(uptime_kuma_notifier)
+        logging.debug("Uptime Kuma notifier initialized successfully.")
+    except Exception as e:
+        logging.error(f"Failed to initialize Uptime Kuma notifier: {e}")
+
+# Debugging output
+logging.debug(f"Initialized notifiers: {notifiers}")
+
+# def test_email_notification():
+#     if email_notifier:
+#         email_notifier.send_notification(
+#             title="Test Email",
+#             message="This is a test email to verify notification functionality."
+#         )
+#         logging.info("Test email notification sent.")
+#     else:
+#         logging.error("EmailNotifier is not initialized correctly.")
+# 
+# test_email_notification()
+
+# Add Email Notifier first if you want it prioritized
+if email_notifier:
+    notification_proxy = email_notifier
+elif gotify_notifier:
+    notification_proxy = gotify_notifier
+elif uptime_kuma_notifier:
+    notification_proxy = uptime_kuma_notifier
+else:
+    notification_proxy = None
+
+
+# Use the first notifier as the primary method or combine them
+#if notifiers:
+#    notification_proxy = notifiers[0]
+#else:
+#    notification_proxy = None
 
 # Singleton enforcement
 @contextmanager
@@ -108,21 +256,6 @@ def run_command(cmd, timeout=30):
     except Exception as e:
         logging.error(f"Unexpected error during command execution '{cmd}': {e}")
     return None
-
-# Send notification via Gotify
-def send_gotify_notification(title, message, priority=5):
-    if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
-        hostname_info = f"[Host: {PROXMOX_HOSTNAME}]"
-        full_message = f"{hostname_info} {message}"
-        cmd = (
-            f"curl -X POST {DEFAULTS['gotify_url']}/message -F 'title={title}' "
-            f"-F 'message={full_message}' -F 'priority={priority}' "
-            f"-H 'X-Gotify-Key: {DEFAULTS['gotify_token']}'"
-        )
-        if run_command(cmd):
-            logging.info(f"Notification sent: {title} - {message}")
-    else:
-        logging.debug("Gotify URL or Token not provided. Notification not sent.")
 
 # Load tier configurations and associate LXC IDs with them
 LXC_TIER_ASSOCIATIONS = {}
@@ -210,7 +343,7 @@ def rollback_container_settings(ctid):
         logging.info(f"Rolling back container {ctid} to backup settings")
         run_command(f"pct set {ctid} -cores {settings['cores']}")
         run_command(f"pct set {ctid} -memory {settings['memory']}")
-        send_gotify_notification(
+        send_notification(
             f"Rollback for Container {ctid}",
             "Container settings rolled back to previous state."
         )
@@ -389,7 +522,7 @@ def scale_out(group_name, group_config):
             scale_last_action[group_name] = datetime.now()
 
             logging.info(f"Container {new_ctid} started successfully as part of {group_name}.")
-            send_gotify_notification(f"Scale Out: {group_name}", f"New container {new_ctid} with hostname {clone_hostname} started.")
+            send_notification(f"Scale Out: {group_name}", f"New container {new_ctid} with hostname {clone_hostname} started.")
 
             # Log the scale-out event to JSON
             log_json_event(new_ctid, "Scale Out", f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.")
@@ -405,6 +538,11 @@ def adjust_resources(containers):
         logging.info("No containers to adjust.")
         return
 
+    # Open the TCP port 54547 before starting the adjustment process
+    # global open_port
+    # open_port = True
+    # sock, connection_thread = open_tcp_port(54547)
+
     total_cores = get_total_cores()
     total_memory = get_total_memory()
 
@@ -415,6 +553,7 @@ def adjust_resources(containers):
     available_memory = total_memory - reserved_memory
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
+
 
     for ctid, usage in containers.items():
         if is_ignored(ctid):
@@ -458,7 +597,7 @@ def adjust_resources(containers):
                 available_cores -= increment
                 cores_changed = True
                 log_json_event(ctid, "Increase Cores", f"{increment}")
-                send_gotify_notification(
+                send_notification(
                     f"CPU Increased for Container {ctid}",
                     f"CPU cores increased to {new_cores}."
                 )
@@ -476,7 +615,7 @@ def adjust_resources(containers):
                 available_cores += (current_cores - new_cores)
                 cores_changed = True
                 log_json_event(ctid, "Decrease Cores", f"{decrement}")
-                send_gotify_notification(
+                send_notification(
                     f"CPU Decreased for Container {ctid}",
                     f"CPU cores decreased to {new_cores}."
                 )
@@ -496,7 +635,7 @@ def adjust_resources(containers):
                 available_memory -= increment
                 memory_changed = True
                 log_json_event(ctid, "Increase Memory", f"{increment}MB")
-                send_gotify_notification(
+                send_notification(
                     f"Memory Increased for Container {ctid}",
                     f"Memory increased by {increment}MB."
                 )
@@ -514,7 +653,7 @@ def adjust_resources(containers):
                 available_memory += decrease_amount
                 memory_changed = True
                 log_json_event(ctid, "Decrease Memory", f"{decrease_amount}MB")
-                send_gotify_notification(
+                send_notification(
                     f"Memory Decreased for Container {ctid}",
                     f"Memory decreased by {decrease_amount}MB."
                 )
@@ -526,7 +665,7 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -cores {min_cores}")
                 available_cores += (current_cores - min_cores)
                 log_json_event(ctid, "Reduce Cores (Off-Peak)", f"{current_cores - min_cores}")
-                send_gotify_notification(
+                send_notification(
                     f"CPU Reduced for Container {ctid}",
                     f"CPU cores reduced to {min_cores} for energy efficiency."
                 )
@@ -535,12 +674,15 @@ def adjust_resources(containers):
                 run_command(f"pct set {ctid} -memory {min_memory}")
                 available_memory += (current_memory - min_memory)
                 log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
-                send_gotify_notification(
+                send_notification(
                     f"Memory Reduced for Container {ctid}",
                     f"Memory reduced to {min_memory}MB for energy efficiency."
                 )
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
+
+
+
 
 def manage_horizontal_scaling(containers):
     for group_name, group_config in HORIZONTAL_SCALING_GROUPS.items():
@@ -578,6 +720,18 @@ def is_off_peak():
         return OFF_PEAK_START <= current_hour or current_hour < OFF_PEAK_END
     return False
 
+# Define the send_notification function
+def send_notification(title, message, priority=5):
+    if notifiers:
+        for notifier in notifiers:
+            try:
+                notifier.send_notification(title, message, priority)
+            except Exception as e:
+                logging.error(f"Failed to send notification using {notifier.__class__.__name__}: {e}")
+    else:
+        logging.warning("No notification system configured.")
+
+
 def main_loop():
     while running:
         logging.info("Starting resource allocation process...")
@@ -606,4 +760,5 @@ if __name__ == "__main__":
             else:
                 main_loop()
         finally:
+            
             logging.info("Releasing lock and exiting.")
