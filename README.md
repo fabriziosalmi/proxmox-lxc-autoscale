@@ -29,7 +29,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 📦 Automatic Backups
 - 🔔 Mail and Push Notifications
 - 📈 JSON Metrics
-- 💻 Local and remote execution
+- 💻 Local or remote execution
 
 ### Additional resources
 - 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
