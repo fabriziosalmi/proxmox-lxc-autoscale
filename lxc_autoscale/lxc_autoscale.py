@@ -144,12 +144,10 @@ class UptimeKumaNotification(NotificationProxy):
             logging.error(f"Error sending Uptime Kuma notification: {e}")
 
 # Initialize Notifiers
-email_notifier = None
-gotify_notifier = None
-uptime_kuma_notifier = None
 notifiers = []
 
 # Email Notifier
+email_notifier = None  # Initialize to None to avoid NameError
 if DEFAULTS.get('smtp_server') and DEFAULTS.get('smtp_username') and DEFAULTS.get('smtp_password'):
     try:
         email_notifier = EmailNotification(
@@ -166,6 +164,7 @@ if DEFAULTS.get('smtp_server') and DEFAULTS.get('smtp_username') and DEFAULTS.ge
         logging.error(f"Failed to initialize Email notifier: {e}")
 
 # Gotify Notifier
+gotify_notifier = None  # Initialize to None to avoid NameError
 if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
     try:
         gotify_notifier = GotifyNotification(DEFAULTS['gotify_url'], DEFAULTS['gotify_token'])
@@ -175,6 +174,7 @@ if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
         logging.error(f"Failed to initialize Gotify notifier: {e}")
 
 # Uptime Kuma Notifier (if used)
+uptime_kuma_notifier = None  # Initialize to None to avoid NameError
 if DEFAULTS.get('uptime_kuma_webhook_url'):
     try:
         uptime_kuma_notifier = UptimeKumaNotification(DEFAULTS['uptime_kuma_webhook_url'])
@@ -187,15 +187,13 @@ if DEFAULTS.get('uptime_kuma_webhook_url'):
 logging.debug(f"Initialized notifiers: {notifiers}")
 
 # Add Email Notifier first if you want it prioritized
+notification_proxy = None
 if email_notifier:
     notification_proxy = email_notifier
 elif gotify_notifier:
     notification_proxy = gotify_notifier
 elif uptime_kuma_notifier:
     notification_proxy = uptime_kuma_notifier
-else:
-    notification_proxy = None
-
 
 # Singleton enforcement
 @contextmanager
