@@ -65,6 +65,7 @@ def load_data(file_path):
     logging.info("Data preprocessed successfully.")
     return df
 
+
 def preprocess_data(df, config):
     if df.empty:
         logging.error("DataFrame is empty. Skipping preprocessing.")
@@ -74,10 +75,19 @@ def preprocess_data(df, config):
         spike_threshold = config.get('spike_detection', {}).get('spike_threshold', 2)
         rolling_window_size = config.get('rolling_window', 5)
         
+        # Derived metrics
         df['cpu_per_process'] = df['cpu_usage_percent'] / df['process_count']
         df['memory_per_process'] = df['memory_usage_mb'] / df['process_count']
-        df['time_diff'] = df.groupby('container_id')['timestamp'].diff().dt.total_seconds().fillna(0)
+        df['cpu_memory_ratio'] = df['cpu_usage_percent'] / df['memory_usage_mb']  # New metric: CPU to Memory Ratio
 
+        # Fix for time_diff calculation
+        try:
+            df['time_diff'] = df.groupby('container_id')['timestamp'].diff().dt.total_seconds()
+            df['time_diff'].fillna(0, inplace=True)
+        except Exception as e:
+            logging.error(f"Error calculating 'time_diff': {e}")
+            df['time_diff'] = 0  # Default to 0 in case of errors
+        
         # Rolling statistics for spike detection and trend analysis
         df['rolling_mean_cpu'] = df.groupby('container_id')['cpu_usage_percent'].transform(
             lambda x: x.rolling(window=rolling_window_size, min_periods=1).mean())
@@ -110,8 +120,11 @@ def preprocess_data(df, config):
 
         # Feature scaling
         scaler = StandardScaler()
-        features_to_scale = ['cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff',
-                             'cpu_trend', 'memory_trend', 'max_cpu', 'min_cpu', 'max_memory', 'min_memory']
+        features_to_scale = [
+            'cpu_usage_percent', 'memory_usage_mb', 'cpu_per_process', 'memory_per_process', 'time_diff',
+            'cpu_trend', 'memory_trend', 'max_cpu', 'min_cpu', 'max_memory', 'min_memory',
+            'cpu_memory_ratio'
+        ]
         df[features_to_scale] = scaler.fit_transform(df[features_to_scale])
 
         logging.info("Feature engineering, spike detection, and trend detection completed.")
