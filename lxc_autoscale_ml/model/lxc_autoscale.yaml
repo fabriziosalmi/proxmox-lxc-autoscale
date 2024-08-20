@@ -1,0 +1,80 @@
+# =============================================================
+#                      LXC AutoScale ML
+#           Automated Container Scaling Configuration
+# -------------------------------------------------------------
+# This configuration file controls the behavior of the LXC 
+# AutoScale ML script. It includes settings for logging, 
+# model training, spike detection, scaling actions, API 
+# interactions, and more.
+#
+# The script is designed to automatically scale LXC containers 
+# based on real-time metrics, such as CPU usage, memory usage, 
+# and other system indicators. The scaling decisions are made 
+# using machine learning models, which can detect anomalies 
+# and trends in the data.
+#
+# Author: Fabrizio Salmi
+# Date: August 20, 2024
+# Version: 0.1.0
+# =============================================================
+
+# Logging Configuration
+log_file: "/var/log/lxc_autoscale_ml.log"  # Path to the log file
+log_level: "DEBUG"  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+# Lock File Configuration
+lock_file: "/tmp/lxc_autoscale_ml.lock"  # Path to the lock file to prevent multiple instances
+
+# Data File Configuration
+data_file: "/usr/local/bin/lxc_autoscale_ml/fake_metrics.json"  # Path to the metrics file containing container data
+
+# Model Configuration
+model:
+  contamination: 0.05  # Contamination level for IsolationForest (fraction of outliers)
+  n_estimators: 100  # Number of trees in IsolationForest
+  max_samples: 64  # Number of samples to draw for training each tree
+  random_state: 42  # Random seed for reproducibility
+
+# Spike Detection Configuration
+spike_detection:
+  spike_threshold: 2  # Number of standard deviations for spike detection
+  rolling_window: 5  # Window size for rolling mean and standard deviation
+
+# Scaling Configuration
+scaling:
+  total_cores: 4  # Total number of CPU cores available on the server
+  total_ram_mb: 16384  # Total RAM available on the server in MB
+  target_cpu_load_percent: 50  # Target CPU load percentage after scaling
+  min_cpu_cores: 2  # Minimum number of CPU cores to maintain per container
+  min_ram_mb: 1024  # Minimum RAM to maintain per container in MB
+  cpu_scale_up_threshold: 75  # CPU usage percentage to trigger scale-up
+  cpu_scale_down_threshold: 30  # CPU usage percentage to trigger scale-down
+  ram_scale_up_threshold: 75  # RAM usage percentage to trigger scale-up
+  ram_scale_down_threshold: 30  # RAM usage percentage to trigger scale-down
+  ram_chunk_size: 50  # Minimum RAM scaling chunk size in MB
+  ram_upper_limit: 1024  # Maximum RAM scaling limit in one step in MB
+  dry_run: false  # If true, perform a dry run without making actual API calls
+
+# API Configuration
+api:
+  api_url: "http://127.0.0.1:5000"  # Base URL for the API used for scaling actions
+  cores_endpoint: "/scale/cores"  # Endpoint for scaling CPU cores
+  ram_endpoint: "/scale/ram"  # Endpoint for scaling RAM
+
+# Retry Logic for API Calls
+retry_logic:
+  max_retries: 3  # Maximum number of retries for API calls
+  retry_delay: 2  # Delay between retries in seconds
+
+# Interval Configuration
+interval_seconds: 60  # Time interval between consecutive script runs in seconds
+
+# Feature Engineering Configuration
+feature_engineering:
+  include_io_activity: true  # Include IO activity as a feature in the model
+  include_network_activity: true  # Include network activity as a feature in the model
+
+# Prediction Configuration
+prediction:
+  use_latest_only: true  # If true, use only the latest data point for prediction
+  include_rolling_features: true  # Include rolling mean and std features for prediction
