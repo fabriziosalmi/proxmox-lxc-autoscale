@@ -51,7 +51,6 @@ declare -A file_actions=(
     ["/etc/lxc_autoscale/lxc_autoscale.conf"]="backup remove"
     ["/etc/lxc_autoscale/lxc_autoscale.yaml"]="backup remove"
     ["/etc/autoscaleapi.yaml"]="backup remove"
-    ["/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"]="backup remove"
 )
 
 # Define the list of files to check
@@ -59,16 +58,13 @@ files_to_check=(
     "/etc/lxc_autoscale/lxc_autoscale.conf"
     "/etc/lxc_autoscale/lxc_autoscale.yaml"
     "/etc/autoscaleapi.yaml"
-    "/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"
-    "/etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml"
-    "/etc/lxc_autoscale_ml/lxc_monitor.yaml"
 )
 
 # Define additional files to delete
 additional_files_to_delete=(
-    "/path/to/additional_file1"
-    "/path/to/additional_file2"
-    "/path/to/additional_file3"
+    "/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"
+    "/etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml"
+    "/etc/lxc_autoscale_ml/lxc_monitor.yaml"
 )
 
 # Define files and folders to remove based on version
