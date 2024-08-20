@@ -276,7 +276,7 @@ install_lxc_autoscale_ml() {
     curl -sSL -o /usr/local/bin/lxc_autoscale_ml/signal_handler.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/signal_handler.py
     curl -sSL -o /usr/local/bin/lxc_autoscale_ml/lxc_autoscale_ml.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lxc_autoscale_ml.py
     # Download and install the model configuration file
-    curl -sSL -o /etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.yaml
+    curl -sSL -o /etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lxc_autoscale_ml.yaml
 
     # Download and install the systemd services file
     curl -sSL -o /etc/systemd/system/lxc_autoscale_ml.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lxc_autoscale_ml.service
