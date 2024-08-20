@@ -392,10 +392,10 @@ install_lxc_autoscale_ml() {
     curl -sSL -o /usr/local/bin/lxc_autoscale_api/snapshot_management.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/snapshot_management.py
     curl -sSL -o /usr/local/bin/lxc_autoscale_api/utils.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/utils.py
     # Download and install the api configuration file
-    curl -sSL -o /etc/lcx_autoscale_ml/lxc_autoscale_api.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.yaml
+    curl -sSL -o /etc/lxc_autoscale_ml/lxc_autoscale_api.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.yaml
  
     # Download and install the monitor application file
-    curl -sSL -o /usr/local/bin/lxc_monitor.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.py
+    curl -sSL -o /usr/local/bin/lxc_monitor.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.py
     # Download and install the monitor configuration file
     curl -sSL -o /etc/lxc_autoscale_ml/lxc_monitor.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.yaml
  
