@@ -6,11 +6,8 @@
 
 - **[Overview](#overview)**: Introduction to LXC AutoScale ML and its core functionality.
 - **[Features](#features)**: Key features of the service, including anomaly detection and automated scaling.
-- **[Installation and Setup](#installation-and-setup)**: Step-by-step guide to installing and configuring LXC AutoScale ML.
-  - [Prerequisites](#1-prerequisites)
-  - [Configuration](#2-configuration)
-  - [Service Configuration](#3-service-configuration)
-  - [Installation](#4-installation)
+- **[Quick Start](#quick-start)**: Step-by-step guide to installing and configuring LXC AutoScale ML.
+- **[Configuration](#2-configuration)**: Configure LXC AutoScale ML options to get the best from it.
 - **[Usage](#usage)**: Instructions on how to start, stop, and manage the LXC AutoScale ML service.
 - **[Logging and Outputs](#logging-and-outputs)**: Information on logging and how to interpret the scaling suggestions.
 - **[Core Functions](#core-functions)**: Detailed descriptions of the key functions used in the LXC AutoScale ML service.
@@ -62,7 +59,77 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 
 Select option 2 and you're done.
 
----
+## Configuration
+
+```
+# Logging Configuration
+log_file: "/var/log/lxc_autoscale_ml.log"  # Path to the log file
+log_level: "DEBUG"  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+# Lock File Configuration
+lock_file: "/tmp/lxc_autoscale_ml.lock"  # Path to the lock file to prevent multiple instances
+
+# Data File Configuration
+data_file: "/var/log/lxc_metrics.json"  # Path to the metrics file containing container data produced by LXC AutoScale API
+
+# Model Configuration
+model:
+  contamination: 0.05  # Contamination level for IsolationForest (fraction of outliers)
+  n_estimators: 100  # Number of trees in IsolationForest
+  max_samples: 64  # Number of samples to draw for training each tree
+  random_state: 42  # Random seed for reproducibility
+
+# Spike Detection Configuration
+spike_detection:
+  spike_threshold: 2  # Number of standard deviations for spike detection
+  rolling_window: 5  # Window size for rolling mean and standard deviation
+
+# Scaling Configuration
+scaling:
+  total_cores: 4  # Total number of CPU cores available on the server
+  total_ram_mb: 16384  # Total RAM available on the server in MB
+  target_cpu_load_percent: 50  # Target CPU load percentage after scaling
+  max_cpu_cores: 4  # Maximum number of CPU cores to maintain per container
+  max_ram_mb: 8192  # Maximum RAM to maintain per container in MB
+  min_cpu_cores: 2  # Minimum number of CPU cores to maintain per container
+  min_ram_mb: 1024  # Minimum RAM to maintain per container in MB
+  cpu_scale_up_threshold: 75  # CPU usage percentage to trigger scale-up
+  cpu_scale_down_threshold: 30  # CPU usage percentage to trigger scale-down
+  ram_scale_up_threshold: 75  # RAM usage percentage to trigger scale-up
+  ram_scale_down_threshold: 30  # RAM usage percentage to trigger scale-down
+  ram_chunk_size: 50  # Minimum RAM scaling chunk size in MB
+  ram_upper_limit: 1024  # Maximum RAM scaling limit in one step in MB
+  dry_run: false  # If true, perform a dry run without making actual API calls
+
+# API Configuration
+api:
+  api_url: "http://127.0.0.1:5000"  # Base URL for the API used for scaling actions
+  cores_endpoint: "/scale/cores"  # Endpoint for scaling CPU cores
+  ram_endpoint: "/scale/ram"  # Endpoint for scaling RAM
+
+# Retry Logic for API Calls
+retry_logic:
+  max_retries: 3  # Maximum number of retries for API calls
+  retry_delay: 2  # Delay between retries in seconds
+
+# Interval Configuration
+interval_seconds: 60  # Time interval between consecutive script runs in seconds
+
+# Feature Engineering Configuration
+feature_engineering:
+  include_io_activity: true  # Include IO activity as a feature in the model
+  include_network_activity: true  # Include network activity as a feature in the model
+
+# Prediction Configuration
+prediction:
+  use_latest_only: true  # If true, use only the latest data point for prediction
+  include_rolling_features: true  # Include rolling mean and std features for prediction
+
+# Ignored Containers
+ignore_lxc:
+  - "101"  # List of container IDs to ignore from scaling
+  - "102"
+```
 
 ## Usage
 
