@@ -2,9 +2,7 @@
 
 **LXC AutoScale** is a resource management daemon specifically designed for Proxmox environments. It automatically adjusts CPU and memory allocations and can clone LXC containers based on real-time usage metrics and predefined thresholds. Can be run locally or remotely to make your containers always optimized for performance, managing spikes in demand, and optionally preserving resources during off-peak hours. 
 
-**✅ Tested on `Proxmox 8.2.4`**
-
-[QUICK START](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) - [DOCS](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)
+**✅ Tested on `Proxmox 8.2.4` ➡️ [QUICK START](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) - [DOCS](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)**
 
 ---
 
