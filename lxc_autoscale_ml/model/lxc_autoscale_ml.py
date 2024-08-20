@@ -51,17 +51,17 @@ def main():
 
                 logging.debug(f"Latest metrics for container {container_id}: {latest_metrics.to_dict()}")
 
-                scaling_decision = predict_anomalies(model, latest_metrics, features_to_use, config)
+                scaling_decision, confidence = predict_anomalies(model, latest_metrics, features_to_use, config)
 
                 if scaling_decision is not None:
-                    cpu_action, ram_action, new_cores, new_ram = determine_scaling_action(latest_metrics, scaling_decision, config)
-                    logging.debug(f"Scaling decision for container {container_id}: CPU - {cpu_action}, RAM - {ram_action}")
+                    cpu_action, ram_action, new_cores, new_ram = determine_scaling_action(latest_metrics, scaling_decision, confidence, config)
+                    logging.debug(f"Scaling decision for container {container_id}: CPU - {cpu_action}, RAM - {ram_action} | Confidence: {confidence:.2f}%")
 
                     if cpu_action != "No Scaling" or ram_action != "No Scaling":
-                        logging.info(f"Applying scaling actions for container {container_id}: CPU - {cpu_action}, RAM - {ram_action}")
+                        logging.info(f"Applying scaling actions for container {container_id}: CPU - {cpu_action}, RAM - {ram_action} | Confidence: {confidence:.2f}%")
                         apply_scaling(container_id, new_cores, new_ram, config)
                     else:
-                        logging.info(f"No scaling needed for container {container_id}.")
+                        logging.info(f"No scaling needed for container {container_id}. | Confidence: {confidence:.2f}%")
                 else:
                     logging.warning(f"Skipping scaling for container {container_id} due to lack of prediction.")
 
