@@ -173,7 +173,7 @@ install_lxc_autoscale() {
 
     # Disable and stop lxc_autoscale_ml if running. Don't use both at same time (you can still run api and monitor)
     systemctl disable lxc_autoscale_ml
-    systemctl stop lxc_autoscale_lm
+    systemctl stop lxc_autoscale_ml
 
     # Stop lxc_autoscale if running
     systemctl stop lxc_autoscale
