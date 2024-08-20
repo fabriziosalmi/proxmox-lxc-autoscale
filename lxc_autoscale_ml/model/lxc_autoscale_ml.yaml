@@ -13,9 +13,8 @@
 # using machine learning models, which can detect anomalies 
 # and trends in the data.
 #
-# Author: Fabrizio Salmi
+# Author: [Fabrizio Salmi fabrizio.salmi@gmail.com
 # Date: August 20, 2024
-# Version: 0.1.0
 # =============================================================
 
 # Logging Configuration
@@ -26,7 +25,7 @@ log_level: "DEBUG"  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
 lock_file: "/tmp/lxc_autoscale_ml.lock"  # Path to the lock file to prevent multiple instances
 
 # Data File Configuration
-data_file: "/usr/local/bin/lxc_autoscale_ml/fake_metrics.json"  # Path to the metrics file containing container data
+data_file: "/var/log/lxc_metrics.json"  # Path to the metrics file containing container data produced by LXC AutoScale API
 
 # Model Configuration
 model:
@@ -45,6 +44,8 @@ scaling:
   total_cores: 4  # Total number of CPU cores available on the server
   total_ram_mb: 16384  # Total RAM available on the server in MB
   target_cpu_load_percent: 50  # Target CPU load percentage after scaling
+  max_cpu_cores: 4  # Maximum number of CPU cores to maintain per container
+  max_ram_mb: 8192  # Maximum RAM to maintain per container in MB
   min_cpu_cores: 2  # Minimum number of CPU cores to maintain per container
   min_ram_mb: 1024  # Minimum RAM to maintain per container in MB
   cpu_scale_up_threshold: 75  # CPU usage percentage to trigger scale-up
@@ -78,3 +79,8 @@ feature_engineering:
 prediction:
   use_latest_only: true  # If true, use only the latest data point for prediction
   include_rolling_features: true  # Include rolling mean and std features for prediction
+
+# Ignored Containers
+ignore_lxc:
+  - "101"  # List of container IDs to ignore from scaling
+  - "102"
