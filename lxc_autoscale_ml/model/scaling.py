@@ -14,22 +14,22 @@ from config_manager import load_config
 from model import train_anomaly_models, predict_anomalies
 from signal_handler import setup_signal_handlers
 
-
-
-def determine_scaling_action(latest_metrics, scaling_decision, config):
+def determine_scaling_action(latest_metrics, scaling_decision, confidence, config):
     cpu_action = "No Scaling"
     ram_action = "No Scaling"
+    new_cores = None
+    new_ram = None
     
     cpu_usage = latest_metrics["cpu_usage_percent"]
     memory_usage = latest_metrics["memory_usage_mb"]
+    cpu_memory_ratio = latest_metrics.get("cpu_memory_ratio", None)
+    io_ops_per_second = latest_metrics.get("io_ops_per_second", None)
 
-    # Log detailed metrics
-    logging.debug(f"CPU usage: {cpu_usage}% | Memory usage: {memory_usage}MB")
+    logging.debug(f"CPU usage: {cpu_usage}% | Memory usage: {memory_usage}MB | Confidence: {confidence}%")
 
     cpu_thresholds = config["scaling"]
     ram_thresholds = config["scaling"]
 
-    # Decision logic based on thresholds
     if scaling_decision:
         logging.debug("Anomaly detected. Scaling up CPU and RAM.")
         cpu_action = "Scale Up"
@@ -54,18 +54,15 @@ def determine_scaling_action(latest_metrics, scaling_decision, config):
         new_cores = min(cpu_thresholds["total_cores"], cpu_thresholds["max_cpu_cores"])
     elif cpu_action == "Scale Down":
         new_cores = max(cpu_thresholds["min_cpu_cores"], cpu_thresholds["min_cpu_cores"])
-    else:
-        new_cores = None
-
+    
     if ram_action == "Scale Up":
         new_ram = min(ram_thresholds["total_ram_mb"], ram_thresholds["max_ram_mb"])
     elif ram_action == "Scale Down":
         new_ram = max(ram_thresholds["min_ram_mb"], ram_thresholds["min_ram_mb"])
-    else:
-        new_ram = None
 
-    logging.debug(f"Final scaling actions: CPU -> {cpu_action}, RAM -> {ram_action}")
+    logging.debug(f"Final scaling actions: CPU -> {cpu_action}, RAM -> {ram_action} | Confidence: {confidence}%")
     return cpu_action, ram_action, new_cores, new_ram
+
 
 
 
@@ -108,4 +105,3 @@ def apply_scaling(lxc_id, new_cores, new_ram, config):
         ram_url = f"{base_url}{ram_endpoint}"
         if not perform_request(ram_url, ram_data, "RAM"):
             logging.error(f"Scaling operation aborted for LXC ID {lxc_id} due to RAM scaling failure.")
-
