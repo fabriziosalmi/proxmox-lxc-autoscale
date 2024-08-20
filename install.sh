@@ -364,6 +364,9 @@ install_lxc_autoscale() {
 install_lxc_autoscale_ml() {
     log "INFO" "Installing LXC AutoScale ML..."
 
+    # Install needed packages
+    apt install git python3-flask python3-requests -y
+    
     # Create necessary directories
     mkdir -p /etc/lxc_autoscale_ml
     mkdir -p /usr/local/bin/lxc_autoscale_api
