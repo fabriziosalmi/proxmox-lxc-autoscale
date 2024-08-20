@@ -23,6 +23,21 @@
 
 **LXC AutoScale ML** is designed to provide automated scaling for LXC containers using machine learning techniques. The service detects anomalies in resource usage, such as unexpected spikes in CPU or memory consumption, and automatically adjusts the container’s resources to mitigate performance issues. By integrating an Isolation Forest model, LXC AutoScale ML can differentiate between normal and abnormal usage patterns, allowing for more intelligent and responsive scaling decisions.
 
+
+> See LXC AutoScale ML in action :)
+```
+2024-08-20 13:07:56,393 [INFO] Data loaded successfully from /var/log/lxc_metrics.json.
+2024-08-20 13:07:56,399 [INFO] Data preprocessed successfully.
+2024-08-20 13:07:56,416 [INFO] Feature engineering, spike detection, and trend detection completed.
+2024-08-20 13:07:56,417 [INFO] Features used for training: ['cpu_memory_ratio', 'cpu_per_process', 'cpu_trend', 'cpu_usage_percent', 'filesystem_free_gb', 'filesystem_total_gb', 'filesystem_usage_gb', 'io_reads', 'io_writes', 'max_cpu', 'max_memory', 'memory_per_process', 'memory_trend', 'memory_usage_mb', 'min_cpu', 'min_memory', 'network_rx_bytes', 'network_tx_bytes', 'process_count', 'rolling_mean_cpu', 'rolling_mean_memory', 'rolling_std_cpu', 'rolling_std_memory', 'swap_total_mb', 'swap_usage_mb', 'time_diff']
+2024-08-20 13:07:56,549 [INFO] IsolationForest model training completed.
+2024-08-20 13:07:56,549 [INFO] Processing containers for scaling decisions...
+2024-08-20 13:07:56,600 [INFO] Applying scaling actions for container 104: CPU - Scale Up, RAM - Scale Up | Confidence: 87.41%
+2024-08-20 13:07:57,257 [INFO] Successfully scaled CPU for LXC ID 104 to 4 CPU units.
+2024-08-20 13:07:57,916 [INFO] Successfully scaled RAM for LXC ID 104 to 8192 RAM units.
+2024-08-20 13:07:57,916 [INFO] Sleeping for 60 seconds before the next run.
+```
+
 ---
 
 ## Features
@@ -31,110 +46,21 @@ LXC AutoScale ML offers a suite of powerful features designed to enhance the man
 
 - **Anomaly Detection**: Uses an Isolation Forest model to detect abnormal resource usage patterns, identifying when a container's resource consumption deviates significantly from the norm.
 - **Automated Scaling**: Automatically adjusts CPU cores and RAM allocations based on current usage, predefined thresholds, and the machine learning model’s predictions, ensuring containers always have the right amount of resources.
+- **Confidence Score**: You can trigger scaling action if precise conditions are validated, saving the overall auto-scaling operations execution times.
 - **Customizable Parameters**: Allows for extensive customization of model parameters, scaling thresholds, and operational settings, enabling you to tailor the service to your specific environment.
 - **Logging and Monitoring**: Provides detailed logs of operations and scaling decisions, with JSON logs that are easy to parse and analyze, facilitating in-depth monitoring and review.
 
 ---
 
-## Installation and Setup
+## Quick Start
 
-Setting up LXC AutoScale ML involves ensuring your system meets the prerequisites, configuring the service, and installing it. Below is a detailed guide to help you get started.
+Getting started with LXC AutoScale ML on your Proxmox host is quick and simple:
 
-### 1. Prerequisites
-
-Before installing LXC AutoScale ML, make sure your system meets the following requirements:
-
-- **Python 3.7+**: Ensure that Python is installed on your system. You can check the installed version with:
-  ```bash
-  python3 --version
-  ```
-- **LXC**: LXC (Linux Containers) must be installed and properly configured on your server. Ensure that your containers are running and accessible.
-- **Required Python Packages**: Install the necessary Python packages using `pip` or the package manager on Proxmox hosts:
-  ```bash
-  pip install pandas numpy scikit-learn joblib requests gunicorn
-  ```
-  Or, on Proxmox hosts:
-  ```bash
-  apt install git python3-flask python3-requests python3-gunicorn -y
-  ```
-
-### 2. Configuration
-
-Create the main configuration file at `/etc/lxc_autoscale/lxc_autoscale_ml.yaml`. This file will define key parameters for the service, including paths for logs, model storage, and metrics data.
-
-#### Example Configuration:
-
-```yaml
-# Configuration options for the LXC AutoScale ML service
-model_save_path: "scaling_model.pkl"
-data_file: "/var/log/lxc_metrics.json"
-log_file: "/var/log/lxc_autoscale_ml.log"
-json_log_file: "/var/log/lxc_autoscale_suggestions.json"
+```bash
+curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
-#### Explanation of Configuration Options:
-
-- **model_save_path**: Path where the trained machine learning model is saved. This file will be used for future scaling predictions.
-- **data_file**: Path to the JSON file containing container metrics data. This file is crucial for training the model and making predictions.
-- **log_file**: Path to the log file where the service logs its operations, including model training and scaling actions.
-- **json_log_file**: Path to the JSON log file where scaling suggestions are recorded. This file allows for easy analysis of the decisions made by the service.
-
-### 3. Service Configuration
-
-To run LXC AutoScale ML as a systemd service, you'll need to create a service configuration file. This file instructs systemd on how to manage the LXC AutoScale ML service.
-
-#### Example Service Configuration:
-
-Create the file `/etc/systemd/system/lxc_autoscale_ml.service` with the following content:
-
-```ini
-[Unit]
-Description=LXC AutoScale ML Service
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale_ml.py
-WorkingDirectory=/usr/local/bin/
-StandardOutput=inherit
-StandardError=inherit
-Restart=on-failure
-User=root
-
-# Logging configuration
-Environment="PYTHONUNBUFFERED=1"
-EnvironmentFile=/etc/lxc_autoscale/lxc_autoscale_ml.yaml
-
-[Install]
-WantedBy=multi-user.target
-```
-
-- **ExecStart**: Specifies the command to start the service, pointing to the Python script that runs LXC AutoScale ML.
-- **WorkingDirectory**: Sets the working directory for the service.
-- **StandardOutput** and **StandardError**: Ensure that output and errors are properly handled by systemd.
-- **Restart**: Configures the service to automatically restart if it encounters a failure.
-- **EnvironmentFile**: Points to the configuration file for environment variables.
-
-### 4. Installation
-
-To install LXC AutoScale ML, follow these steps:
-
-1. **Place the Python Script**: Move the `lxc_autoscale_ml.py` script to `/usr/local/bin/`:
-   ```bash
-   sudo cp lxc_autoscale_ml.py /usr/local/bin/
-   ```
-
-2. **Reload systemd**: Reload systemd to recognize the new service:
-   ```bash
-   sudo systemctl daemon-reload
-   ```
-
-3. **Enable and Start the Service**: Enable the service to start at boot and start it immediately:
-   ```bash
-   sudo systemctl enable lxc_autoscale_ml.service
-   sudo systemctl start lxc_autoscale_ml.service
-   ```
-
-This completes the installation process, and the service should now be running, monitoring your LXC containers and making scaling decisions based on real-time data.
+Select option 2 and you're done.
 
 ---
 
