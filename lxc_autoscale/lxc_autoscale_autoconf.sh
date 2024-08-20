@@ -217,7 +217,7 @@ read -p "💾 Do you want to save this configuration to /etc/lxc_autoscale/lxc_a
 if [ "$confirm_save" == "yes" ]; then
   # Save to /etc/lxc_autoscale/lxc_autoscale.yaml and restart the service
   echo "$yaml_content" | tee /etc/lxc_autoscale/lxc_autoscale.yaml > /dev/null
-  echo "✅ Configuratio saved  to /etc/lxc_autoscale/lxc_autoscale.yaml."
+  echo "✅ Configuration saved to /etc/lxc_autoscale/lxc_autoscale.yaml."
   echo "🔄 Restarting lxc_autoscale.service..."
   sudo systemctl restart lxc_autoscale.service
   echo "✅ lxc_autoscale.service restarted."
