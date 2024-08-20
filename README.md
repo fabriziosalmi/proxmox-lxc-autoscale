@@ -60,7 +60,7 @@ LXC AutoScale is designed to be highly customizable. You can reconfigure the ser
 > curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale_autoconf.sh | bash
 > ```
 
-#### Additional resources
+### Additional resources
 LXC AutoScale and LXC AutoScale ML can be used and extended in many ways, here some useful additional resources:
 
 - 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
