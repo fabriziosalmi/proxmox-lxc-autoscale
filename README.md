@@ -17,7 +17,7 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 
 
 ## Features
-LXC AutoScale is packed with features that make it an essential tool for managing your LXC containers on Proxmox:
+LXC AutoScale is packed with features that make it an essential tool for managing the auto-scaling of your LXC containers on Proxmox:
 
 - ⚙️ Automatic Resource Scaling
 - ⚖️ Automatic Horizontal Scaling
