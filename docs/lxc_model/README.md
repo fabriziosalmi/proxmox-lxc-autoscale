@@ -146,28 +146,6 @@ This example shows a suggested action to increase CPU and RAM for a specific con
 
 ---
 
-## Core Functions
-
-LXC AutoScale ML uses a set of core functions to process data, train the model, and make scaling decisions. Below is a detailed explanation of each key function:
-
-- **`load_data(file_path)`**: Loads container metrics data from a JSON file and preprocesses it into a Pandas DataFrame. This data is essential for training the machine learning model and making predictions.
-
-- **`feature_engineering(df, spike_threshold)`**: Performs feature engineering on the data, including calculating rolling means and standard deviations. It also detects spikes in resource usage based on the defined spike threshold, helping the model to identify anomalies.
-
-- **`train_anomaly_model(X_train)`**: Trains an Isolation Forest model using the preprocessed data. This model is used to detect anomalies in resource usage, guiding scaling decisions.
-
-- **`save_best_model(model)`**: Saves the trained machine learning model to a file. This allows the model to be reused for future predictions without retraining.
-
-- **`predict_scaling(model, X, container_id)`**: Predicts whether scaling is needed for a specific container based on the current data and the trained model’s output. This function is central to the service’s ability to make intelligent scaling decisions.
-
-- **`suggest_scaling(cpu_usage, memory_usage, target_cpu, target_memory, ram_chunk_size, ram_upper_limit, smoothing_factor, ml_prediction)`**: Generates scaling suggestions based on current resource usage, target allocations, and machine learning predictions. It determines whether to increase or decrease CPU and RAM and by how much.
-
-- **`log_scaling_suggestion(lxc_id, cpu_amount, cpu_action, ram_amount, ram_action)`**: Logs the scaling suggestion to the JSON log file, providing a record of the decisions made by the service.
-
-- **`apply_scaling(lxc_id, cpu_action, cpu_amount, ram_action, ram_amount)`**: Executes the scaling actions by making API calls to adjust the container’s CPU cores and RAM. This function applies the changes suggested by the model and recorded in the logs.
-
----
-
 ## Error Handling
 
 LXC AutoScale ML is designed with robust error handling to ensure continuous operation even when issues arise. The service logs any encountered errors, providing detailed information for troubleshooting. If a problem occurs during data loading, model training, or scaling actions, the service will attempt to continue running while logging the error for later review.
