@@ -381,7 +381,7 @@ install_lxc_autoscale_ml() {
     # Download and install all Python files in the lxc_autoscale_ml directory
 
     # Download and install the api application files
-    curl -sSL -o /usr/local/bin/lxc_autoscale_api/lxc_autoscale_api.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/lxc_autoscale_api.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.py
     curl -sSL -o /usr/local/bin/lxc_autoscale_api/cloning_management.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/cloning_management.py
     curl -sSL -o /usr/local/bin/lxc_autoscale_api/config.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/config.py
     curl -sSL -o /usr/local/bin/lxc_autoscale_api/error_handling.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/error_handling.py
