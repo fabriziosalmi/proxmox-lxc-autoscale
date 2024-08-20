@@ -316,9 +316,9 @@ install_lxc_autoscale_ml() {
     fi
 
     # Show status for all installed services
-    systemctl status lxc_monitor.service
-    systemctl status lxc_autoscale_api.service
-    systemctl status lxc_autoscale_ml.service
+    systemctl status lxc_monitor.service --no-pager
+    systemctl status lxc_autoscale_api.service --no-pager
+    systemctl status lxc_autoscale_ml.service --no-pager
 }
 
 # Main script execution
