@@ -15,9 +15,6 @@ CROSSMARK="\xE2\x9D\x8C"  # ❌
 CLOCK="\xE2\x8F\xB3"      # ⏳
 ROCKET="\xF0\x9F\x9A\x80" # 🚀
 
-# Declare flags array to avoid uninitialized errors
-declare -A flags
-
 # Log function
 log() {
     local level="$1"
@@ -46,72 +43,34 @@ header() {
     echo
 }
 
-# Define file versions and associated actions
-declare -A file_actions=(
-    ["/etc/lxc_autoscale/lxc_autoscale.conf"]="backup remove"
-    ["/etc/lxc_autoscale/lxc_autoscale.yaml"]="backup remove"
-    ["/etc/autoscaleapi.yaml"]="backup remove"
-)
-
-# Define the list of files to check
-files_to_check=(
+# List of files to back up and then remove
+files_to_backup_and_remove=(
     "/etc/lxc_autoscale/lxc_autoscale.conf"
     "/etc/lxc_autoscale/lxc_autoscale.yaml"
     "/etc/autoscaleapi.yaml"
 )
 
-# Define additional files to delete
-additional_files_to_delete=(
+# List of additional files and folders to remove without backup
+files_and_folders_to_remove=(
     "/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"
     "/etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml"
     "/etc/lxc_autoscale_ml/lxc_monitor.yaml"
+    "/usr/local/bin/lxc_autoscale.py"
+    "/usr/local/bin/lxc_monitor.py"
+    "/usr/local/bin/lxc_autoscale_ml.py"
+    "/usr/local/bin/autoscaleapi"
+    "/var/log/lxc_autoscale.log"
+    "/var/lib/lxc_autoscale/backups"
 )
 
-# Define files and folders to remove based on version
-version_specific_files=(
-    "INI:/usr/local/bin/lxc_autoscale.py:/etc/systemd/system/lxc_autoscale.service:/var/log/lxc_autoscale.log:/var/lib/lxc_autoscale/backups"
-    "YAML:/usr/local/bin/lxc_autoscale.py:/etc/systemd/system/lxc_autoscale.service:/var/log/lxc_autoscale.log:/var/lib/lxc_autoscale/backups"
-    "API-MONITOR-ML:/usr/local/bin/lxc_monitor.py:/etc/lxc_autoscale_ml:/usr/local/bin/lxc_autoscale_ml:/usr/local/bin/lxc_autoscale_api:/usr/local/bin/autoscaleapi:/etc/systemd/system/autoscaleapi.service:/usr/local/bin/lxc_monitor.py:/etc/systemd/system/lxc_monitor.service:/etc/systemd/system/lxc_autoscale_ml.service:/var/log/lxc_metrics.json:/var/log/lxc_autoscale_ml.log:/var/log/lxc_autoscale_ml.json:/usr/local/bin/lxc_autoscale_ml.py"
-)
-
-# Function to check file existence and set flags
-check_files() {
-    log "INFO" "Checking file existence..."
-    for file in "${files_to_check[@]}"; do
-        if [[ -e "$file" ]]; then
-            flags["$file"]="exists"
-            log "INFO" "File exists: $file"
-        else
-            flags["$file"]="missing"
-            log "INFO" "File missing: $file"
-        fi
-    done
-}
-
-# Function to generate a tag based on file statuses
-generate_tag() {
-    local tag=""
-    for file in "${files_to_check[@]}"; do
-        case "${flags["$file"]}" in
-            "exists")
-                tag+="1"
-                ;;
-            "missing")
-                tag+="0"
-                ;;
-        esac
-    done
-    echo "$tag"
-}
-
-# Function to create a backup of found files
+# Function to create a backup of specified files
 backup_files() {
     local timestamp
     timestamp=$(date +"%Y%m%d%H%M%S")
 
     log "INFO" "Creating backups..."
-    for file in "${files_to_check[@]}"; do
-        if [[ "${flags["$file"]}" == "exists" ]]; then
+    for file in "${files_to_backup_and_remove[@]}"; do
+        if [[ -e "$file" ]]; then
             local backup_file="${file}_backup_${timestamp}"
             if cp "$file" "$backup_file"; then
                 log "INFO" "Backed up $file to $backup_file"
@@ -122,13 +81,13 @@ backup_files() {
     done
 }
 
-# Function to delete specific files
-delete_files() {
-    log "INFO" "Deleting specified files..."
+# Function to delete specified files and folders
+delete_files_and_folders() {
+    log "INFO" "Deleting specified files and folders..."
 
-    # Delete files specified in files_to_check
-    for file in "${files_to_check[@]}"; do
-        if [[ "${flags["$file"]}" == "exists" ]]; then
+    # Delete files that were backed up
+    for file in "${files_to_backup_and_remove[@]}"; do
+        if [[ -e "$file" ]]; then
             if rm "$file" 2>/dev/null; then
                 log "INFO" "Deleted $file"
             else
@@ -137,13 +96,13 @@ delete_files() {
         fi
     done
 
-    # Delete additional files
-    for file in "${additional_files_to_delete[@]}"; do
-        if [[ -e "$file" ]]; then
-            if rm "$file" 2>/dev/null; then
-                log "INFO" "Deleted additional file $file"
+    # Delete additional files and folders
+    for item in "${files_and_folders_to_remove[@]}"; do
+        if [[ -e "$item" ]]; then
+            if rm -rf "$item" 2>/dev/null; then
+                log "INFO" "Deleted $item"
             else
-                log "WARNING" "Failed to delete additional file $file or it does not exist"
+                log "WARNING" "Failed to delete $item or it does not exist"
             fi
         fi
     done
@@ -171,117 +130,7 @@ remove_service_files() {
     done
 }
 
-# Function to handle different cases based on flags
-handle_cases() {
-    local tag
-    tag=$(generate_tag)
-
-    log "INFO" "Handling cases based on tag: $tag"
-
-    case $tag in
-        "000")
-            log "INFO" "No previous configuration files detected."
-            ;;
-        "100")
-            log "INFO" "Detected INI configuration. Performing cleanup for INI version."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            ;;
-        "010")
-            log "INFO" "Detected YAML configuration. Performing cleanup for YAML version."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            ;;
-        "001")
-            log "INFO" "Detected API-MONITOR-ML configuration. Performing cleanup for API-MONITOR-ML version."
-            backup_files
-            delete_files
-            rm -rf /usr/local/bin/autoscaleapi
-            rm -f /usr/local/bin/lxc_monitor.py
-            rm -f /usr/local/bin/lxc_autoscale_ml.py
-            stop_service autoscaleapi.service
-            stop_service lxc_monitor.service
-            stop_service lxc_autoscale_ml.service
-            remove_service_files /etc/systemd/system/autoscaleapi.service
-            remove_service_files /etc/systemd/system/lxc_monitor.service
-            remove_service_files /etc/systemd/system/lxc_autoscale_ml.service
-            ;;
-        "110")
-            log "INFO" "Detected both INI and YAML configurations. Performing cleanup for both versions."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            ;;
-        "101")
-            log "INFO" "Detected INI and API-MONITOR-ML configurations. Performing cleanup for both versions."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            rm -rf /usr/local/bin/autoscaleapi
-            rm -f /usr/local/bin/lxc_monitor.py
-            rm -f /usr/local/bin/lxc_autoscale_ml.py
-            stop_service autoscaleapi.service
-            stop_service lxc_monitor.service
-            stop_service lxc_autoscale_ml.service
-            remove_service_files /etc/systemd/system/autoscaleapi.service
-            remove_service_files /etc/systemd/system/lxc_monitor.service
-            remove_service_files /etc/systemd/system/lxc_autoscale_ml.service
-            ;;
-        "011")
-            log "INFO" "Detected YAML and API-MONITOR-ML configurations. Performing cleanup for both versions."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            rm -rf /usr/local/bin/autoscaleapi
-            rm -f /usr/local/bin/lxc_monitor.py
-            rm -f /usr/local/bin/lxc_autoscale_ml.py
-            stop_service autoscaleapi.service
-            stop_service lxc_monitor.service
-            stop_service lxc_autoscale_ml.service
-            remove_service_files /etc/systemd/system/autoscaleapi.service
-            remove_service_files /etc/systemd/system/lxc_monitor.service
-            remove_service_files /etc/systemd/system/lxc_autoscale_ml.service
-            ;;
-        "111")
-            log "INFO" "Detected INI, YAML, and API-MONITOR-ML configurations. Performing cleanup for all versions."
-            backup_files
-            delete_files
-            rm -f /usr/local/bin/lxc_autoscale.py
-            stop_service lxc_autoscale.service
-            remove_service_files /etc/systemd/system/lxc_autoscale.service
-            rm -rf /usr/local/bin/autoscaleapi
-            rm -f /usr/local/bin/lxc_monitor.py
-            rm -f /usr/local/bin/lxc_autoscale_ml.py
-            stop_service autoscaleapi.service
-            stop_service lxc_monitor.service
-            stop_service lxc_autoscale_ml.service
-            remove_service_files /etc/systemd/system/autoscaleapi.service
-            remove_service_files /etc/systemd/system/lxc_monitor.service
-            remove_service_files /etc/systemd/system/lxc_autoscale_ml.service
-            ;;
-        *)
-            log "ERROR" "Unexpected tag: $tag."
-            exit 1
-            ;;
-    esac
-
-    log "INFO" "Setting ready to install flag..."
-    # Example: touch /path/to/ready_to_install.flag
-}
-
-
+# Function to prompt the user for installation choice
 prompt_user_choice() {
     local default_choice="1"
     local timeout=5
@@ -322,6 +171,16 @@ prompt_user_choice() {
 install_lxc_autoscale() {
     log "INFO" "Installing LXC AutoScale..."
 
+    # Disable and stop lxc_autoscale_ml if running. Don't use both at same time (you can still run api and monitor)
+    systemctl disable lxc_autoscale_ml
+    systemctl stop lxc_autoscale_lm
+
+    # Stop lxc_autoscale if running
+    systemctl stop lxc_autoscale
+
+    # Reload systemd
+    systemctl daemon-reload
+
     # Create necessary directories
     mkdir -p /etc/lxc_autoscale
     mkdir -p /usr/local/bin/lxc_autoscale
@@ -360,9 +219,19 @@ install_lxc_autoscale() {
     fi
 }
 
-# Function to install LXC AutoScale
+# Function to install LXC AutoScale ML
 install_lxc_autoscale_ml() {
     log "INFO" "Installing LXC AutoScale ML..."
+
+    # Disable and stop lxc_autoscale if running. Don't use both at same time
+    systemctl disable lxc_autoscale
+    systemctl stop lxc_autoscale
+
+    # Stop lxc_autoscale_ml if running
+    systemctl stop lxc_autoscale_ml
+
+    # Reload systemd
+    systemctl daemon-reload
 
     # Install needed packages
     apt install git python3-flask python3-requests -y
@@ -393,7 +262,7 @@ install_lxc_autoscale_ml() {
     curl -sSL -o /etc/lxc_autoscale_ml/lxc_autoscale_api.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.yaml
  
     # Download and install the monitor application file
-    curl -sSL -o /usr/local/bin/lxc_monitor.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.py
+    curl -sSL -o /usr/local/bin/lxc_monitor.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/monitor/lxc_monitor.py
     # Download and install the monitor configuration file
     curl -sSL -o /etc/lxc_autoscale_ml/lxc_monitor.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.yaml
  
@@ -436,22 +305,22 @@ install_lxc_autoscale_ml() {
     if systemctl start lxc_monitor.service; then
         log "INFO" "${CHECKMARK} Service LXC Monitor started successfully!"
     else
-        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC Monitor."
     fi
 
     # Automatically start the service after installation
     if systemctl start lxc_autoscale_ml.service; then
         log "INFO" "${CHECKMARK} Service LXC AutoScale ML started successfully!"
     else
-        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale ML."
     fi
     
 }
 
 # Main script execution
 header
-check_files
-handle_cases
+backup_files
+delete_files_and_folders
 prompt_user_choice
 
 # Ensure the install_flag is initialized
