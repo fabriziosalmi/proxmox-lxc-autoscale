@@ -19,7 +19,7 @@ from signal_handler import setup_signal_handlers
 
 
 def main():
-    config = load_config("/etc/lxc_autoscale/lxc_autoscale_ml.yaml")
+    config = load_config("/etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml")
     setup_logging(config.get("log_file", "/var/log/lxc_autoscale_ml.log"))
 
     logging.info("Starting the LXC auto-scaling script...")
@@ -54,12 +54,12 @@ def main():
                 scaling_decision = predict_anomalies(model, latest_metrics, features_to_use, config)
 
                 if scaling_decision is not None:
-                    cpu_action, ram_action = determine_scaling_action(latest_metrics, scaling_decision, config)
+                    cpu_action, ram_action, new_cores, new_ram = determine_scaling_action(latest_metrics, scaling_decision, config)
                     logging.debug(f"Scaling decision for container {container_id}: CPU - {cpu_action}, RAM - {ram_action}")
-                    
+
                     if cpu_action != "No Scaling" or ram_action != "No Scaling":
                         logging.info(f"Applying scaling actions for container {container_id}: CPU - {cpu_action}, RAM - {ram_action}")
-                        apply_scaling(container_id, cpu_action, ram_action, config)
+                        apply_scaling(container_id, new_cores, new_ram, config)
                     else:
                         logging.info(f"No scaling needed for container {container_id}.")
                 else:
