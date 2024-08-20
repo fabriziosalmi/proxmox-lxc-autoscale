@@ -1,16 +1,15 @@
 # LXC AutoScale ML Documentation
 
-**LXC AutoScale ML** is an advanced service that leverages machine learning to intelligently scale LXC containers based on detected anomalies in resource usage patterns. By employing an Isolation Forest model, it identifies unusual spikes in CPU and memory usage and automatically adjusts container resources to maintain optimal performance. The service offers extensive customization options, enabling fine-tuning of scaling behavior to suit specific needs.
+**LXC AutoScale ML** is an advanced service that leverages machine learning to intelligently scale LXC containers based on detected anomalies in resource usage patterns. Using an Isolation Forest model, it identifies unusual spikes in CPU and memory usage, and automatically adjusts container resources to maintain optimal performance. The service offers extensive customization options, enabling fine-tuning of scaling behavior to suit specific needs.
 
 ## Summary
 
 - **[Overview](#overview)**: Introduction to LXC AutoScale ML and its core functionality.
 - **[Features](#features)**: Key features of the service, including anomaly detection and automated scaling.
 - **[Quick Start](#quick-start)**: Step-by-step guide to installing and configuring LXC AutoScale ML.
-- **[Configuration](#configuration)**: Configure LXC AutoScale ML options to get the best from it.
+- **[Configuration](#configuration)**: Detailed instructions on configuring LXC AutoScale ML to suit your environment.
 - **[Usage](#usage)**: Instructions on how to start, stop, and manage the LXC AutoScale ML service.
-- **[Logging and Outputs](#logging-and-outputs)**: Information on logging and how to interpret the scaling suggestions.
-- **[Core Functions](#core-functions)**: Detailed descriptions of the key functions used in the LXC AutoScale ML service.
+- **[Logging and Outputs](#logging-and-outputs)**: Information on logging and interpreting scaling suggestions.
 - **[Error Handling](#error-handling)**: Explanation of the error handling mechanisms implemented in the service.
 - **[Best Practices and Tips](#best-practices-and-tips)**: Recommendations for optimizing the performance and reliability of LXC AutoScale ML.
 
@@ -20,8 +19,7 @@
 
 **LXC AutoScale ML** is designed to provide automated scaling for LXC containers using machine learning techniques. The service detects anomalies in resource usage, such as unexpected spikes in CPU or memory consumption, and automatically adjusts the container’s resources to mitigate performance issues. By integrating an Isolation Forest model, LXC AutoScale ML can differentiate between normal and abnormal usage patterns, allowing for more intelligent and responsive scaling decisions.
 
-
-> See LXC AutoScale ML in action :)
+> See LXC AutoScale ML in action:
 ```bash
 2024-08-20 13:07:56,393 [INFO] Data loaded successfully from /var/log/lxc_metrics.json.
 2024-08-20 13:07:56,399 [INFO] Data preprocessed successfully.
@@ -41,10 +39,10 @@
 
 LXC AutoScale ML offers a suite of powerful features designed to enhance the management and performance of LXC containers:
 
-- **Anomaly Detection**: Uses an Isolation Forest model to detect abnormal resource usage patterns, identifying when a container's resource consumption deviates significantly from the norm.
+- **Anomaly Detection**: Utilizes an Isolation Forest model to detect abnormal resource usage patterns, identifying when a container's resource consumption deviates significantly from the norm.
 - **Automated Scaling**: Automatically adjusts CPU cores and RAM allocations based on current usage, predefined thresholds, and the machine learning model’s predictions, ensuring containers always have the right amount of resources.
-- **Confidence Score**: You can trigger scaling action if precise conditions are validated, saving the overall auto-scaling operations execution times.
-- **Customizable Parameters**: Allows for extensive customization of model parameters, scaling thresholds, and operational settings, enabling you to tailor the service to your specific environment.
+- **Confidence Score**: Includes a confidence score with each scaling suggestion, indicating the certainty of the scaling action. This helps in making informed decisions on whether to proceed with scaling.
+- **Customizable Parameters**: Offers extensive customization of model parameters, scaling thresholds, and operational settings, enabling you to tailor the service to your specific environment.
 - **Logging and Monitoring**: Provides detailed logs of operations and scaling decisions, with JSON logs that are easy to parse and analyze, facilitating in-depth monitoring and review.
 
 ---
@@ -59,7 +57,11 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 
 Select option 2 and you're done.
 
+---
+
 ## Configuration
+
+The `lxc_autoscale_ml.yaml` configuration file allows you to customize various aspects of the LXC AutoScale ML service. Below is an example configuration file with explanations:
 
 ```yaml
 # Logging Configuration
@@ -131,6 +133,8 @@ ignore_lxc:
   - "102"
 ```
 
+---
+
 ## Usage
 
 LXC AutoScale ML offers flexibility in how it operates, with various command-line arguments available to customize its behavior.
@@ -142,7 +146,9 @@ The service can be run with several command-line arguments, allowing you to adju
 - **--force-save**: Forces the model to save regardless of its performance during training.
 - **--verbosity [0, 1, 2]**: Sets the verbosity level of the output. Use `0` for minimal output, `1` for standard output, and `2` for detailed output.
 - **--ram-chunk-size**: Defines the minimum amount of RAM (in MB) to adjust during a scaling operation.
-- **--ram-upper-limit**: Sets the maximum amount of RAM (in MB) that can be added or removed in a single scaling step.
+- **--
+
+ram-upper-limit**: Sets the maximum amount of RAM (in MB) that can be added or removed in a single scaling step.
 - **--smoothing-factor**: Adjusts the smoothing factor, which helps balance aggressive scaling actions and more gradual adjustments.
 - **--spike-threshold**: Sets the sensitivity for spike detection in standard deviations. A lower value makes the service more sensitive to changes in resource usage.
 - **--dry-run**: Performs a trial run without making any actual API calls. This is useful for testing configuration changes without affecting the running containers.
@@ -170,9 +176,7 @@ Once installed, the LXC AutoScale ML service should start automatically. However
   sudo systemctl restart lxc_autoscale_ml.service
   ```
 
-- **Check the service status
-
-**:
+- **Check the service status**:
   ```bash
   sudo systemctl status lxc_autoscale_ml.service
   ```
@@ -205,11 +209,12 @@ Example JSON entry:
   "cpu_amount": 1,
   "ram_action": "increase",
   "ram_amount": 512,
+  "confidence": 87.41,
   "reason": "Anomaly detected in CPU and memory usage"
 }
 ```
 
-This example shows a suggested action to increase CPU and RAM for a specific container due to detected anomalies.
+This example shows a suggested action to increase CPU and RAM for a specific container due to detected anomalies, along with the confidence score.
 
 ---
 
@@ -226,16 +231,21 @@ If an error occurs while loading data, the service will log the issue but will c
 ## Best Practices and Tips
 
 ### 1. Regularly Review Logs
+
 Reviewing logs regularly is crucial for understanding how LXC AutoScale ML is performing and identifying any potential issues. The logs provide insights into the decisions made by the service, allowing you to fine-tune its behavior.
 
 ### 2. Fine-Tune the Model Parameters
+
 Adjusting the Isolation Forest model parameters, such as `contamination`, `n_estimators`, and `max_samples`, can significantly impact the model’s performance. Experiment with different settings to find the best fit for your environment.
 
 ### 3. Use Dry-Run Mode for Testing
+
 When making significant configuration changes, use the `--dry-run` option to test the service without affecting live containers. This allows you to verify that the service behaves as expected before applying changes.
 
 ### 4. Balance Smoothing and Responsiveness
-The `smoothing-factor` parameter helps balance between quick responses to changes in resource usage and more gradual adjustments. Fine-tuning this parameter ensures that your containers are scaled efficiently without overreacting to temporary spikes.
+
+The `smoothing-factor` parameter helps balance quick responses to changes in resource usage and more gradual adjustments. Fine-tuning this parameter ensures that your containers are scaled efficiently without overreacting to temporary spikes.
 
 ### 5. Monitor Disk Space for Logs and Model Files
+
 Ensure that the system has sufficient disk space for storing logs and the trained model file. Regularly check the size of these files and consider rotating logs if they grow too large.
