@@ -22,7 +22,7 @@
 
 
 > See LXC AutoScale ML in action :)
-```
+```bash
 2024-08-20 13:07:56,393 [INFO] Data loaded successfully from /var/log/lxc_metrics.json.
 2024-08-20 13:07:56,399 [INFO] Data preprocessed successfully.
 2024-08-20 13:07:56,416 [INFO] Feature engineering, spike detection, and trend detection completed.
@@ -61,7 +61,7 @@ Select option 2 and you're done.
 
 ## Configuration
 
-```
+```yaml
 # Logging Configuration
 log_file: "/var/log/lxc_autoscale_ml.log"  # Path to the log file
 log_level: "DEBUG"  # Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
