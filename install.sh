@@ -51,6 +51,7 @@ declare -A file_actions=(
     ["/etc/lxc_autoscale/lxc_autoscale.conf"]="backup remove"
     ["/etc/lxc_autoscale/lxc_autoscale.yaml"]="backup remove"
     ["/etc/autoscaleapi.yaml"]="backup remove"
+    ["/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"]="backup remove"
 )
 
 # Define the list of files to check
@@ -58,6 +59,7 @@ files_to_check=(
     "/etc/lxc_autoscale/lxc_autoscale.conf"
     "/etc/lxc_autoscale/lxc_autoscale.yaml"
     "/etc/autoscaleapi.yaml"
+    "/etc/lxc_autoscale_ml/lxc_autoscale_api.yaml"
 )
 
 # Define additional files to delete
@@ -71,7 +73,7 @@ additional_files_to_delete=(
 version_specific_files=(
     "INI:/usr/local/bin/lxc_autoscale.py:/etc/systemd/system/lxc_autoscale.service:/var/log/lxc_autoscale.log:/var/lib/lxc_autoscale/backups"
     "YAML:/usr/local/bin/lxc_autoscale.py:/etc/systemd/system/lxc_autoscale.service:/var/log/lxc_autoscale.log:/var/lib/lxc_autoscale/backups"
-    "API-MONITOR-ML:/usr/local/bin/autoscaleapi:/etc/systemd/system/autoscaleapi.service:/usr/local/bin/lxc_monitor.py:/etc/systemd/system/lxc_monitor.service:/etc/systemd/system/lxc_autoscale_ml.service:/var/log/lxc_metrics.json:/var/log/lxc_autoscale_ml.log:/var/log/lxc_autoscale_ml.json:/usr/local/bin/lxc_autoscale_ml.py"
+    "API-MONITOR-ML:/usr/local/bin/lxc_autoscale_api:/usr/local/bin/autoscaleapi:/etc/systemd/system/autoscaleapi.service:/usr/local/bin/lxc_monitor.py:/etc/systemd/system/lxc_monitor.service:/etc/systemd/system/lxc_autoscale_ml.service:/var/log/lxc_metrics.json:/var/log/lxc_autoscale_ml.log:/var/log/lxc_autoscale_ml.json:/usr/local/bin/lxc_autoscale_ml.py"
 )
 
 # Function to check file existence and set flags
