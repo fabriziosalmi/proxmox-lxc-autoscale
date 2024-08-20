@@ -1,7 +1,20 @@
 import requests
 import logging
 import time
-import numpy as np
+import sys
+import pandas as pd
+
+# Ensure all modules in the lxc_autoscale_ml directory are accessible
+sys.path.append('/usr/local/bin/lxc_autoscale_ml')
+
+# Import custom modules
+from logger import setup_logging
+from lock_manager import create_lock_file, remove_lock_file
+from config_manager import load_config
+from model import train_anomaly_models, predict_anomalies
+from signal_handler import setup_signal_handlers
+
+
 
 def determine_scaling_action(latest_metrics, scaling_decision, config):
     cpu_action = "No Scaling"
@@ -36,10 +49,27 @@ def determine_scaling_action(latest_metrics, scaling_decision, config):
             ram_action = "Scale Down"
             logging.debug(f"Memory usage {memory_usage}MB is below the scale-down threshold.")
 
-    logging.debug(f"Final scaling actions: CPU -> {cpu_action}, RAM -> {ram_action}")
-    return cpu_action, ram_action
+    # Ensure scaling stays within limits
+    if cpu_action == "Scale Up":
+        new_cores = min(cpu_thresholds["total_cores"], cpu_thresholds["max_cpu_cores"])
+    elif cpu_action == "Scale Down":
+        new_cores = max(cpu_thresholds["min_cpu_cores"], cpu_thresholds["min_cpu_cores"])
+    else:
+        new_cores = None
 
-def apply_scaling(lxc_id, cpu_action, ram_action, config):
+    if ram_action == "Scale Up":
+        new_ram = min(ram_thresholds["total_ram_mb"], ram_thresholds["max_ram_mb"])
+    elif ram_action == "Scale Down":
+        new_ram = max(ram_thresholds["min_ram_mb"], ram_thresholds["min_ram_mb"])
+    else:
+        new_ram = None
+
+    logging.debug(f"Final scaling actions: CPU -> {cpu_action}, RAM -> {ram_action}")
+    return cpu_action, ram_action, new_cores, new_ram
+
+
+
+def apply_scaling(lxc_id, new_cores, new_ram, config):
     max_retries = config.get("retry_logic", {}).get("max_retries", 3)
     retry_delay = config.get("retry_logic", {}).get("retry_delay", 2)
     base_url = config["api"]["api_url"]
@@ -67,14 +97,15 @@ def apply_scaling(lxc_id, cpu_action, ram_action, config):
                     return False
         return False
 
-    if cpu_action in ["Scale Up", "Scale Down"]:
-        cpu_data = {"vm_id": lxc_id, "cores": config["scaling"]["min_cpu_cores"] if cpu_action == "Scale Down" else config["scaling"]["total_cores"]}
+    if new_cores is not None:
+        cpu_data = {"vm_id": lxc_id, "cores": new_cores}
         cpu_url = f"{base_url}{cores_endpoint}"
         if not perform_request(cpu_url, cpu_data, "CPU"):
             logging.error(f"Scaling operation aborted for LXC ID {lxc_id} due to CPU scaling failure.")
 
-    if ram_action in ["Scale Up", "Scale Down"]:
-        ram_data = {"vm_id": lxc_id, "memory": config["scaling"]["min_ram_mb"] if ram_action == "Scale Down" else config["scaling"]["total_ram_mb"]}
+    if new_ram is not None:
+        ram_data = {"vm_id": lxc_id, "memory": new_ram}
         ram_url = f"{base_url}{ram_endpoint}"
         if not perform_request(ram_url, ram_data, "RAM"):
             logging.error(f"Scaling operation aborted for LXC ID {lxc_id} due to RAM scaling failure.")
+
