@@ -30,7 +30,7 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 🔔 Mail and Push Notifications
 - 📈 JSON Metrics
 - 💻 Local or remote execution
-- 💻 Easy autoconf for humans
+- 💃 Easy autoconf for humans
 
 ## Quick Start
 
