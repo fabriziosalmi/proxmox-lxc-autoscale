@@ -4,7 +4,7 @@
 
 **✅ Tested on `Proxmox 8.2.4`**
 
-[QUICK START](#quickstart) - [DOCS](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)
+[QUICK START](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) - [DOCS](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)
 
 ---
 
