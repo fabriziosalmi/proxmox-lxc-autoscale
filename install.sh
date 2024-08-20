@@ -360,27 +360,90 @@ install_lxc_autoscale() {
     fi
 }
 
-# Function to install LXC AutoScale ML
+# Function to install LXC AutoScale
 install_lxc_autoscale_ml() {
     log "INFO" "Installing LXC AutoScale ML..."
 
-    # Install needed packages
-    apt install python3-flask python3-requests python3-simplejson python3-yaml python3-psutil python3-pandas python3-numpy python3-sklearn python3-joblib -y
+    # Create necessary directories
+    mkdir -p /etc/lxc_autoscale_ml
+    mkdir -p /usr/local/bin/lxc_autoscale_api
+    mkdir -p /usr/local/bin/lxc_autoscale_ml
 
-    # Download and execute installation scripts
-    curl -sSL -o /usr/local/bin/install_api.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_api.sh
-    curl -sSL -o /usr/local/bin/install_monitor.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_monitor.sh
-    curl -sSL -o /usr/local/bin/install_model.sh https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/install_model.sh
+    # Create an empty __init__.py file to treat the directory as a Python package
+    touch /usr/local/bin/lxc_autoscale_ml/__init__.py
+    touch /usr/local/bin/lxc_autoscale_api/__init__.py
 
-    chmod +x /usr/local/bin/install_api.sh
-    chmod +x /usr/local/bin/install_monitor.sh
-    chmod +x /usr/local/bin/install_model.sh
+    # Download and install all Python files in the lxc_autoscale_ml directory
 
-    if /usr/local/bin/install_api.sh && /usr/local/bin/install_monitor.sh && /usr/local/bin/install_model.sh; then
-        log "INFO" "${CHECKMARK} LXC AutoScale ML installation complete!"
+    # Download and install the api application files
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/lxc_autoscale_api.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/app.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/app.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/cloning_management.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/cloning_management.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/config.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/config.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/error_handling.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/error_handling.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/health_check.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/health_check.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/lxc_management.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_management.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/resource_checking.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/resource_checking.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/scaling.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/scaling.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/snapshot_management.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/snapshot_management.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_api/utils.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/utils.py
+    # Download and install the api configuration file
+    curl -sSL -o /etc/lcx_autoscale_ml/lxc_autoscale_api.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.yaml
+ 
+    # Download and install the monitor application file
+    curl -sSL -o /usr/local/bin/lxc_monitor.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.py
+    # Download and install the monitor configuration file
+    curl -sSL -o /etc/lxc_autoscale_ml/lxc_monitor.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lcx_autoscale_api.yaml
+ 
+    # Download and install the model application files
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/config_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/config_manager.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/data_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/data_manager.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/lock_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lock_manager.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/logger.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/logger.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/model.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/model.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/scaling.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/scaling.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/signal_handler.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/signal_handler.py
+    curl -sSL -o /usr/local/bin/lxc_autoscale_ml/lxc_autoscale_ml.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lxc_autoscale_ml.py
+    # Download and install the model configuration file
+    curl -sSL -o /etc/lxc_autoscale_ml/lxc_autoscale_ml.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.yaml
+
+    # Download and install the systemd services file
+    curl -sSL -o /etc/systemd/system/lxc_autoscale_ml.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/model/lxc_autoscale_ml.service
+    curl -sSL -o /etc/systemd/system/lxc_autoscale_api.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/api/lxc_autoscale_api.service
+    curl -sSL -o /etc/systemd/system/lxc_monitor.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale_ml/monitor/lxc_monitor.service
+
+    # Make the main script executable
+    chmod +x /usr/local/bin/lxc_autoscale_ml/lxc_autoscale_ml.py
+    chmod +x /usr/local/bin/lxc_autoscale_api/lxc_autoscale_api.py
+    chmod +x /usr/local/bin/lxc_monitor.py
+
+    # Reload systemd to recognize the new service
+    systemctl daemon-reload
+    systemctl enable lxc_autoscale_ml.service
+    systemctl enable lxc_autoscale_api.service
+    systemctl enable lxc_monitor.service
+
+    # Automatically start the service after installation
+    if systemctl start lxc_autoscale_api.service; then
+        log "INFO" "${CHECKMARK} Service LXC AutoScale API started successfully!"
     else
-        log "ERROR" "${CROSSMARK} LXC AutoScale ML installation failed."
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
     fi
+
+    # Automatically start the service after installation
+    if systemctl start lxc_monitor.service; then
+        log "INFO" "${CHECKMARK} Service LXC Monitor started successfully!"
+    else
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+    fi
+
+    # Automatically start the service after installation
+    if systemctl start lxc_autoscale_ml.service; then
+        log "INFO" "${CHECKMARK} Service LXC AutoScale ML started successfully!"
+    else
+        log "ERROR" "${CROSSMARK} Failed to start Service LXC AutoScale."
+    fi
+    
 }
 
 # Main script execution
