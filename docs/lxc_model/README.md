@@ -7,7 +7,7 @@
 - **[Overview](#overview)**: Introduction to LXC AutoScale ML and its core functionality.
 - **[Features](#features)**: Key features of the service, including anomaly detection and automated scaling.
 - **[Quick Start](#quick-start)**: Step-by-step guide to installing and configuring LXC AutoScale ML.
-- **[Configuration](#2-configuration)**: Configure LXC AutoScale ML options to get the best from it.
+- **[Configuration](#configuration)**: Configure LXC AutoScale ML options to get the best from it.
 - **[Usage](#usage)**: Instructions on how to start, stop, and manage the LXC AutoScale ML service.
 - **[Logging and Outputs](#logging-and-outputs)**: Information on logging and how to interpret the scaling suggestions.
 - **[Core Functions](#core-functions)**: Detailed descriptions of the key functions used in the LXC AutoScale ML service.
