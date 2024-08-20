@@ -1,18 +1,18 @@
 DEFAULT:
   # Interval (in seconds) between polling for resource usage and making scaling decisions.
-  poll_interval: 300
+  poll_interval: 600
 
   # Threshold for CPU usage percentage that triggers scaling up (when CPU usage exceeds this value).
-  cpu_upper_threshold: 80
+  cpu_upper_threshold: 85
 
   # Threshold for CPU usage percentage that triggers scaling down (when CPU usage falls below this value).
-  cpu_lower_threshold: 20
+  cpu_lower_threshold: 10
 
   # Threshold for memory usage percentage that triggers scaling up (when memory usage exceeds this value).
   memory_upper_threshold: 80
 
   # Threshold for memory usage percentage that triggers scaling down (when memory usage falls below this value).
-  memory_lower_threshold: 20
+  memory_lower_threshold: 10
 
   # Minimum number of CPU cores to add or remove in a single scaling operation.
   core_min_increment: 1
@@ -27,7 +27,7 @@ DEFAULT:
   min_cores: 1
 
   # Maximum number of CPU cores allocated to an instance.
-  max_cores: 8
+  max_cores: 16
 
   # Minimum amount of memory (in MB) allocated to an instance.
   min_memory: 512
