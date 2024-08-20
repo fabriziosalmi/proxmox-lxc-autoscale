@@ -152,6 +152,10 @@ def adjust_resources(containers, energy_mode):
         containers (dict): A dictionary of container resource usage data.
         energy_mode (bool): Flag to indicate if energy-saving adjustments should be made during off-peak hours.
     """
+
+    # Log the IGNORE_LXC list at the start
+    logging.info(f"Ignoring LXC Containers: {IGNORE_LXC}")    
+    
     total_cores = get_total_cores()
     total_memory = get_total_memory()
 
