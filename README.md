@@ -51,6 +51,33 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 
 If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
 
+> [!IMPORTANT]
+> You need to check your `/lib/systemd/system/lxcfs.service` file for the presence of the `-l` option which makes `loadavg` retrieval working as expected. Here the correct configuration:
+>
+> ```
+> [Unit]
+> Description=FUSE filesystem for LXC
+> ConditionVirtualization=!container
+> Before=lxc.service
+> Documentation=man:lxcfs(1)
+> 
+> [Service]
+> OOMScoreAdjust=-1000
+> ExecStartPre=/bin/mkdir -p /var/lib/lxcfs
+> # ExecStart=/usr/bin/lxcfs /var/lib/lxcfs
+> ExecStart=/usr/bin/lxcfs /var/lib/lxcfs -l
+> KillMode=process
+> Restart=on-failure
+> ExecStopPost=-/bin/fusermount -u /var/lib/lxcfs
+> Delegate=yes
+> ExecReload=/bin/kill -USR1 $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+```
+
+If you have the commented one just update the `/lib/systemd/system/lxcfs.service` file and reboot when ready to apply the fix.
+
 
 ## Configuration
 
