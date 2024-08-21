@@ -71,13 +71,14 @@ If the conditions set in the configuration are met, you will quickly observe sca
 > ExecStopPost=-/bin/fusermount -u /var/lib/lxcfs
 > Delegate=yes
 > ExecReload=/bin/kill -USR1 $MAINPID
-
-[Install]
-WantedBy=multi-user.target
-```
-
-If you have the commented one just update the `/lib/systemd/system/lxcfs.service` file and reboot when ready to apply the fix.
-
+>
+> [Install]
+> WantedBy=multi-user.target
+> ```
+> 
+> If you have the commented one just update the `/lib/systemd/system/lxcfs.service` file and reboot when ready to apply the fix.
+> 
+> _Tnx to No-Pen9082 to point me out to that. [Here](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) the Proxmox forum thread on the topic._
 
 ## Configuration
 
