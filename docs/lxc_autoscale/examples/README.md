@@ -557,7 +557,7 @@ TIER_LIMESURVEY:
   max_memory: 2048  # in MB
   lxc_containers: 
     - 999  # Replace with the Limesurvey container ID
-```e
+```
 
 ### **Paperless Configuration**
 ```yaml
