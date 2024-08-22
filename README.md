@@ -52,7 +52,7 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 If the conditions set in the configuration are met, you will quickly observe scaling operations in action.
 
 > [!IMPORTANT]
-> You need to check your `/lib/systemd/system/lxcfs.service` file for the presence of the `-l` option which makes `loadavg` retrieval working as expected. Here the correct configuration:
+> You need to check your `/lib/systemd/system/lxcfs.service` file for the presence of the `-l` option which makes `loadavg` retrieval working as expected. Here the required configuration:
 >
 > ```
 > [Unit]
@@ -76,7 +76,7 @@ If the conditions set in the configuration are met, you will quickly observe sca
 > WantedBy=multi-user.target
 > ```
 > 
-> Just update the `/lib/systemd/system/lxcfs.service` file and reboot when ready to apply the fix.
+> Just update the `/lib/systemd/system/lxcfs.service` file, execute `systemctl daemon-realod && systemctl restart lxcfs` and when you are ready to apply the fix restart the LXC containers.
 > 
 > _Tnx to No-Pen9082 to point me out to that. [Here](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) the Proxmox forum thread on the topic._
 
