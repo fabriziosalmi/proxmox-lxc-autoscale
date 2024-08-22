@@ -144,18 +144,19 @@ def manage_horizontal_scaling(containers):
         else:
             logging.debug(f"No scaling needed for {group_name}. Average usage below thresholds.")
 
+
 def adjust_resources(containers, energy_mode):
     """
     Adjust CPU and memory resources for each container based on usage.
-
+    
     Args:
         containers (dict): A dictionary of container resource usage data.
         energy_mode (bool): Flag to indicate if energy-saving adjustments should be made during off-peak hours.
     """
 
-    # Log the IGNORE_LXC list at the start
-    logging.info(f"Ignoring LXC Containers: {IGNORE_LXC}")    
-    
+    logging.info("Starting resource allocation process...")
+    logging.info(f"Ignoring LXC Containers: {IGNORE_LXC}")
+
     total_cores = get_total_cores()
     total_memory = get_total_memory()
 
@@ -167,6 +168,19 @@ def adjust_resources(containers, energy_mode):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
+    # Print current resource usage for all running LXC containers
+    logging.info("Current resource usage for all containers:")
+    for ctid, usage in containers.items():
+        rounded_cpu_usage = round(usage['cpu'], 2)
+        rounded_mem_usage = round(usage['mem'], 2)
+        total_mem_allocated = usage['initial_memory']
+        free_mem_percent = round(100 - ((rounded_mem_usage / total_mem_allocated) * 100), 2)
+        
+        logging.info(f"Container {ctid}: CPU usage: {rounded_cpu_usage}%, Memory usage: {rounded_mem_usage}MB "
+                     f"({free_mem_percent}% free of {total_mem_allocated}MB total), "
+                     f"Initial cores: {usage['initial_cores']}, Initial memory: {total_mem_allocated}MB")
+
+    # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
         if ctid in IGNORE_LXC:
             logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
@@ -187,6 +201,8 @@ def adjust_resources(containers, energy_mode):
         current_cores = usage["initial_cores"]
         current_memory = usage["initial_memory"]
 
+        logging.info(f"Container {ctid} - Initial cores: {current_cores}, CPU usage: {rounded_cpu_usage}%")
+
         cores_changed = False
         memory_changed = False
 
@@ -198,35 +214,38 @@ def adjust_resources(containers, energy_mode):
 
         # Adjust CPU cores if needed
         if cpu_usage > cpu_upper:
-            increment = min(
-                int(config['core_max_increment'] * behaviour_multiplier),
-                max(int(config['core_min_increment'] * behaviour_multiplier), int((cpu_usage - cpu_upper) * config['core_min_increment'] / 10))
-            )
-            new_cores = min(max_cores, current_cores + increment)
+            proportional_increment = int((cpu_usage - cpu_upper) / 10)
+            increment = min(max_cores - current_cores, max(config['core_min_increment'], min(config['core_max_increment'], proportional_increment)))
+            new_cores = current_cores + increment
+
+            logging.info(f"Container {ctid} - CPU usage exceeds upper threshold.")
+            logging.info(f"Container {ctid} - Calculated dynamic increment: {proportional_increment}, Final increment: {increment}, New cores: {new_cores}")
+
             if available_cores >= increment and new_cores <= max_cores:
-                logging.info(f"Increasing cores for container {ctid} by {increment}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores -= increment
                 cores_changed = True
                 log_json_event(ctid, "Increase Cores", f"{increment}")
                 send_notification(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}.")
             else:
-                logging.warning(f"Not enough available cores to increase for container {ctid}")
+                logging.warning(f"Container {ctid} - Not enough available cores to increase.")
+        
         elif cpu_usage < cpu_lower and current_cores > min_cores:
-            decrement = min(
-                int(config['core_max_increment'] * behaviour_multiplier),
-                max(int(config['core_min_increment'] * behaviour_multiplier), int((cpu_lower - cpu_usage) * config['core_min_increment'] / 10))
-            )
+            dynamic_decrement = max(1, int((cpu_lower - cpu_usage) / 10))
+            decrement = min(current_cores - min_cores, max(config['core_min_increment'], min(config['core_max_increment'], dynamic_decrement)))
             new_cores = max(min_cores, current_cores - decrement)
+
+            logging.info(f"Container {ctid} - CPU usage below lower threshold.")
+            logging.info(f"Container {ctid} - Calculated dynamic decrement: {dynamic_decrement}, Final decrement: {decrement}, New cores: {new_cores}")
+
             if new_cores >= min_cores:
-                logging.info(f"Decreasing cores for container {ctid} by {decrement}...")
                 run_command(f"pct set {ctid} -cores {new_cores}")
                 available_cores += (current_cores - new_cores)
                 cores_changed = True
                 log_json_event(ctid, "Decrease Cores", f"{decrement}")
                 send_notification(f"CPU Decreased for Container {ctid}", f"CPU cores decreased to {new_cores}.")
             else:
-                logging.warning(f"Cannot decrease cores below min_cores for container {ctid}")
+                logging.warning(f"Container {ctid} - Cannot decrease cores below min_cores.")
 
         # Adjust memory if needed
         if mem_usage > mem_upper:
@@ -244,6 +263,7 @@ def adjust_resources(containers, energy_mode):
                 send_notification(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB.")
             else:
                 logging.warning(f"Not enough available memory to increase for container {ctid}")
+        
         elif mem_usage < mem_lower and current_memory > min_memory:
             decrease_amount = min(
                 int(config['min_decrease_chunk'] * behaviour_multiplier) * ((current_memory - min_memory) // int(config['min_decrease_chunk'] * behaviour_multiplier)),
@@ -274,6 +294,9 @@ def adjust_resources(containers, energy_mode):
                 send_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {min_memory}MB for energy efficiency.")
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
+    logging.info("Resource allocation process completed.")
+
+
 
 def is_off_peak():
     """
