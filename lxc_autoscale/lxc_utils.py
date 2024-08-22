@@ -209,7 +209,11 @@ def get_cpu_usage(ctid):
     Returns:
         float: The CPU usage percentage, or 0.0 if an error occurs.
     """
-    cmd = f"pct exec {ctid} -- awk -v cores=$(nproc) '{{usage+=$1}} END {{print usage/cores}}' /proc/stat"
+    cmd = (
+        f"pct exec {ctid} -- awk -v cores=$(nproc) "
+        "'/cpu[0-9]+/ {usage+=$1+$2+$3+$4+$5+$6+$7+$8+$9} "
+        "END {print (usage / cores) / NR}' /proc/stat"
+    )
     usage = run_command(cmd)
     if usage is not None:
         try:
@@ -229,18 +233,18 @@ def get_memory_usage(ctid):
     Returns:
         float: The memory usage percentage, or 0.0 if an error occurs.
     """
-    mem_used = run_command(
-        f"pct exec {ctid} -- awk '/MemTotal/ {{total=$2}} /MemAvailable/ {{free=$2}} END {{print total-free}}' /proc/meminfo"
+    mem_info = run_command(
+        f"pct exec {ctid} -- awk '/MemTotal/ {{total=$2}} /MemAvailable/ {{available=$2}} END {{print total, total-available}}' /proc/meminfo"
     )
-    mem_total = run_command(f"pct exec {ctid} -- awk '/MemTotal/ {{print $2}}' /proc/meminfo")
-    if mem_used and mem_total:
+    if mem_info:
         try:
-            return (int(mem_used) * 100) / int(mem_total)
+            total, used = map(int, mem_info.split())
+            return (used * 100) / total
         except ValueError:
-            logging.error(f"Failed to calculate memory usage for container {ctid}")
+            logging.error(f"Failed to parse memory info for container {ctid}: '{mem_info}'")
     logging.error(f"Failed to retrieve memory usage for container {ctid}")
     return 0.0
-
+    
 def is_ignored(ctid):
     """
     Check if a container is in the ignore list.
