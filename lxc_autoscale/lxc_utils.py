@@ -199,29 +199,51 @@ def get_total_memory():
     )
     return available_memory
 
+
+import time
+
+import time
+
 def get_cpu_usage(ctid):
     """
-    Retrieve the CPU usage of a container.
-
+    Retrieve the CPU usage of a container over a short interval.
+    
     Args:
         ctid (str): The container ID.
-
+        
     Returns:
         float: The CPU usage percentage, or 0.0 if an error occurs.
     """
-    cmd = (
-        f"pct exec {ctid} -- awk -v cores=$(nproc) "
-        "'/cpu[0-9]+/ {usage+=$1+$2+$3+$4+$5+$6+$7+$8+$9} "
-        "END {print (usage / cores) / NR}' /proc/stat"
-    )
-    usage = run_command(cmd)
-    if usage is not None:
-        try:
-            return float(usage)
-        except ValueError:
-            logging.error(f"Failed to convert CPU usage to float for container {ctid}: '{usage}'")
-    logging.error(f"Failed to retrieve CPU usage for container {ctid}")
-    return 0.0
+    try:
+        # Capture initial CPU times
+        cmd = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
+        result = run_command(cmd)
+        initial_cpu_times = list(map(float, result.split()[1:]))
+        initial_total_time = sum(initial_cpu_times)
+        initial_idle_time = initial_cpu_times[3]  # idle time is the 4th field
+
+        # Wait for a short interval (e.g., 1 second)
+        time.sleep(1)
+
+        # Capture CPU times again
+        result = run_command(cmd)
+        new_cpu_times = list(map(float, result.split()[1:]))
+        new_total_time = sum(new_cpu_times)
+        new_idle_time = new_cpu_times[3]
+
+        # Calculate the differences in CPU times
+        total_diff = new_total_time - initial_total_time
+        idle_diff = new_idle_time - initial_idle_time
+
+        # Calculate the CPU usage percentage
+        cpu_usage = 100.0 * (total_diff - idle_diff) / total_diff
+        
+        return round(max(min(cpu_usage, 100.0), 0.0), 2)  # Round to 2 decimal places
+    except Exception as e:
+        logging.error(f"Failed to retrieve CPU usage for container {ctid}: {e}")
+        return 0.0
+
+
 
 def get_memory_usage(ctid):
     """
