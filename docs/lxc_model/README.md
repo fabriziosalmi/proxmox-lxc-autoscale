@@ -146,9 +146,7 @@ The service can be run with several command-line arguments, allowing you to adju
 - **--force-save**: Forces the model to save regardless of its performance during training.
 - **--verbosity [0, 1, 2]**: Sets the verbosity level of the output. Use `0` for minimal output, `1` for standard output, and `2` for detailed output.
 - **--ram-chunk-size**: Defines the minimum amount of RAM (in MB) to adjust during a scaling operation.
-- **--
-
-ram-upper-limit**: Sets the maximum amount of RAM (in MB) that can be added or removed in a single scaling step.
+- **--ram-upper-limit**: Sets the maximum amount of RAM (in MB) that can be added or removed in a single scaling step.
 - **--smoothing-factor**: Adjusts the smoothing factor, which helps balance aggressive scaling actions and more gradual adjustments.
 - **--spike-threshold**: Sets the sensitivity for spike detection in standard deviations. A lower value makes the service more sensitive to changes in resource usage.
 - **--dry-run**: Performs a trial run without making any actual API calls. This is useful for testing configuration changes without affecting the running containers.
