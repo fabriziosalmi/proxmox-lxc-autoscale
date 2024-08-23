@@ -6,8 +6,6 @@
 
 ## **➡️ [QUICK START](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) - [DOCS](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)**
 
----
-
 LXC AutoScale offers two distinct options to suit different user profiles and environments:
 
 - **🚀 LXC AutoScale**: ideal for new users and straightforward setups. A simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. You can reconfigure it at any time or use it as a one-time solution when needed.
