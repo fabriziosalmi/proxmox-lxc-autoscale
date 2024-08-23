@@ -45,7 +45,7 @@ Ensure your file structure is set up like this:
 ### 4. Access the Application
 
 1. **Open Your Web Browser**:
-   Visit `http://<your-proxmox-ip>:5000/` in your web browser. Replace `<your-proxmox-ip>` with your Proxmox server's IP address. If you are running this on your local machine, you can use `http://127.0.0.1:5000/`.
+   Visit `http://<your-proxmox-ip>:5000/` in your web browser. Replace `<your-proxmox-ip>` with your Proxmox server's IP address.
 
 2. **View the Dashboard**:
    You should now see the Resource Scaling Dashboard in your browser.
