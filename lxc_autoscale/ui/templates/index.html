@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LXC AutoScale</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container-fluid px-4">
+        <h1>LXC AutoScale UI</h1>
+
+        <div id="scaling-log">
+            <h3>Scaling Actions</h3>
+            <div class="log-header">
+                <div class="log-cell log-cell-time">When</div>
+                <div class="log-cell">Where</div>
+                <div class="log-cell log-cell-id">Who</div>
+                <div class="log-cell">What</div>
+            </div>
+        </div>
+
+        <button class="toggle-btn" onclick="toggleFullLog()">Show/Hide Full Log</button>
+
+        <div id="full-log"></div>
+
+        <div id="footer">
+            <p>LXC AutoScale UI</p>
+        </div>
+    </div>
+
+    <script>
+        function timeAgo(timestamp) {
+            const now = new Date();
+            const logTime = new Date(timestamp);
+            const diffInSeconds = Math.floor((now - logTime) / 1000);
+
+            const minutes = Math.floor(diffInSeconds / 60);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (diffInSeconds < 60) return 'now';
+            if (minutes < 60) return minutes + 'm'; // minutes
+            if (hours < 24) return hours + 'h'; // hours
+            if (days === 1) return '1d'; // yesterday
+            return days + 'd'; // days
+        }
+
+        function updateScalingLog() {
+            fetch('/get_scaling_log')
+                .then(response => response.json())
+                .then(data => {
+                    const scalingLog = document.getElementById('scaling-log');
+                    const wasScrolledToBottom = scalingLog.scrollTop + scalingLog.clientHeight === scalingLog.scrollHeight;
+
+                    scalingLog.innerHTML = scalingLog.children[0].outerHTML;
+
+                    data.forEach((log, index) => {
+                        const newEntry = document.createElement('div');
+                        newEntry.className = 'log-entry';
+                        
+                        const logTime = new Date(log.timestamp);
+                        const now = new Date();
+                        const diffInMinutes = Math.floor((now - logTime) / 60000);
+                        
+                        if (diffInMinutes < 1) {
+                            newEntry.classList.add('latest', 'time-recent');
+                        } else if (diffInMinutes < 5) {
+                            newEntry.classList.add('time-recent');
+                        } else {
+                            newEntry.classList.add('time-older');
+                        }
+
+                        const cpuChange = log.action.toLowerCase().includes('cores') ? (log.action.toLowerCase().includes('decrease') ? '-' : '+') + log.change : '';
+                        let memoryChange = log.action.toLowerCase().includes('memory') ? (log.action.toLowerCase().includes('decrease') ? '-' : '+') + log.change : '';
+
+                        if (memoryChange.includes("MB")) {
+                            memoryChange = memoryChange.replace(/MBMB/, "MB");
+                        }
+
+                        newEntry.innerHTML = `
+                            <div class="log-cell log-cell-time">${timeAgo(log.timestamp)}</div>
+                            <div class="log-cell"><span class="node-prefix"></span> <span class="node-name">${log.proxmox_host}</span></div>
+                            <div class="log-cell log-cell-id"><span class="container-id"> ${log.container_id}</span></div>
+                            <div class="log-cell">
+                                ${cpuChange ? `<div class="log-icon-container"><img src="https://www.svgrepo.com/show/31442/cpu.svg" class="log-icon">&nbsp; ${cpuChange}</div>` : ''}
+                                ${memoryChange ? `<div class="log-icon-container"><img src="https://www.svgrepo.com/show/444579/tech-ram.svg" class="log-icon">&nbsp; ${memoryChange}</div>` : ''}
+                            </div>
+                        `;
+                        scalingLog.appendChild(newEntry);
+                    });
+
+                    if (wasScrolledToBottom) {
+                        scalingLog.scrollTop = scalingLog.scrollHeight;
+                    }
+                });
+        }
+
+        function updateFullLog() {
+            fetch('/get_full_log')
+                .then(response => response.json())
+                .then(data => {
+                    const fullLog = document.getElementById('full-log');
+                    fullLog.textContent = data.log;
+                    fullLog.scrollTop = fullLog.scrollHeight;
+                });
+        }
+
+        function toggleFullLog() {
+            const fullLog = document.getElementById('full-log');
+            fullLog.style.display = fullLog.style.display === 'none' ? 'block' : 'none';
+        }
+
+        setInterval(updateScalingLog, 5000);
+        setInterval(updateFullLog, 5000);
+
+        window.onload = function() {
+            updateScalingLog();
+            updateFullLog();
+        };
+    </script>
+</body>
+</html>
