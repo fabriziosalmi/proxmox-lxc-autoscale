@@ -178,7 +178,7 @@ def adjust_resources(containers, energy_mode):
         
         logging.info(f"Container {ctid}: CPU usage: {rounded_cpu_usage}%, Memory usage: {rounded_mem_usage}MB "
                      f"({free_mem_percent}% free of {total_mem_allocated}MB total), "
-                     f"Initial cores (181): {usage['initial_cores']}, Initial memory: {total_mem_allocated}MB")
+                     f"Initial cores: {usage['initial_cores']}, Initial memory: {total_mem_allocated}MB")
 
     # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
