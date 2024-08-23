@@ -292,7 +292,7 @@ def adjust_resources(containers, energy_mode):
                 send_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {min_memory}MB for energy efficiency.")
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
-    logging.info("Resource allocation process completed.")
+    # logging.info("Resource allocation process completed.")
 
 
 
