@@ -50,9 +50,10 @@ docker build -t lxc-autoscale .
 
 ### Step 4: Edit the YAML Configuration
 
-Modify the YAML configuration file (e.g., `lxc_autoscale.yaml`) with the Proxmox hosts SSH parameters:
+Modify the YAML configuration file (e.g., `lxc_autoscale.yaml`) with the Proxmox hosts SSH parameters and the required `use_remote_proxmox` option to make the app execute commands to remote hosts:
 
 ```
+  use_remote_proxmox: true
   ssh_user: "your-ssh-username"
   ssh_password: "your-ssh-password"
   proxmox_host: "your-proxmox-host-ip-or-hostname"
