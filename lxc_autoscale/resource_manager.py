@@ -4,33 +4,41 @@ from time import sleep
 import lxc_utils
 import scaling_manager
 import notification
+import paramiko
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import paramiko
+
+# Debug print statement to ensure paramiko is imported
+# print(f"Paramiko version: {paramiko.__version__}")
+
+
 
 def collect_data_for_container(ctid: str) -> dict:
     """
     Collect resource usage data for a single LXC container.
-    
+
     Args:
         ctid (str): The container ID.
-    
+
     Returns:
         dict: The data collected for the container, or None if the container is not running.
     """
     if not lxc_utils.is_container_running(ctid):
         return None
-    
+
     logging.debug(f"Collecting data for container {ctid}...")
-    
+
     try:
         # Retrieve the current configuration of the container using Python string operations
         config_output = lxc_utils.run_command(f"pct config {ctid}")
         cores = int([line.split()[1] for line in config_output.splitlines() if 'cores' in line][0])
         memory = int([line.split()[1] for line in config_output.splitlines() if 'memory' in line][0])
         settings = {"cores": cores, "memory": memory}
-        
+
         # Backup the current settings
         lxc_utils.backup_container_settings(ctid, settings)
-        
+
         # Collect CPU and memory usage data
         return {
             ctid: {
@@ -50,7 +58,7 @@ def collect_data_for_container(ctid: str) -> dict:
 def collect_container_data() -> dict:
     """
     Collect resource usage data for all LXC containers.
-    
+
     Returns:
         dict: A dictionary where the keys are container IDs and the values are their respective data.
     """
@@ -69,7 +77,7 @@ def collect_container_data() -> dict:
 def main_loop(poll_interval: int, energy_mode: bool):
     """
     Main loop that handles the resource allocation and scaling process.
-    
+
     Args:
         poll_interval (int): The interval in seconds between each resource allocation process.
         energy_mode (bool): A flag to indicate if energy efficiency mode should be enabled during off-peak hours.
