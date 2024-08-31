@@ -5,7 +5,7 @@
 ## Summary
 
 - **[Introduction](#lxc-autoscale)**: Overview of LXC AutoScale's functionality.
-- **[Docker](#docker)**: Setup and run LXC AutoScale via Docker and Docker Compose
+- **[Docker](#docker)**: Setup and run LXC AutoScale via Docker and Docker Compose.
 - **[Installation (no Docker)](#installation)**: One-click install LXC AutoScale on your Proxmox server.
 - **[Configuration](#configuration)**: Detailed guide to setting up and customizing LXC AutoScale.
   - [Configuration File Location](#configuration-file-location)
