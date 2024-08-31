@@ -6,6 +6,8 @@ import os  # For interacting with the operating system (e.g., file paths)
 from datetime import datetime  # For working with dates and times
 from config import get_config_value, LOG_FILE, DEFAULTS, BACKUP_DIR, PROXMOX_HOSTNAME, IGNORE_LXC  # Configuration imports
 from threading import Lock  # For thread-safe operations
+import paramiko
+import time 
 
 # Initialize a thread lock for safe concurrent access
 lock = Lock()
@@ -13,7 +15,7 @@ lock = Lock()
 def run_command(cmd, timeout=30):
     use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
     logging.debug(f"Inside run_command: use_remote_proxmox = {use_remote_proxmox}")
-    
+
     if use_remote_proxmox:
         logging.debug("Executing command remotely.")
         return run_remote_command(cmd, timeout)
@@ -200,17 +202,13 @@ def get_total_memory():
     return available_memory
 
 
-import time
-
-import time
-
 def get_cpu_usage(ctid):
     """
     Retrieve the CPU usage of a container over a short interval.
-    
+
     Args:
         ctid (str): The container ID.
-        
+
     Returns:
         float: The CPU usage percentage, or 0.0 if an error occurs.
     """
@@ -237,7 +235,7 @@ def get_cpu_usage(ctid):
 
         # Calculate the CPU usage percentage
         cpu_usage = 100.0 * (total_diff - idle_diff) / total_diff
-        
+
         return round(max(min(cpu_usage, 100.0), 0.0), 2)  # Round to 2 decimal places
     except Exception as e:
         logging.error(f"Failed to retrieve CPU usage for container {ctid}: {e}")
@@ -266,7 +264,7 @@ def get_memory_usage(ctid):
             logging.error(f"Failed to parse memory info for container {ctid}: '{mem_info}'")
     logging.error(f"Failed to retrieve memory usage for container {ctid}")
     return 0.0
-    
+
 def is_ignored(ctid):
     """
     Check if a container is in the ignore list.
