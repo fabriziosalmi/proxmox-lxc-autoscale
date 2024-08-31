@@ -10,6 +10,7 @@ from lxc_utils import (  # Import necessary utility functions related to LXC man
 )
 from notification import send_notification  # Import the notification function
 from config import HORIZONTAL_SCALING_GROUPS, IGNORE_LXC, DEFAULTS  # Import configuration constants
+import paramiko
 
 # Constants for repeated values
 TIMEOUT_EXTENDED = 300  # Extended timeout for scaling operations
@@ -129,7 +130,7 @@ def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memo
 
     elif mem_usage < mem_lower and current_memory > min_memory:
         decrease_amount = calculate_decrement(
-            mem_usage, mem_lower, current_memory, 
+            mem_usage, mem_lower, current_memory,
             int(config['min_decrease_chunk'] * behaviour_multiplier), min_memory
         )
         if decrease_amount > 0:
@@ -146,7 +147,7 @@ def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memo
 def adjust_resources(containers, energy_mode):
     """
     Adjust CPU and memory resources for each container based on usage.
-    
+
     Args:
         containers (dict): A dictionary of container resource usage data.
         energy_mode (bool): Flag to indicate if energy-saving adjustments should be made during off-peak hours.
@@ -172,7 +173,7 @@ def adjust_resources(containers, energy_mode):
         rounded_mem_usage = round(usage['mem'], 2)
         total_mem_allocated = usage['initial_memory']
         free_mem_percent = round(100 - ((rounded_mem_usage / total_mem_allocated) * 100), 2)
-        
+
         logging.info(f"Container {ctid}: CPU usage: {rounded_cpu_usage}%, Memory usage: {rounded_mem_usage}MB "
                      f"({free_mem_percent}% free of {total_mem_allocated}MB total), "
                      f"Initial cores: {usage['initial_cores']}, Initial memory: {total_mem_allocated}MB")
@@ -219,7 +220,7 @@ def adjust_resources(containers, energy_mode):
                 send_notification(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}.")
             else:
                 logging.warning(f"Container {ctid} - Not enough available cores to increase.")
-        
+
         elif cpu_usage < cpu_lower and current_cores > min_cores:
             decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)
             new_cores = max(min_cores, current_cores - decrement)
@@ -274,7 +275,7 @@ def manage_horizontal_scaling(containers):
         total_cpu_usage = sum(containers[ctid]['cpu'] for ctid in group_config['lxc_containers'] if ctid in containers)
         total_mem_usage = sum(containers[ctid]['mem'] for ctid in group_config['lxc_containers'] if ctid in containers)
         num_containers = len(group_config['lxc_containers'])
-        
+
         if num_containers > 0:
             avg_cpu_usage = total_cpu_usage / num_containers
             avg_mem_usage = total_mem_usage / num_containers
@@ -285,10 +286,10 @@ def manage_horizontal_scaling(containers):
         logging.debug(f"Group: {group_name} | Average CPU Usage: {avg_cpu_usage}% | Average Memory Usage: {avg_mem_usage}%")
 
         # Check if scaling out is needed based on usage thresholds
-        if (avg_cpu_usage > group_config['horiz_cpu_upper_threshold'] or 
+        if (avg_cpu_usage > group_config['horiz_cpu_upper_threshold'] or
             avg_mem_usage > group_config['horiz_memory_upper_threshold']):
             logging.debug(f"Thresholds exceeded for {group_name}. Evaluating scale-out conditions.")
-            
+
             # Ensure enough time has passed since the last scaling action
             if current_time - last_action_time >= timedelta(seconds=group_config.get('scale_out_grace_period', 300)):
                 scale_out(group_name, group_config)
