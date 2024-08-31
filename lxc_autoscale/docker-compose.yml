@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  lxc-autoscale:
+    image: lxc-autoscale  # Ensure that this image is built locally or available on a registry
+    container_name: lxc-autoscale
+    env_file:
+      - .env  # Use the .env file for environment variables
+    volumes:
+      - log_data:/var/log/lxc_autoscale  # Docker volume for logs
+      - lock_data:/var/lock/lxc_autoscale  # Docker volume for lock files
+      - backup_data:/var/lib/lxc_autoscale  # Docker volume for backups
+      - local_bin:/usr/local/bin  # Docker volume for scripts and binaries
+    restart: unless-stopped
+
+volumes:
+  log_data:
+  lock_data:
+  backup_data:
+  local_bin:
