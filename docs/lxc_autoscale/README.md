@@ -5,7 +5,8 @@
 ## Summary
 
 - **[Introduction](#lxc-autoscale)**: Overview of LXC AutoScale's functionality.
-- **[Installation](#installation)**: One-click install LXC AutoScale on your Proxmox server.
+- **[Docker](#docker)**: Setup and run LXC AutoScale via Docker and Docker Compose
+- **[Installation (no Docker)](#installation)**: One-click install LXC AutoScale on your Proxmox server.
 - **[Configuration](#configuration)**: Detailed guide to setting up and customizing LXC AutoScale.
   - [Configuration File Location](#configuration-file-location)
   - [Important Parameters](#important-parameters)
@@ -24,6 +25,53 @@
 ## LXC AutoScale
 
 **LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance. LXC AutoScale can operate both locally or by remotely connecting via SSH to your Proxmox hosts.
+
+---
+
+## Docker
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/fabriziosalmi/proxmox-lxc-autoscale.git
+```
+
+### Step 2: Navigate to the Application Directory
+
+```bash
+cd proxmox-lxc-autoscale/lxc_autoscale
+```
+
+### Step 3: Build the Docker Image
+
+```bash
+docker build -t lxc-autoscale .
+```
+
+### Step 4: Edit the YAML Configuration
+
+Modify the YAML configuration file (e.g., `lxc_autoscale.yaml`) with the Proxmox hosts SSH parameters:
+
+```
+  ssh_user: "your-ssh-username"
+  ssh_password: "your-ssh-password"
+  proxmox_host: "your-proxmox-host-ip-or-hostname"
+```
+  
+### Step 5: Run the Docker Container
+
+- **Using the Default Configuration:**
+
+```bash
+docker run -d --name lxc_autoscale lxc-autoscale
+```
+
+### Step 6: Check Docker Logs
+
+```bash
+docker logs lxc_autoscale
+```
+
 
 ---
 
