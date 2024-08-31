@@ -18,7 +18,7 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 - **✨ LXC AutoScale ML**: for advanced users and more complex environments. It consists of three components: the **API**, the **Monitor**, and the **Model** (PoC).
 
 > [!NOTE]
-> The default installer automatically installs LXC AutoScale after a 5-second delay.
+> The default installer automatically installs LXC AutoScale (no Docker) after a 5-second delay.
 
 
 ## Features
