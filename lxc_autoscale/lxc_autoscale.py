@@ -1,5 +1,5 @@
 from config import config
-
+import paramiko
 # Importing necessary modules and functions
 from config import get_config_value, LOG_FILE, DEFAULTS, BACKUP_DIR, PROXMOX_HOSTNAME, IGNORE_LXC  # Importing configuration constants and utility functions
 from logging_setup import setup_logging  # Importing the logging setup function
@@ -18,7 +18,7 @@ def parse_arguments():
         argparse.Namespace: The parsed arguments with options for poll interval, energy mode, and rollback.
     """
     parser = argparse.ArgumentParser(description="LXC Resource Management Daemon")
-    
+
     # Polling interval argument
     parser.add_argument(
         "--poll_interval",
@@ -26,7 +26,7 @@ def parse_arguments():
         default=DEFAULTS.get('poll_interval', 300),
         help="Polling interval in seconds"  # How often the main loop should run
     )
-    
+
     # Energy mode argument for off-peak hours
     parser.add_argument(
         "--energy_mode",
@@ -34,24 +34,24 @@ def parse_arguments():
         default=DEFAULTS.get('energy_mode', False),
         help="Enable energy efficiency mode during off-peak hours"  # Reduces resource allocation during low-usage periods
     )
-    
+
     # Rollback argument to revert container configurations
     parser.add_argument(
         "--rollback",
         action="store_true",
         help="Rollback to previous container configurations"  # Option to revert containers to their backed-up settings
     )
-    
+
     return parser.parse_args()
 
 # Entry point of the script
 if __name__ == "__main__":
     # Parse command-line arguments
     args = parse_arguments()
-    
+
     # Setup logging based on the configuration
     setup_logging()
-    
+
     # Acquire a lock to ensure that only one instance of the script runs at a time
     with acquire_lock() as lock_file:
         try:
