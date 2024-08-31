@@ -10,7 +10,7 @@ ENV CPU_LOWER_THRESHOLD=20
 WORKDIR /app
 
 # Copy the application files to the container
-COPY lxc_autoscale /app/
+COPY *.py /app/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/requirements.txt
