@@ -1,23 +1,35 @@
-# Start with a base image
+# Base image
 FROM python:3.9-slim
 
-# Set environment variables (if needed)
-ENV POLL_INTERVAL=300
-ENV CPU_UPPER_THRESHOLD=80
-ENV CPU_LOWER_THRESHOLD=20
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
 
-# Create a directory for the app
+# Set environment variable to indicate Docker environment
+ENV RUNNING_IN_DOCKER=true
+
+# Set the working directory
 WORKDIR /app
 
-# Copy the application files to the container
-COPY *.py /app/
-COPY requirements.txt /app/
+# Copy application files
+COPY . /app
+
+# Install required packages
+RUN apt-get update && apt-get install -y \
+    openssh-client \
+    sshpass \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install yq for YAML processing
+RUN curl -L https://github.com/mikefarah/yq/releases/download/v4.6.3/yq_linux_amd64 -o /usr/bin/yq && \
+    chmod +x /usr/bin/yq
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Set up SSH (if needed)
-RUN apt-get update && apt-get install -y openssh-client && rm -rf /var/lib/apt/lists/*
+# Copy the entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Set the entry point to run your application
-ENTRYPOINT ["python", "/app/lxc_autoscale.py"]
+# Set the entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
