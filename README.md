@@ -15,7 +15,7 @@ LXC AutoScale offers two distinct options to suit different user profiles and en
 
 - **🚀 LXC AutoScale**: ideal for new users and straightforward setups. A simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. You can reconfigure it at any time or use it as a one-time solution when needed.
 
-- **✨ LXC AutoScale ML**: for advanced users and more complex environments. It consists of three components: the **API**, the **Monitor**, and the **Model** (PoC).
+- **✨ LXC AutoScale ML**: for advanced users and more complex environments. LXC AutoScale ML has been finally moved to a new, separate [repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale-ml).
 
 > [!NOTE]
 > The default installer automatically installs LXC AutoScale (no Docker) after a 5-second delay.
@@ -99,8 +99,7 @@ LXC AutoScale and LXC AutoScale ML can be used and extended in many ways, here s
 
 - 🌐 [LXC AutoScale UI - Simple web UI to check scaling actions and logs](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/lxc_autoscale/ui)
 - 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
-- ⏰ [LXC AutoScale API - Cron jobs examples](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale_api/examples/README.md)
-  
+
 ## Contributing
 
 LXC AutoScale is an open-source project, and contributions are welcome! Whether you want to submit a pull request, report an issue, or suggest a new feature, your input is invaluable. To get involved, you can:
