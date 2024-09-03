@@ -1,4 +1,4 @@
-# LXC AutoScale
+# 🚀 LXC AutoScale
 
 **LXC AutoScale** is a resource management daemon specifically designed for Proxmox environments. It automatically adjusts CPU and memory allocations with no downtime and can clone LXC containers based on real-time usage metrics and predefined thresholds. Can be run locally or remotely to make your containers always optimized for performance, managing spikes in demand, and optionally preserving resources during off-peak hours. 
 
@@ -10,16 +10,6 @@
 |------------------|----------------------------------------------------------------------------------------------------------------|
 | 🐳    | [Docker](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md#docker) |
 | 🐧    | [no Docker](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) |
-
-LXC AutoScale offers two distinct options to suit different user profiles and environments (_I will soon separate repos and installers, don't worry :)_):
-
-- **🚀 LXC AutoScale**: ideal for new users and straightforward setups. A simple, out-of-the-box solution that automatically manages the resources of your Proxmox LXC containers. You can reconfigure it at any time or use it as a one-time solution when needed.
-
-- **✨ LXC AutoScale ML**: for advanced users and more complex environments. LXC AutoScale ML has been finally moved to a new, separate [repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale-ml).
-
-> [!NOTE]
-> The default installer automatically installs LXC AutoScale (no Docker) after a 5-second delay.
-
 
 ## Features
 LXC AutoScale is packed with features that make it an essential tool for managing the auto-scaling of your LXC containers on Proxmox:
@@ -100,6 +90,9 @@ LXC AutoScale and LXC AutoScale ML can be used and extended in many ways, here s
 - 🌐 [LXC AutoScale UI - Simple web UI to check scaling actions and logs](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/lxc_autoscale/ui)
 - 🎛️ [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
 
+> [!TIP]
+> LXC AutoScale ML has been finally moved to a new, separate [repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale-ml).
+
 ## Contributing
 
 LXC AutoScale is an open-source project, and contributions are welcome! Whether you want to submit a pull request, report an issue, or suggest a new feature, your input is invaluable. To get involved, you can:
@@ -111,7 +104,9 @@ LXC AutoScale is an open-source project, and contributions are welcome! Whether 
 ## Disclaimer
 
 > [!CAUTION]
-> I am not responsible for any potential damage or issues that may arise from using this tool. Always test new configurations in a controlled environment before applying them to production systems.
+> I am not responsible for any potential damage or issues that may arise from using this tool. 
+
+
 
 ## License
 
