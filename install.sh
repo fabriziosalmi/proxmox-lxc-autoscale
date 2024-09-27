@@ -133,7 +133,7 @@ remove_service_files() {
 # Function to prompt the user for installation choice
 prompt_user_choice() {
     local default_choice="1"
-    local timeout=5
+    local timeout=1
 
     log "INFO" "Prompting user for installation choice with a ${timeout}-second timeout..."
 
