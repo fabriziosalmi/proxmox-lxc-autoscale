@@ -234,7 +234,7 @@ install_lxc_autoscale_ml() {
     systemctl daemon-reload
 
     # Install needed packages
-    apt install git python3-flask python3-requests -y
+    apt install git python3-flask python3-requests python3-paramiko -y
     
     # Create necessary directories
     mkdir -p /etc/lxc_autoscale_ml
