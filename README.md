@@ -28,6 +28,9 @@ LXC AutoScale is packed with features that make it an essential tool for managin
 - 💃 Easy autoconf for humans
 - 🐳 Docker supported
 
+> [!NOTE]
+> If You need to autoscale Virtual Machines on Proxmox You will like [this project](https://github.com/fabriziosalmi/proxmox-vm-autoscale).
+
 ## Quick Start
 
 Getting started with LXC AutoScale on your Proxmox host is quick and simple:
