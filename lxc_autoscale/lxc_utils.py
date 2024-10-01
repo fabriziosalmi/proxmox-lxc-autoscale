@@ -204,42 +204,157 @@ def get_total_memory():
 
 def get_cpu_usage(ctid):
     """
-    Retrieve the CPU usage of a container over a short interval.
-
+    Retrieve the CPU usage of a container using multiple methods with fallbacks.
+    
     Args:
         ctid (str): The container ID.
-
+    
     Returns:
-        float: The CPU usage percentage, or 0.0 if an error occurs.
+        float: The CPU usage percentage, or 0.0 if all methods fail.
     """
-    try:
-        # Capture initial CPU times
+    def loadavg_method(ctid):
+        """
+        Retrieve CPU usage based on the system's load average.
+        
+        Args:
+            ctid (str): The container ID.
+        
+        Returns:
+            float: The CPU usage percentage.
+        """
+        # Get load average using /proc/loadavg
+        cmd_loadavg = f"pct exec {ctid} -- cat /proc/loadavg"
+        loadavg_output = run_command(cmd_loadavg)
+        loadavg = float(loadavg_output.split()[0])  # 1-minute load average
+        
+        # Get number of CPUs
+        cmd_nproc = f"pct exec {ctid} -- nproc"
+        nproc_output = run_command(cmd_nproc)
+        num_cpus = int(nproc_output)
+        
+        if num_cpus == 0:
+            raise ValueError("Number of CPUs is zero.")
+        
+        # Calculate CPU usage percentage
+        cpu_usage = (loadavg / num_cpus) * 100
+        cpu_usage = min(cpu_usage, 100.0)  # Cap at 100%
+        return round(cpu_usage, 2)
+
+    def load_method(ctid):
+        """
+        Retrieve CPU usage by reading /proc/stat.
+        
+        Args:
+            ctid (str): The container ID.
+        
+        Returns:
+            float: The CPU usage percentage.
+        """
         cmd = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
         result = run_command(cmd)
         initial_cpu_times = list(map(float, result.split()[1:]))
         initial_total_time = sum(initial_cpu_times)
         initial_idle_time = initial_cpu_times[3]  # idle time is the 4th field
 
-        # Wait for a short interval (e.g., 1 second)
         time.sleep(1)
 
-        # Capture CPU times again
         result = run_command(cmd)
         new_cpu_times = list(map(float, result.split()[1:]))
         new_total_time = sum(new_cpu_times)
         new_idle_time = new_cpu_times[3]
 
-        # Calculate the differences in CPU times
         total_diff = new_total_time - initial_total_time
         idle_diff = new_idle_time - initial_idle_time
 
-        # Calculate the CPU usage percentage
-        cpu_usage = 100.0 * (total_diff - idle_diff) / total_diff
+        if total_diff == 0:
+            raise ValueError("Total CPU time did not change.")
 
-        return round(max(min(cpu_usage, 100.0), 0.0), 2)  # Round to 2 decimal places
-    except Exception as e:
-        logging.error(f"Failed to retrieve CPU usage for container {ctid}: {e}")
-        return 0.0
+        cpu_usage = 100.0 * (total_diff - idle_diff) / total_diff
+        return round(max(min(cpu_usage, 100.0), 0.0), 2)
+
+    def cgroup_method(ctid):
+        """
+        Retrieve CPU usage from cgroup statistics.
+        
+        Args:
+            ctid (str): The container ID.
+        
+        Returns:
+            float: The CPU usage percentage.
+        """
+        cmd = f"pct exec {ctid} -- cat /sys/fs/cgroup/cpu/cpuacct.usage"
+        initial_usage = float(run_command(cmd))
+
+        time.sleep(1)
+
+        usage_after = float(run_command(cmd))
+        usage_diff = usage_after - initial_usage
+
+        # Convert nanoseconds to seconds
+        cpu_usage_seconds = usage_diff / 1e9  # Assuming 1 second interval
+        cpu_usage = cpu_usage_seconds * 100  # Convert to percentage
+
+        return round(cpu_usage, 2)
+
+    def top_method(ctid):
+        """
+        Retrieve CPU usage using the top command.
+        
+        Args:
+            ctid (str): The container ID.
+        
+        Returns:
+            float: The CPU usage percentage.
+        """
+        cmd = f"pct exec {ctid} -- top -bn1 | grep 'Cpu(s)'"
+        result = run_command(cmd)
+        # Example output: Cpu(s):  1.3%us,  0.7%sy,  0.0%ni, 97.5%id,  0.5%wa,  0.0%hi,  0.0%si,  0.0%st
+        parts = result.split(',')
+        idle_part = next((p for p in parts if 'id' in p), None)
+        if idle_part:
+            idle = float(idle_part.strip().split('%')[0])
+            cpu_usage = 100.0 - idle
+            return round(cpu_usage, 2)
+        raise ValueError("Idle CPU information not found.")
+
+    def ps_method(ctid):
+        """
+        Retrieve CPU usage by aggregating the CPU usage of all processes.
+        
+        Args:
+            ctid (str): The container ID.
+        
+        Returns:
+            float: The CPU usage percentage.
+        """
+        cmd = f"pct exec {ctid} -- ps -eo %cpu --no-headers"
+        result = run_command(cmd)
+        if not result:
+            return 0.0
+        cpu_usages = list(map(float, result.split()))
+        cpu_usage = sum(cpu_usages)
+        return round(min(cpu_usage, 100.0), 2)
+
+    # List of methods in order of priority
+    methods = [
+        ('Load Average Method', loadavg_method),
+        ('Load Method', load_method),
+        ('CGroup Method', cgroup_method),
+        ('Top Command Method', top_method),
+        ('PS Command Method', ps_method),
+    ]
+
+    for method_name, method in methods:
+        try:
+            cpu = method(ctid)
+            if cpu is not None and cpu >= 0.0:
+                logging.info(f"CPU usage for container {ctid} using {method_name}: {cpu}%")
+                return cpu
+        except Exception as e:
+            logging.warning(f"{method_name} failed for container {ctid}: {e}")
+
+    logging.error(f"All methods failed to retrieve CPU usage for container {ctid}. Returning 0.0.")
+    return 0.0
 
 
 
