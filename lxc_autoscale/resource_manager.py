@@ -74,6 +74,8 @@ def collect_container_data() -> dict:
                 logging.error(f"Error collecting data for a container: {e}")
     return containers
 
+import time
+
 def main_loop(poll_interval: int, energy_mode: bool):
     """
     Main loop that handles the resource allocation and scaling process.
@@ -83,13 +85,45 @@ def main_loop(poll_interval: int, energy_mode: bool):
         energy_mode (bool): A flag to indicate if energy efficiency mode should be enabled during off-peak hours.
     """
     while True:
+        loop_start_time = time.time()
         logging.info("Starting resource allocation process...")
+
         try:
+            # Log time before collecting data
+            collect_start_time = time.time()
+            logging.debug("Collecting container data...")
             containers = collect_container_data()
+            collect_duration = time.time() - collect_start_time
+            logging.debug(f"Container data collection took {collect_duration:.2f} seconds.")
+
+            # Log time before adjusting resources
+            adjust_start_time = time.time()
+            logging.debug("Adjusting resources...")
             scaling_manager.adjust_resources(containers, energy_mode)
+            adjust_duration = time.time() - adjust_start_time
+            logging.debug(f"Resource adjustment took {adjust_duration:.2f} seconds.")
+
+            # Log time before scaling horizontally
+            scale_start_time = time.time()
+            logging.debug("Managing horizontal scaling...")
             scaling_manager.manage_horizontal_scaling(containers)
-            logging.info(f"Resource allocation process completed. Next run in {poll_interval} seconds.")
+            scale_duration = time.time() - scale_start_time
+            logging.debug(f"Horizontal scaling took {scale_duration:.2f} seconds.")
+
+            loop_duration = time.time() - loop_start_time
+            logging.info(f"Resource allocation process completed. Total loop duration: {loop_duration:.2f} seconds.")
+            
+            # Log next run in `poll_interval` seconds
+            if loop_duration < poll_interval:
+                sleep_duration = poll_interval - loop_duration
+                logging.debug(f"Sleeping for {sleep_duration:.2f} seconds until the next run.")
+                sleep(sleep_duration)
+            else:
+                logging.warning("The loop took longer than the poll interval! No sleep will occur.")
+
         except Exception as e:
             logging.error(f"Error in main loop: {e}")
-            # Optional: consider if you want the loop to continue or handle certain errors more gracefully.
-        sleep(poll_interval)
+            logging.exception("Exception traceback:")
+            # Optional: Decide if you want to continue or handle specific exceptions differently.
+            sleep(poll_interval)  # Optional: Handle the error more gracefully or exit
+
