@@ -166,6 +166,13 @@ def adjust_resources(containers, energy_mode):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
+    # Build a mapping of container IDs to their tier configurations
+    container_tiers = {}
+    for key, value in DEFAULTS.items():
+        if key.startswith("TIER_") and "lxc_containers" in value:
+            for ctid in value["lxc_containers"]:
+                container_tiers[str(ctid)] = value
+
     # Print current resource usage for all running LXC containers
     logging.info("Current resource usage for all containers:")
     for ctid, usage in containers.items():
@@ -184,7 +191,8 @@ def adjust_resources(containers, energy_mode):
             logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
             continue
 
-        config = DEFAULTS.get(f"TIER_{ctid}", DEFAULTS)
+        # Retrieve the tier configuration or default
+        config = container_tiers.get(str(ctid), DEFAULTS)
         cpu_upper = config['cpu_upper_threshold']
         cpu_lower = config['cpu_lower_threshold']
         mem_upper = config['memory_upper_threshold']
