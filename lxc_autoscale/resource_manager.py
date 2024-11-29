@@ -12,8 +12,6 @@ import paramiko
 # Debug print statement to ensure paramiko is imported
 # print(f"Paramiko version: {paramiko.__version__}")
 
-
-
 def collect_data_for_container(ctid: str) -> dict:
     """
     Collect resource usage data for a single LXC container.
@@ -32,8 +30,36 @@ def collect_data_for_container(ctid: str) -> dict:
     try:
         # Retrieve the current configuration of the container using Python string operations
         config_output = lxc_utils.run_command(f"pct config {ctid}")
-        cores = int([line.split()[1] for line in config_output.splitlines() if 'cores' in line][0])
-        memory = int([line.split()[1] for line in config_output.splitlines() if 'memory' in line][0])
+        
+        # Initialize values for cores and memory
+        cores = None
+        memory = None
+
+        # Parse the config_output for cores and memory
+        for line in config_output.splitlines():
+            # Check if 'cores' and 'memory' exist and extract their values safely
+            if 'cores' in line:
+                try:
+                    cores_value = line.split()[1]
+                    if cores_value.isdigit():  # Ensure it's a valid integer string
+                        cores = int(cores_value)
+                    else:
+                        logging.warning(f"Invalid value for cores: {cores_value}")
+                except IndexError:
+                    logging.warning(f"Unable to extract cores value from line: {line}")
+            elif 'memory' in line:
+                try:
+                    memory_value = line.split()[1]
+                    if memory_value.isdigit():  # Ensure it's a valid integer string
+                        memory = int(memory_value)
+                    else:
+                        logging.warning(f"Invalid value for memory: {memory_value}")
+                except IndexError:
+                    logging.warning(f"Unable to extract memory value from line: {line}")
+
+        if cores is None or memory is None:
+            raise ValueError(f"Failed to extract valid cores or memory values for container {ctid}")
+
         settings = {"cores": cores, "memory": memory}
 
         # Backup the current settings
@@ -54,6 +80,7 @@ def collect_data_for_container(ctid: str) -> dict:
     except Exception as e:
         logging.error(f"Error retrieving or parsing configuration for container {ctid}: {e}")
         return None
+
 
 def collect_container_data() -> dict:
     """
