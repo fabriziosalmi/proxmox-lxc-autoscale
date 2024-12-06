@@ -194,7 +194,8 @@ def get_total_memory():
         int: The amount of available memory in MB.
     """
     try:
-        command_output = run_command("free -m | awk '/^MemTotal:/ {print $2}')")
+        # Fixed command by removing extra parenthesis
+        command_output = run_command("free -m | awk '/^MemTotal:/ {print $2}'")
         if not command_output:
             logging.warning("Failed to retrieve total memory. Defaulting to 0MB.")
             total_memory = 0
@@ -203,6 +204,13 @@ def get_total_memory():
     except (ValueError, subprocess.CalledProcessError) as e:
         logging.error(f"Failed to retrieve total memory: {e}")
         total_memory = 0
+
+    available_memory = max(0, total_memory - DEFAULTS['reserve_memory_mb'])
+    logging.debug(
+        f"Total memory: {total_memory}MB, Reserved memory: {DEFAULTS['reserve_memory_mb']}MB, "
+        f"Available memory: {available_memory}MB"
+    )
+    return available_memory
 
     available_memory = max(0, total_memory - DEFAULTS['reserve_memory_mb'])
     logging.debug(
