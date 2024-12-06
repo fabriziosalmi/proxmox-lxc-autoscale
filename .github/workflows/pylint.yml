@@ -20,4 +20,4 @@ jobs:
         pip install pylint
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files 'usr/local/bin/lxc_autoscale.py')
+        pylint $(git ls-files '**/lxc_autoscale.py')
