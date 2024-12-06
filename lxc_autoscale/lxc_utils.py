@@ -9,10 +9,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from threading import Lock
 
-import paramiko
+try:
+    import paramiko
+except ImportError:
+    logging.error("Paramiko package not installed. SSH functionality disabled.")
 
 from config import (BACKUP_DIR, DEFAULTS, IGNORE_LXC, LOG_FILE, LXC_TIER_ASSOCIATIONS,
-                   PROXMOX_HOSTNAME, config, get_config_value)
+                   PROXMOX_HOSTNAME, config)
 
 lock = Lock()
 
@@ -20,7 +23,7 @@ lock = Lock()
 def run_command(cmd, timeout=30):
     """Execute a command locally or remotely based on configuration."""
     use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
-    logging.debug(f"Inside run_command: use_remote_proxmox = {use_remote_proxmox}")
+    logging.debug("Inside run_command: use_remote_proxmox = %s", use_remote_proxmox)
     return (run_remote_command if use_remote_proxmox else run_local_command)(cmd, timeout)
 
 
@@ -30,25 +33,24 @@ def run_local_command(cmd, timeout=30):
         result = subprocess.check_output(
             cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT
         ).decode('utf-8').strip()
-        logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
+        logging.debug("Command '%s' executed successfully. Output: %s", cmd, result)
         return result
     except subprocess.TimeoutExpired:
-        logging.error(f"Command '{cmd}' timed out after {timeout} seconds.")
+        logging.error("Command '%s' timed out after %d seconds", cmd, timeout)
     except subprocess.CalledProcessError as e:
-        logging.error(f"Command '{cmd}' failed: {e.output.decode('utf-8')}")
-    except Exception as e:
-        logging.error(f"Unexpected error executing '{cmd}': {e}")
+        logging.error("Command '%s' failed: %s", cmd, e.output.decode('utf-8'))
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Unexpected error executing '%s': %s", cmd, str(e))
     return None
 
 
 def run_remote_command(cmd, timeout=30):
     """Execute a command on remote Proxmox host via SSH."""
-    logging.debug(f"Running remote command: {cmd}")
+    logging.debug("Running remote command: %s", cmd)
     ssh = None
     try:
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
         ssh.connect(
             hostname=config.get('DEFAULT', {}).get('proxmox_host'),
             port=config.get('DEFAULT', {}).get('ssh_port', 22),
@@ -56,15 +58,14 @@ def run_remote_command(cmd, timeout=30):
             password=config.get('DEFAULT', {}).get('ssh_password'),
             key_filename=config.get('DEFAULT', {}).get('ssh_key_path')
         )
-        
-        stdin, stdout, stderr = ssh.exec_command(cmd, timeout=timeout)
+        _, stdout, _ = ssh.exec_command(cmd, timeout=timeout)
         output = stdout.read().decode('utf-8').strip()
-        logging.debug(f"Remote command '{cmd}' executed successfully: {output}")
+        logging.debug("Remote command '%s' executed successfully: %s", cmd, output)
         return output
     except paramiko.SSHException as e:
-        logging.error(f"SSH execution failed: {e}")
-    except Exception as e:
-        logging.error(f"Unexpected SSH error executing '{cmd}': {e}")
+        logging.error("SSH execution failed: %s", str(e))
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Unexpected SSH error executing '%s': %s", cmd, str(e))
     finally:
         if ssh:
             ssh.close()
@@ -91,9 +92,9 @@ def backup_container_settings(ctid, settings):
         with lock:
             with open(backup_file, 'w', encoding='utf-8') as f:
                 json.dump(settings, f)
-        logging.debug(f"Backup saved for container {ctid}: {settings}")
-    except Exception as e:
-        logging.error(f"Failed to backup settings for {ctid}: {e}")
+        logging.debug("Backup saved for container %s: %s", ctid, settings)
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Failed to backup settings for %s: %s", ctid, str(e))
 
 
 def load_backup_settings(ctid):
@@ -104,12 +105,12 @@ def load_backup_settings(ctid):
             with lock:
                 with open(backup_file, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
-            logging.debug(f"Loaded backup for container {ctid}: {settings}")
+            logging.debug("Loaded backup for container %s: %s", ctid, settings)
             return settings
-        logging.warning(f"No backup found for container {ctid}")
+        logging.warning("No backup found for container %s", ctid)
         return None
-    except Exception as e:
-        logging.error(f"Failed to load backup for {ctid}: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Failed to load backup for %s: %s", ctid, str(e))
         return None
 
 
@@ -117,11 +118,9 @@ def rollback_container_settings(ctid):
     """Restore container settings from backup."""
     settings = load_backup_settings(ctid)
     if settings:
-        logging.info(f"Rolling back container {ctid} to backup settings")
+        logging.info("Rolling back container %s to backup settings", ctid)
         run_command(f"pct set {ctid} -cores {settings['cores']}")
         run_command(f"pct set {ctid} -memory {settings['memory']}")
-        send_notification(f"Rollback for Container {ctid}", 
-                        "Container settings rolled back to previous state.")
 
 
 def log_json_event(ctid, action, resource_change):
@@ -134,7 +133,7 @@ def log_json_event(ctid, action, resource_change):
         "change": resource_change
     }
     with lock:
-        with open(LOG_FILE.replace('.log', '.json'), 'a') as json_log_file:
+        with open(LOG_FILE.replace('.log', '.json'), 'a', encoding='utf-8') as json_log_file:
             json_log_file.write(json.dumps(log_data) + '\n')
 
 
@@ -144,8 +143,8 @@ def get_total_cores():
     reserved_cores = max(1, int(total_cores * DEFAULTS['reserve_cpu_percent'] / 100))
     available_cores = total_cores - reserved_cores
     logging.debug(
-        f"Total cores: {total_cores}, Reserved: {reserved_cores}, "
-        f"Available: {available_cores}"
+        "Total cores: %d, Reserved: %d, Available: %d",
+        total_cores, reserved_cores, available_cores
     )
     return available_cores
 
@@ -156,13 +155,13 @@ def get_total_memory():
         command_output = run_command("free -m | awk '/^MemTotal:/ {print $2}'")
         total_memory = int(command_output.strip()) if command_output else 0
     except (ValueError, subprocess.CalledProcessError) as e:
-        logging.error(f"Failed to get total memory: {e}")
+        logging.error("Failed to get total memory: %s", str(e))
         total_memory = 0
 
     available_memory = max(0, total_memory - DEFAULTS['reserve_memory_mb'])
     logging.debug(
-        f"Total memory: {total_memory}MB, Reserved: {DEFAULTS['reserve_memory_mb']}MB, "
-        f"Available: {available_memory}MB"
+        "Total memory: %dMB, Reserved: %dMB, Available: %dMB",
+        total_memory, DEFAULTS['reserve_memory_mb'], available_memory
     )
     return available_memory
 
@@ -176,7 +175,7 @@ def get_cpu_usage(ctid):
             )
             return result.stdout.strip()
         except subprocess.CalledProcessError as e:
-            logging.warning(f"Command failed: {command}, Error: {e}")
+            logging.warning("Command failed: %s, Error: %s", command, str(e))
             return ""
 
     def loadavg_method(ctid):
@@ -186,8 +185,8 @@ def get_cpu_usage(ctid):
             if num_cpus == 0:
                 raise ValueError("Number of CPUs is zero.")
             return round(min((loadavg / num_cpus) * 100, 100.0), 2)
-        except Exception as e:
-            raise RuntimeError(f"Loadavg method failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            raise RuntimeError("Loadavg method failed: %s", str(e)) from e
 
     def load_method(ctid):
         try:
@@ -211,8 +210,8 @@ def get_cpu_usage(ctid):
             return round(
                 max(min(100.0 * (total_diff - idle_diff) / total_diff, 100.0), 0.0), 2
             )
-        except Exception as e:
-            raise RuntimeError(f"Load method failed: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            raise RuntimeError("Load method failed: %s", str(e)) from e
 
     methods = [
         ("Load Average", loadavg_method),
@@ -223,12 +222,12 @@ def get_cpu_usage(ctid):
         try:
             cpu = method(ctid)
             if cpu is not None and cpu >= 0.0:
-                logging.info(f"CPU usage for {ctid} using {method_name}: {cpu}%")
+                logging.info("CPU usage for %s using %s: %s%%", ctid, method_name, cpu)
                 return cpu
-        except Exception as e:
-            logging.warning(f"{method_name} failed for {ctid}: {e}")
+        except Exception as e:  # pylint: disable=broad-except
+            logging.warning("%s failed for %s: %s", method_name, ctid, str(e))
 
-    logging.error(f"All CPU usage methods failed for {ctid}. Using 0.0")
+    logging.error("All CPU usage methods failed for %s. Using 0.0", ctid)
     return 0.0
 
 
@@ -243,9 +242,14 @@ def get_memory_usage(ctid):
             total, used = map(int, mem_info.split())
             return (used * 100) / total
         except ValueError:
-            logging.error(f"Failed to parse memory info for {ctid}: '{mem_info}'")
-    logging.error(f"Failed to get memory usage for {ctid}")
+            logging.error("Failed to parse memory info for %s: '%s'", ctid, mem_info)
+    logging.error("Failed to get memory usage for %s", ctid)
     return 0.0
+
+
+def is_ignored(ctid):
+    """Check if container is in ignore list."""
+    return str(ctid) in IGNORE_LXC
 
 
 def get_container_data(ctid):
@@ -253,7 +257,7 @@ def get_container_data(ctid):
     if is_ignored(ctid) or not is_container_running(ctid):
         return None
 
-    logging.debug(f"Collecting data for container {ctid}")
+    logging.debug("Collecting data for container %s", ctid)
     try:
         cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'"))
         memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'"))
@@ -265,8 +269,8 @@ def get_container_data(ctid):
             "initial_cores": cores,
             "initial_memory": memory,
         }
-    except Exception as e:
-        logging.error(f"Error collecting data for {ctid}: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Error collecting data for %s: %s", ctid, str(e))
         return None
 
 
@@ -284,9 +288,9 @@ def collect_container_data():
                 data = future.result()
                 if data:
                     containers[ctid] = data
-                    logging.debug(f"Container {ctid} data: {data}")
-            except Exception as e:
-                logging.error(f"Error retrieving data for {ctid}: {e}")
+                    logging.debug("Container %s data: %s", ctid, data)
+            except Exception as e:  # pylint: disable=broad-except
+                logging.error("Error retrieving data for %s: %s", ctid, str(e))
     return containers
 
 
@@ -302,10 +306,10 @@ def prioritize_containers(containers):
             key=lambda item: (item[1]['cpu'], item[1]['mem']),
             reverse=True
         )
-        logging.debug(f"Container priorities: {priorities}")
+        logging.debug("Container priorities: %s", priorities)
         return priorities
-    except Exception as e:
-        logging.error(f"Error prioritizing containers: {e}")
+    except Exception as e:  # pylint: disable=broad-except
+        logging.error("Error prioritizing containers: %s", str(e))
         return []
 
 
