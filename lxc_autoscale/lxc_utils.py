@@ -152,7 +152,7 @@ def get_total_cores():
 def get_total_memory():
     """Calculate available memory after reserving fixed amount."""
     try:
-        command_output = run_command("free -m | awk '/^MemTotal:/ {print $2}'")
+        command_output = run_command("free -m | awk '/^Mem:/ {print $2}'")
         total_memory = int(command_output.strip()) if command_output else 0
     except (ValueError, subprocess.CalledProcessError) as e:
         logging.error("Failed to get total memory: %s", str(e))
