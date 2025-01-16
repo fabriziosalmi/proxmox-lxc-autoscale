@@ -44,7 +44,7 @@ def get_config_value(section: str, key: str, default: Any = None) -> Any:
     return default
 
 # --- Default Configuration ---
-DEFAULTS: Dict[str, Any] = config.get('DEFAULT', {})
+DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
 
 # --- General Configuration ---
 LOG_FILE: str = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')

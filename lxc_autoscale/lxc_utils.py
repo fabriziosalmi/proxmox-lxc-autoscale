@@ -15,8 +15,8 @@ try:
 except ImportError:
     logging.error("Paramiko package not installed. SSH functionality disabled.")
 
-from config import (BACKUP_DIR, DEFAULTS, IGNORE_LXC, LOG_FILE,
-                    LXC_TIER_ASSOCIATIONS, PROXMOX_HOSTNAME, config)
+from config import (BACKUP_DIR,  IGNORE_LXC, LOG_FILE,
+                    LXC_TIER_ASSOCIATIONS, PROXMOX_HOSTNAME, config, get_config_value)
 
 lock = Lock()
 
@@ -202,7 +202,7 @@ def get_total_cores() -> int:
         The available number of CPU cores.
     """
     total_cores = int(run_command("nproc") or 0)
-    reserved_cores = max(1, int(total_cores * DEFAULTS['reserve_cpu_percent'] / 100))
+    reserved_cores = max(1, int(total_cores * int(get_config_value('DEFAULT', 'reserve_cpu_percent', 10)) / 100))
     available_cores = total_cores - reserved_cores
     logging.debug(
         "Total cores: %d, Reserved: %d, Available: %d",
@@ -226,11 +226,11 @@ def get_total_memory() -> int:
         logging.error("Failed to get total memory: %s", str(e))
         total_memory = 0
 
-    available_memory = max(0, total_memory - DEFAULTS['reserve_memory_mb'])
+    available_memory = max(0, total_memory - int(get_config_value('DEFAULT', 'reserve_memory_mb', 2048)))
     logging.debug(
         "Total memory: %dMB, Reserved: %dMB, Available: %dMB",
         total_memory,
-        DEFAULTS['reserve_memory_mb'],
+        int(get_config_value('DEFAULT', 'reserve_memory_mb', 2048)),
         available_memory,
     )
     return available_memory
@@ -455,7 +455,7 @@ def get_container_config(ctid: str) -> Dict[str, Any]:
     Returns:
         The container's tier configuration.
     """
-    return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
+    return LXC_TIER_ASSOCIATIONS.get(ctid, config)
 
 
 def generate_unique_snapshot_name(base_name: str) -> str:

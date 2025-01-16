@@ -1,90 +1,75 @@
-# Global settings for the LXC autoscaling daemon.
-# These settings apply to all containers unless overridden in specific TIER configurations.
-DEFAULT:
-  # Path to the log file where scaling operations and errors are recorded.
+# Default configuration values
+DEFAULTS:
+  # Log file path
   log_file: /var/log/lxc_autoscale.log
-  # Path to the lock file used to prevent concurrent scaling operations.
+  # Lock file path
   lock_file: /var/lock/lxc_autoscale.lock
-  # Directory for storing backup files related to scaling operations.
+  # Backup directory path
   backup_dir: /var/lib/lxc_autoscale/backups
-  # Percentage of CPU reserved to ensure stability and performance of the system.
+  # Percentage of CPU cores to reserve (e.g., 10%)
   reserve_cpu_percent: 10
-  # Amount of memory (in MB) reserved to ensure stability and performance of the system.
+  # Amount of memory (in MB) to reserve (e.g., 2048 MB)
   reserve_memory_mb: 2048
-  # Behavior setting for scaling operations, which can be adjusted based on desired scaling strategy.
+  # Start hour for off-peak energy-saving mode (e.g., 10 PM)
+  off_peak_start: 22
+  # End hour for off-peak energy-saving mode (e.g., 6 AM)
+  off_peak_end: 6
+  # List of LXC container IDs to ignore (e.g., [])
+  ignore_lxc: []
+  # Behaviour mode (e.g., 'normal', 'conservative', 'aggressive')
   behaviour: normal
-  # You can now scale a remote Proxmox host via SSH. If enabled, local commands will be proxied to remote Proxmox host. Note that valid credentials must be provided.
-  use_remote_proxmox: false
-  # The hostname or IP address of the Proxmox server. Use IP to avoid DNS resolution issues.
-  proxmox_host: ''
-  # The port number used for SSH connections to Proxmox.
-  ssh_port: 22
-  # The SSH username for authenticating with the Proxmox server. Must have sufficient permissions for pct operations.
-  ssh_user: ''
-  # The SSH password for authenticating with the Proxmox server. Ensure the password is correct and secure.
-  ssh_password: ''
-  # Optional: Path to the private key for SSH key authentication. More secure than using a password.
-  # ssh_key_path: '/path/to/private/key'
-
-# TIER defined configurations. Change lxc_containers IDs and uncomment the whole section to enable it.
-TIER_test:
-  # Interval (in seconds) between polling for resource usage and making scaling decisions.
-  poll_interval: 120
-  # Threshold for CPU usage percentage that triggers scaling up.
-  cpu_upper_threshold: 70
-  # Threshold for CPU usage percentage that triggers scaling down.
-  cpu_lower_threshold: 30
-  # Threshold for memory usage percentage that triggers scaling up.
-  memory_upper_threshold: 60
-  # Threshold for memory usage percentage that triggers scaling down.
-  memory_lower_threshold: 25
-  # Minimum number of CPU cores to add or remove in a single scaling operation.
-  core_min_increment: 1
-  # Maximum number of CPU cores to add or remove in a single scaling operation.
-  core_max_increment: 2
-  # Minimum amount of memory (in MB) to add or remove in a single scaling operation.
-  memory_min_increment: 256
-  # Minimum number of CPU cores allocated to an instance.
+  # Default CPU upper threshold (%)
+  cpu_upper_threshold: 80
+  # Default CPU lower threshold (%)
+  cpu_lower_threshold: 20
+  # Default Memory upper threshold (%)
+  memory_upper_threshold: 70
+  # Default Memory lower threshold (%)
+  memory_lower_threshold: 20
+  # Default minimum number of CPU cores
   min_cores: 1
-  # Maximum number of CPU cores allocated to an instance.
+  # Default maximum number of CPU cores
   max_cores: 4
-  # Minimum amount of memory (in MB) allocated to an instance.
+  # Default minimum memory (MB)
   min_memory: 256
-  # Minimum chunk size (in MB) to reduce memory allocation by when scaling down.
+  # Default core increment
+  core_min_increment: 1
+  # Default core max increment
+  core_max_increment: 2
+  # Default memory increment (MB)
+  memory_min_increment: 256
+  # Default memory decrement (MB)
   min_decrease_chunk: 256
-  # Whether to enable energy-saving mode, which may affect scaling behavior to optimize for lower power usage.
-  energy_mode: false
-  # URL for Gotify notifications, used for sending alerts about scaling operations.
-  # gotify_url: 'your_test_gotify_url'
-  # Token for Gotify notifications, used for authentication when sending alerts.
-  # gotify_token: 'your_test_gotify_token'
-  # List of LXC container IDs that use this tier's configuration.
+
+# Tier configurations
+TIER_webservers:
   lxc_containers:
-    # Container ID 206
+    - 201
+    - 202
     - 206
-# Horizontal scaling groups. Experimental!!
-# Workaround: currently base_snapshot_name and lxc_containers must be identical.
-# Change options accordingly with your setup and uncomment the whole section to enable it.
-# HORIZONTAL_SCALING_GROUP_1:
-  # Base snapshot name used as a template for cloning instances in this scaling group.
-#   base_snapshot_name: "101"
-  # Minimum number of instances to maintain in this horizontal scaling group.
-#   min_instances: 2
-  # Maximum number of instances allowed in this horizontal scaling group.
-#   max_instances: 5
-  # Starting ID for clones created from the base snapshot.
-#   starting_clone_id: 99000 # Assigns clone IDs starting from 99000.
-  # Type of network configuration for clones. Options include "static" or "dhcp".
-#   clone_network_type: "static" # Indicates that static IP addresses are used.
-  # Range of static IP addresses available for assigning to clones.
-#   static_ip_range: ["192.168.100.195", "192.168.100.200","192.168.100.201"] # Defines the IP range for static assignment.
-  # CPU usage threshold percentage above which additional instances are created.
-#   horiz_cpu_upper_threshold: 5 # Create more instances when CPU usage exceeds 5%.
-  # Memory usage threshold percentage above which additional instances are created.
-#   horiz_memory_upper_threshold: 5 # Create more instances when memory usage exceeds 5%.
-  # Optional tag used to identify and categorize clones in this scaling group.
-#   group_tag: "horiz_scaling_group_1" # Tag for recognizing instances of this horizontal scaling group.
-  # List of LXC container IDs that are part of this horizontal scaling group.
-#   lxc_containers:
-    # Container ID 101
-#     - 101 # Specifies that container ID 101 is included in this scaling group.
+  cpu_upper_threshold: 70
+  cpu_lower_threshold: 30
+  memory_upper_threshold: 60
+  memory_lower_threshold: 30
+  min_cores: 1
+  max_cores: 2
+  min_memory: 512
+  core_min_increment: 1
+  core_max_increment: 1
+  memory_min_increment: 128
+  min_decrease_chunk: 128
+TIER_other:
+  lxc_containers:
+    - 203
+    - 204
+  cpu_upper_threshold: 60
+  cpu_lower_threshold: 40
+  memory_upper_threshold: 50
+  memory_lower_threshold: 40
+  min_cores: 1
+  max_cores: 1
+  min_memory: 256
+  core_min_increment: 1
+  core_max_increment: 1
+  memory_min_increment: 64
+  min_decrease_chunk: 64

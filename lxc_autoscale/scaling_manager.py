@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 import paramiko
 
 from config import (CPU_SCALE_DIVISOR, DEFAULTS, HORIZONTAL_SCALING_GROUPS,
-                    IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED)
+                    IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED, config, LXC_TIER_ASSOCIATIONS)
 from lxc_utils import (backup_container_settings, get_containers, get_cpu_usage,
                        get_memory_usage, get_total_cores, get_total_memory,
                        is_container_running, is_ignored, load_backup_settings,
@@ -158,21 +158,35 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
             logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
             continue
 
-        # Retrieve the tier configuration or default
-        config = DEFAULTS
-        for tier_name, tier_config in DEFAULTS.items():
-             if tier_name.startswith("TIER_") and "lxc_containers" in tier_config:
-                if str(ctid) in tier_config["lxc_containers"]:
-                    config = tier_config
-                    break
+        # Retrieve the tier configuration for the container
+        config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
 
-        cpu_upper = config['cpu_upper_threshold']
-        cpu_lower = config['cpu_lower_threshold']
-        mem_upper = config['memory_upper_threshold']
-        mem_lower = config['memory_lower_threshold']
-        min_cores = config['min_cores']
-        max_cores = config['max_cores']
-        min_memory = config['min_memory']
+        cpu_upper = config.get('cpu_upper_threshold')
+        cpu_lower = config.get('cpu_lower_threshold')
+        mem_upper = config.get('memory_upper_threshold')
+        mem_lower = config.get('memory_lower_threshold')
+        min_cores = config.get('min_cores')
+        max_cores = config.get('max_cores')
+        min_memory = config.get('min_memory')
+
+        if not all([cpu_upper, cpu_lower, mem_upper, mem_lower, min_cores, max_cores, min_memory]):
+            missing_keys = []
+            if cpu_upper is None:
+                missing_keys.append('cpu_upper_threshold')
+            if cpu_lower is None:
+                missing_keys.append('cpu_lower_threshold')
+            if mem_upper is None:
+                missing_keys.append('memory_upper_threshold')
+            if mem_lower is None:
+                missing_keys.append('memory_lower_threshold')
+            if min_cores is None:
+                missing_keys.append('min_cores')
+            if max_cores is None:
+                missing_keys.append('max_cores')
+            if min_memory is None:
+                missing_keys.append('min_memory')
+            logging.error(f"Missing configuration values for container {ctid}: {', '.join(missing_keys)}. Skipping resource adjustment.")
+            continue
 
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
