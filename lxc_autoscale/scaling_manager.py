@@ -1,90 +1,63 @@
-from config import config
-import logging  # For logging events and errors
-from datetime import datetime, timedelta  # For handling dates and times
-from lxc_utils import (  # Import necessary utility functions related to LXC management
-    run_command, get_containers, is_container_running, backup_container_settings,
-    load_backup_settings, rollback_container_settings, log_json_event, get_total_cores,
-    get_total_memory, get_cpu_usage, get_memory_usage, is_ignored, get_container_data,
-    collect_container_data, prioritize_containers, get_container_config,
-    generate_unique_snapshot_name, generate_cloned_hostname
-)
-from notification import send_notification  # Import the notification function
-from config import HORIZONTAL_SCALING_GROUPS, IGNORE_LXC, DEFAULTS  # Import configuration constants
+"""Manages scaling operations for LXC containers based on resource usage."""
+
+from datetime import datetime, timedelta
+import logging
+from typing import Any, Dict, List, Tuple
+
 import paramiko
 
-# Constants for repeated values
-TIMEOUT_EXTENDED = 300  # Extended timeout for scaling operations
-CPU_SCALE_DIVISOR = 10  # Divisor for dynamic CPU scaling
-MEMORY_SCALE_FACTOR = 10  # Factor for dynamic memory scaling
+from config import (CPU_SCALE_DIVISOR, DEFAULTS, HORIZONTAL_SCALING_GROUPS,
+                    IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED)
+from lxc_utils import (backup_container_settings, get_containers, get_cpu_usage,
+                       get_memory_usage, get_total_cores, get_total_memory,
+                       is_container_running, is_ignored, load_backup_settings,
+                       log_json_event, rollback_container_settings,
+                       run_command, generate_unique_snapshot_name, generate_cloned_hostname)
+from notification import send_notification
+
 
 # Dictionary to track the last scale-out action for each group
-scale_last_action = {}
+scale_last_action: Dict[str, datetime] = {}
 
-def generate_unique_snapshot_name(base_name):
-    """
-    Generate a unique name for a snapshot using the current timestamp.
 
-    Args:
-        base_name (str): The base name for the snapshot.
-
-    Returns:
-        str: A unique snapshot name.
-    """
-    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    return f"{base_name}-{timestamp}"
-
-def generate_cloned_hostname(base_name, clone_number):
-    """
-    Generate a hostname for a cloned container to ensure uniqueness.
+def calculate_increment(current: float, upper_threshold: float, min_increment: int, max_increment: int) -> int:
+    """Calculate the increment for resource scaling based on current usage and thresholds.
 
     Args:
-        base_name (str): The base name of the container.
-        clone_number (int): The clone number to append.
+        current: Current usage percentage.
+        upper_threshold: The upper threshold for usage.
+        min_increment: Minimum increment value.
+        max_increment: Maximum increment value.
 
     Returns:
-        str: A unique hostname for the cloned container.
-    """
-    return f"{base_name}-cloned-{clone_number}"
-
-def calculate_increment(current, upper_threshold, min_increment, max_increment):
-    """
-    Calculate the increment for resource scaling based on current usage and thresholds.
-
-    Args:
-        current (float): Current usage percentage.
-        upper_threshold (float): The upper threshold for usage.
-        min_increment (int): Minimum increment value.
-        max_increment (int): Maximum increment value.
-
-    Returns:
-        int: Calculated increment value.
+        Calculated increment value.
     """
     proportional_increment = int((current - upper_threshold) / CPU_SCALE_DIVISOR)
     return min(max(min_increment, proportional_increment), max_increment)
 
-def calculate_decrement(current, lower_threshold, current_allocated, min_decrement, min_allocated):
-    """
-    Calculate the decrement for resource scaling based on current usage and thresholds.
+
+def calculate_decrement(current: float, lower_threshold: float, current_allocated: int, min_decrement: int, min_allocated: int) -> int:
+    """Calculate the decrement for resource scaling based on current usage and thresholds.
 
     Args:
-        current (float): Current usage percentage.
-        lower_threshold (float): The lower threshold for usage.
-        current_allocated (int): Currently allocated resources (CPU or memory).
-        min_decrement (int): Minimum decrement value.
-        min_allocated (int): Minimum allowed allocated resources.
+        current: Current usage percentage.
+        lower_threshold: The lower threshold for usage.
+        current_allocated: Currently allocated resources (CPU or memory).
+        min_decrement: Minimum decrement value.
+        min_allocated: Minimum allowed allocated resources.
 
     Returns:
-        int: Calculated decrement value.
+         Calculated decrement value.
     """
     dynamic_decrement = max(1, int((lower_threshold - current) / CPU_SCALE_DIVISOR))
     return max(min(current_allocated - min_allocated, dynamic_decrement), min_decrement)
 
-def get_behaviour_multiplier():
-    """
-    Determine the behavior multiplier based on the current configuration.
+
+def get_behaviour_multiplier() -> float:
+    """Determine the behavior multiplier based on the current configuration.
 
     Returns:
-        float: The behavior multiplier (1.0 for normal, 0.5 for conservative, 2.0 for aggressive).
+         The behavior multiplier (1.0 for normal, 0.5 for conservative, 2.0 for aggressive).
     """
     if DEFAULTS['behaviour'] == 'conservative':
         return 0.5
@@ -92,22 +65,22 @@ def get_behaviour_multiplier():
         return 2.0
     return 1.0
 
-def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memory, available_memory, config):
-    """
-    Adjust memory for a container based on current usage.
+
+def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float, current_memory: int, min_memory: int, available_memory: int, config: Dict[str, Any]) -> Tuple[int, bool]:
+    """Adjust memory for a container based on current usage.
 
     Args:
-        ctid (str): Container ID.
-        mem_usage (float): Current memory usage.
-        mem_upper (float): Upper memory threshold.
-        mem_lower (float): Lower memory threshold.
-        current_memory (int): Currently allocated memory.
-        min_memory (int): Minimum memory allowed.
-        available_memory (int): Available memory.
-        config (dict): Configuration dictionary.
+        ctid: Container ID.
+        mem_usage: Current memory usage.
+        mem_upper: Upper memory threshold.
+        mem_lower: Lower memory threshold.
+        current_memory: Currently allocated memory.
+        min_memory: Minimum memory allowed.
+        available_memory: Available memory.
+        config: Configuration dictionary.
 
     Returns:
-        tuple: Updated available memory and flag indicating if memory was changed.
+         Updated available memory and a flag indicating if memory was changed.
     """
     memory_changed = False
     behaviour_multiplier = get_behaviour_multiplier()
@@ -115,7 +88,7 @@ def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memo
     if mem_usage > mem_upper:
         increment = max(
             int(config['memory_min_increment'] * behaviour_multiplier),
-            int((mem_usage - mem_upper) * config['memory_min_increment'] / MEMORY_SCALE_FACTOR)
+            int((mem_usage - mem_upper) * config['memory_min_increment'] / MEMORY_SCALE_FACTOR),
         )
         if available_memory >= increment:
             logging.info(f"Increasing memory for container {ctid} by {increment}MB...")
@@ -131,7 +104,8 @@ def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memo
     elif mem_usage < mem_lower and current_memory > min_memory:
         decrease_amount = calculate_decrement(
             mem_usage, mem_lower, current_memory,
-            int(config['min_decrease_chunk'] * behaviour_multiplier), min_memory
+            int(config['min_decrease_chunk'] * behaviour_multiplier),
+            min_memory,
         )
         if decrease_amount > 0:
             logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB...")
@@ -144,13 +118,13 @@ def scale_memory(ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memo
 
     return available_memory, memory_changed
 
-def adjust_resources(containers, energy_mode):
-    """
-    Adjust CPU and memory resources for each container based on usage.
+
+def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -> None:
+    """Adjust CPU and memory resources for each container based on usage.
 
     Args:
-        containers (dict): A dictionary of container resource usage data.
-        energy_mode (bool): Flag to indicate if energy-saving adjustments should be made during off-peak hours.
+        containers: A dictionary of container resource usage data.
+        energy_mode: Flag to indicate if energy-saving adjustments should be made during off-peak hours.
     """
     logging.info("Starting resource allocation process...")
     logging.info(f"Ignoring LXC Containers: {IGNORE_LXC}")
@@ -166,13 +140,6 @@ def adjust_resources(containers, energy_mode):
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    # Build a mapping of container IDs to their tier configurations
-    container_tiers = {}
-    for key, value in DEFAULTS.items():
-        if key.startswith("TIER_") and "lxc_containers" in value:
-            for ctid in value["lxc_containers"]:
-                container_tiers[str(ctid)] = value
-
     # Print current resource usage for all running LXC containers
     logging.info("Current resource usage for all containers:")
     for ctid, usage in containers.items():
@@ -187,12 +154,18 @@ def adjust_resources(containers, energy_mode):
 
     # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
-        if ctid in IGNORE_LXC:
+        if is_ignored(ctid):
             logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
             continue
 
         # Retrieve the tier configuration or default
-        config = container_tiers.get(str(ctid), DEFAULTS)
+        config = DEFAULTS
+        for tier_name, tier_config in DEFAULTS.items():
+             if tier_name.startswith("TIER_") and "lxc_containers" in tier_config:
+                if str(ctid) in tier_config["lxc_containers"]:
+                    config = tier_config
+                    break
+
         cpu_upper = config['cpu_upper_threshold']
         cpu_lower = config['cpu_lower_threshold']
         mem_upper = config['memory_upper_threshold']
@@ -268,20 +241,23 @@ def adjust_resources(containers, energy_mode):
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
 
 
-def manage_horizontal_scaling(containers):
-    """
-    Manage horizontal scaling based on CPU and memory usage across containers.
+def manage_horizontal_scaling(containers: Dict[str, Dict[str, Any]]) -> None:
+    """Manage horizontal scaling based on CPU and memory usage across containers.
 
     Args:
-        containers (dict): A dictionary of container resource usage data.
+        containers: A dictionary of container resource usage data.
     """
     for group_name, group_config in HORIZONTAL_SCALING_GROUPS.items():
         current_time = datetime.now()
         last_action_time = scale_last_action.get(group_name, current_time - timedelta(hours=1))
 
         # Calculate average CPU and memory usage for the group
-        total_cpu_usage = sum(containers[ctid]['cpu'] for ctid in group_config['lxc_containers'] if ctid in containers)
-        total_mem_usage = sum(containers[ctid]['mem'] for ctid in group_config['lxc_containers'] if ctid in containers)
+        total_cpu_usage = sum(
+            containers[ctid]['cpu'] for ctid in group_config['lxc_containers'] if ctid in containers
+        )
+        total_mem_usage = sum(
+            containers[ctid]['mem'] for ctid in group_config['lxc_containers'] if ctid in containers
+        )
         num_containers = len(group_config['lxc_containers'])
 
         if num_containers > 0:
@@ -294,23 +270,27 @@ def manage_horizontal_scaling(containers):
         logging.debug(f"Group: {group_name} | Average CPU Usage: {avg_cpu_usage}% | Average Memory Usage: {avg_mem_usage}%")
 
         # Check if scaling out is needed based on usage thresholds
-        if (avg_cpu_usage > group_config['horiz_cpu_upper_threshold'] or
-            avg_mem_usage > group_config['horiz_memory_upper_threshold']):
+        if (
+            avg_cpu_usage > group_config['horiz_cpu_upper_threshold']
+            or avg_mem_usage > group_config['horiz_memory_upper_threshold']
+        ):
             logging.debug(f"Thresholds exceeded for {group_name}. Evaluating scale-out conditions.")
 
             # Ensure enough time has passed since the last scaling action
-            if current_time - last_action_time >= timedelta(seconds=group_config.get('scale_out_grace_period', 300)):
+            if current_time - last_action_time >= timedelta(
+                seconds=group_config.get('scale_out_grace_period', 300)
+            ):
                 scale_out(group_name, group_config)
         else:
             logging.debug(f"No scaling needed for {group_name}. Average usage below thresholds.")
 
-def scale_out(group_name, group_config):
-    """
-    Scale out a horizontal scaling group by cloning a new container.
+
+def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
+    """Scale out a horizontal scaling group by cloning a new container.
 
     Args:
-        group_name (str): The name of the scaling group.
-        group_config (dict): Configuration details for the scaling group.
+        group_name: The name of the scaling group.
+        group_config: Configuration details for the scaling group.
     """
     current_instances = sorted(map(int, group_config['lxc_containers']))
     starting_clone_id = group_config['starting_clone_id']
@@ -322,7 +302,9 @@ def scale_out(group_name, group_config):
         return
 
     # Determine the next available clone ID
-    new_ctid = starting_clone_id + len([ctid for ctid in current_instances if int(ctid) >= starting_clone_id])
+    new_ctid = starting_clone_id + len(
+        [ctid for ctid in current_instances if int(ctid) >= starting_clone_id]
+    )
     base_snapshot = group_config['base_snapshot_name']
 
     # Create a unique snapshot name
@@ -347,12 +329,18 @@ def scale_out(group_name, group_config):
             elif group_config['clone_network_type'] == "static":
                 static_ip_range = group_config.get('static_ip_range', [])
                 if static_ip_range:
-                    available_ips = [ip for ip in static_ip_range if ip not in current_instances]
+                    available_ips = [
+                        ip for ip in static_ip_range if ip not in current_instances
+                    ]
                     if available_ips:
                         ip_address = available_ips[0]
-                        run_command(f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip={ip_address}/24")
+                        run_command(
+                            f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip={ip_address}/24"
+                        )
                     else:
-                        logging.warning("No available IPs in the specified range for static IP assignment.")
+                        logging.warning(
+                            "No available IPs in the specified range for static IP assignment."
+                        )
 
             # Start the new container
             run_command(f"pct start {new_ctid}")
@@ -366,18 +354,26 @@ def scale_out(group_name, group_config):
             send_notification(f"Scale Out: {group_name}", f"New container {new_ctid} with hostname {clone_hostname} started.")
 
             # Log the scale-out event to JSON
-            log_json_event(new_ctid, "Scale Out", f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.")
+            log_json_event(
+                new_ctid,
+                "Scale Out",
+                f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.",
+            )
         else:
-            logging.error(f"Failed to clone container {base_snapshot} using snapshot {unique_snapshot_name}.")
+            logging.error(
+                f"Failed to clone container {base_snapshot} using snapshot {unique_snapshot_name}."
+            )
     else:
-        logging.error(f"Failed to create snapshot {unique_snapshot_name} of container {base_snapshot}.")
+        logging.error(
+            f"Failed to create snapshot {unique_snapshot_name} of container {base_snapshot}."
+        )
 
-def is_off_peak():
-    """
-    Determine if the current time is within off-peak hours.
+
+def is_off_peak() -> bool:
+    """Determine if the current time is within off-peak hours.
 
     Returns:
-        bool: True if it is off-peak, otherwise False.
+         True if it is off-peak, otherwise False.
     """
     current_hour = datetime.now().hour
     return DEFAULTS['off_peak_start'] <= current_hour or current_hour < DEFAULTS['off_peak_end']

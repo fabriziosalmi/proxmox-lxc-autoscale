@@ -1,26 +1,26 @@
-import config
+"""Manages resource allocation and scaling for LXC containers."""
+
 import logging
-from time import sleep
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional
+
+import paramiko
+
 import lxc_utils
 import scaling_manager
-import notification
-import paramiko
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from config import config
+from notification import send_notification
 
-import paramiko
 
-# Debug print statement to ensure paramiko is imported
-# print(f"Paramiko version: {paramiko.__version__}")
-
-def collect_data_for_container(ctid: str) -> dict:
-    """
-    Collect resource usage data for a single LXC container.
+def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
+    """Collect resource usage data for a single LXC container.
 
     Args:
-        ctid (str): The container ID.
+        ctid: The container ID.
 
     Returns:
-        dict: The data collected for the container, or None if the container is not running.
+        A dictionary with resource data for the container, or None if the container is not running.
     """
     if not lxc_utils.is_container_running(ctid):
         return None
@@ -30,32 +30,29 @@ def collect_data_for_container(ctid: str) -> dict:
     try:
         # Retrieve the current configuration of the container using Python string operations
         config_output = lxc_utils.run_command(f"pct config {ctid}")
-        
+        if not config_output:
+            logging.error(f"Failed to retrieve configuration for container {ctid}")
+            return None
+
         # Initialize values for cores and memory
-        cores = None
-        memory = None
+        cores: Optional[int] = None
+        memory: Optional[int] = None
 
         # Parse the config_output for cores and memory
         for line in config_output.splitlines():
-            # Check if 'cores' and 'memory' exist and extract their values safely
-            if 'cores' in line:
-                try:
-                    cores_value = line.split()[1]
-                    if cores_value.isdigit():  # Ensure it's a valid integer string
-                        cores = int(cores_value)
-                    else:
-                        logging.warning(f"Invalid value for cores: {cores_value}")
-                except IndexError:
-                    logging.warning(f"Unable to extract cores value from line: {line}")
-            elif 'memory' in line:
-                try:
-                    memory_value = line.split()[1]
-                    if memory_value.isdigit():  # Ensure it's a valid integer string
-                        memory = int(memory_value)
-                    else:
-                        logging.warning(f"Invalid value for memory: {memory_value}")
-                except IndexError:
-                    logging.warning(f"Unable to extract memory value from line: {line}")
+            parts = line.split()
+            if len(parts) > 1:
+                if 'cores' == parts[0]:
+                     try:
+                         cores = int(parts[1])
+                     except (ValueError, IndexError) :
+                            logging.warning(f"Invalid value for cores: {parts[1]} in line {line}")
+                elif 'memory' == parts[0]:
+                    try:
+                        memory = int(parts[1])
+                    except (ValueError, IndexError) :
+                         logging.warning(f"Invalid value for memory: {parts[1]} in line {line}")
+
 
         if cores is None or memory is None:
             raise ValueError(f"Failed to extract valid cores or memory values for container {ctid}")
@@ -82,16 +79,18 @@ def collect_data_for_container(ctid: str) -> dict:
         return None
 
 
-def collect_container_data() -> dict:
-    """
-    Collect resource usage data for all LXC containers.
+def collect_container_data() -> Dict[str, Dict[str, Any]]:
+    """Collect resource usage data for all LXC containers.
 
     Returns:
-        dict: A dictionary where the keys are container IDs and the values are their respective data.
+        A dictionary where the keys are container IDs and the values are their respective data.
     """
-    containers = {}
+    containers: Dict[str, Dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {executor.submit(collect_data_for_container, ctid): ctid for ctid in lxc_utils.get_containers()}
+        futures = {
+            executor.submit(collect_data_for_container, ctid): ctid
+            for ctid in lxc_utils.get_containers()
+        }
         for future in as_completed(futures):
             try:
                 container_data = future.result()
@@ -101,15 +100,13 @@ def collect_container_data() -> dict:
                 logging.error(f"Error collecting data for a container: {e}")
     return containers
 
-import time
 
-def main_loop(poll_interval: int, energy_mode: bool):
-    """
-    Main loop that handles the resource allocation and scaling process.
+def main_loop(poll_interval: int, energy_mode: bool) -> None:
+    """Main loop that handles the resource allocation and scaling process.
 
     Args:
-        poll_interval (int): The interval in seconds between each resource allocation process.
-        energy_mode (bool): A flag to indicate if energy efficiency mode should be enabled during off-peak hours.
+        poll_interval: The interval in seconds between each resource allocation process.
+        energy_mode: A flag to indicate if energy efficiency mode should be enabled during off-peak hours.
     """
     while True:
         loop_start_time = time.time()
@@ -139,18 +136,16 @@ def main_loop(poll_interval: int, energy_mode: bool):
 
             loop_duration = time.time() - loop_start_time
             logging.info(f"Resource allocation process completed. Total loop duration: {loop_duration:.2f} seconds.")
-            
+
             # Log next run in `poll_interval` seconds
             if loop_duration < poll_interval:
                 sleep_duration = poll_interval - loop_duration
                 logging.debug(f"Sleeping for {sleep_duration:.2f} seconds until the next run.")
-                sleep(sleep_duration)
+                time.sleep(sleep_duration)
             else:
                 logging.warning("The loop took longer than the poll interval! No sleep will occur.")
 
         except Exception as e:
             logging.error(f"Error in main loop: {e}")
             logging.exception("Exception traceback:")
-            # Optional: Decide if you want to continue or handle specific exceptions differently.
-            sleep(poll_interval)  # Optional: Handle the error more gracefully or exit
-
+            time.sleep(poll_interval)

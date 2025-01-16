@@ -1,16 +1,20 @@
-from config import config
-import paramiko
-# Importing necessary modules and functions
-from config import get_config_value, LOG_FILE, DEFAULTS, BACKUP_DIR, PROXMOX_HOSTNAME, IGNORE_LXC  # Importing configuration constants and utility functions
-from logging_setup import setup_logging  # Importing the logging setup function
+"""Main module for LXC autoscaling daemon."""
+
+import argparse
+import logging
+from typing import Optional
+
+import paramiko  # Import the paramiko library
+
+from config import DEFAULTS, get_config_value, IGNORE_LXC, LOG_FILE, PROXMOX_HOSTNAME, BACKUP_DIR  # Import configuration constants and utility functions
+from logging_setup import setup_logging  # Import the logging setup function
 from lock_manager import acquire_lock  # Function to acquire a lock, ensuring only one instance of the script runs
 from lxc_utils import get_containers, rollback_container_settings  # Utility functions for managing LXC containers
 from resource_manager import main_loop  # Main loop function that handles the resource allocation and scaling process
-import argparse  # Module for parsing command-line arguments
-import logging  # Module for logging events and errors
 
-# Function to parse command-line arguments
-def parse_arguments():
+
+
+def parse_arguments() -> argparse.Namespace:
     """
     Parses command-line arguments to configure the daemon's behavior.
 
@@ -44,10 +48,11 @@ def parse_arguments():
 
     return parser.parse_args()
 
+
 # Entry point of the script
 if __name__ == "__main__":
     # Parse command-line arguments
-    args = parse_arguments()
+    args: argparse.Namespace = parse_arguments()
 
     # Setup logging based on the configuration
     setup_logging()
@@ -65,6 +70,9 @@ if __name__ == "__main__":
             else:
                 # If not rolling back, enter the main loop to manage resources
                 main_loop(args.poll_interval, args.energy_mode)
+        except Exception as e:
+            logging.exception(f"An error occurred during main execution: {e}")
+
         finally:
             # Ensure that the lock is released and the script exits cleanly
             logging.info("Releasing lock and exiting.")
