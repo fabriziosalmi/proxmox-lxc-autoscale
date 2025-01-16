@@ -40,18 +40,19 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
 
         # Parse the config_output for cores and memory
         for line in config_output.splitlines():
-            parts = line.split()
-            if len(parts) > 1:
-                if 'cores' == parts[0]:
+            parts = line.split(":", 1)  # Split at the first colon
+            if len(parts) == 2:
+                key, value = parts[0].strip(), parts[1].strip()
+                if 'cores' == key:
                      try:
-                         cores = int(parts[1])
+                         cores = int(value)
                      except (ValueError, IndexError) :
-                            logging.warning(f"Invalid value for cores: {parts[1]} in line {line}")
-                elif 'memory' == parts[0]:
+                            logging.warning(f"Invalid value for cores: {value} in line {line}")
+                elif 'memory' == key:
                     try:
-                        memory = int(parts[1])
+                        memory = int(value)
                     except (ValueError, IndexError) :
-                         logging.warning(f"Invalid value for memory: {parts[1]} in line {line}")
+                         logging.warning(f"Invalid value for memory: {value} in line {line}")
 
 
         if cores is None or memory is None:
