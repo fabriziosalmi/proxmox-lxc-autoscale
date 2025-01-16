@@ -1,5 +1,3 @@
-"""Utility functions for LXC container management and monitoring."""
-
 import json
 import logging
 import os
@@ -20,6 +18,42 @@ from config import (BACKUP_DIR,  IGNORE_LXC, LOG_FILE,
 
 lock = Lock()
 
+# Global variable to hold the SSH client
+ssh_client: Optional[paramiko.SSHClient] = None
+
+def get_ssh_client() -> Optional[paramiko.SSHClient]:
+    """Get or create a new SSH client connection."""
+    global ssh_client
+    if ssh_client is None:
+        logging.debug("Creating a new SSH connection...")
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(
+                hostname=config.get('DEFAULT', {}).get('proxmox_host'),
+                port=config.get('DEFAULT', {}).get('ssh_port', 22),
+                username=config.get('DEFAULT', {}).get('ssh_user'),
+                password=config.get('DEFAULT', {}).get('ssh_password'),
+                key_filename=config.get('DEFAULT', {}).get('ssh_key_path'),
+                timeout=10
+            )
+            logging.info("SSH connection established successfully.")
+            ssh_client = ssh
+        except paramiko.SSHException as e:
+            logging.error("SSH connection failed: %s", str(e))
+            return None
+        except Exception as e:
+            logging.error("Unexpected error establishing SSH connection: %s", str(e))
+            return None
+    return ssh_client
+
+def close_ssh_client() -> None:
+    """Close the SSH client connection."""
+    global ssh_client
+    if ssh_client:
+        logging.debug("Closing SSH connection...")
+        ssh_client.close()
+        ssh_client = None
 
 def run_command(cmd: str, timeout: int = 30) -> Optional[str]:
     """Execute a command locally or remotely based on configuration.
@@ -72,17 +106,10 @@ def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
         The command output or None if the command failed.
     """
     logging.debug("Running remote command: %s", cmd)
-    ssh: Optional[paramiko.SSHClient] = None
+    ssh = get_ssh_client()
+    if not ssh:
+        return None
     try:
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
-            hostname=config.get('DEFAULT', {}).get('proxmox_host'),
-            port=config.get('DEFAULT', {}).get('ssh_port', 22),
-            username=config.get('DEFAULT', {}).get('ssh_user'),
-            password=config.get('DEFAULT', {}).get('ssh_password'),
-            key_filename=config.get('DEFAULT', {}).get('ssh_key_path'),
-        )
         _, stdout, _ = ssh.exec_command(cmd, timeout=timeout)
         output = stdout.read().decode('utf-8').strip()
         logging.debug("Remote command '%s' executed successfully: %s", cmd, output)
@@ -91,9 +118,6 @@ def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
         logging.error("SSH execution failed: %s", str(e))
     except Exception as e:  # pylint: disable=broad-except
         logging.error("Unexpected SSH error executing '%s': %s", cmd, str(e))
-    finally:
-        if ssh:
-            ssh.close()
     return None
 
 
@@ -481,3 +505,6 @@ def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
         A unique hostname for the cloned container.
     """
     return f"{base_name}-cloned-{clone_number}"
+
+import atexit
+atexit.register(close_ssh_client)
