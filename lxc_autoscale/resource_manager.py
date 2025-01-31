@@ -13,6 +13,9 @@ from config import config
 from notification import send_notification
 
 
+IGNORE_LXC = ["container1", "container2"]  # Example list of containers to ignore
+
+
 def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
     """Collect resource usage data for a single LXC container.
 
@@ -22,6 +25,10 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
     Returns:
         A dictionary with resource data for the container, or None if the container is not running.
     """
+    if ctid in IGNORE_LXC:
+        logging.info(f"Container {ctid} is ignored. Skipping data collection.")
+        return None
+
     if not lxc_utils.is_container_running(ctid):
         return None
 
@@ -44,16 +51,15 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
             if len(parts) == 2:
                 key, value = parts[0].strip(), parts[1].strip()
                 if 'cores' == key:
-                     try:
-                         cores = int(value)
-                     except (ValueError, IndexError) :
-                            logging.warning(f"Invalid value for cores: {value} in line {line}")
+                    try:
+                        cores = int(value)
+                    except (ValueError, IndexError):
+                        logging.warning(f"Invalid value for cores: {value} in line {line}")
                 elif 'memory' == key:
                     try:
                         memory = int(value)
-                    except (ValueError, IndexError) :
-                         logging.warning(f"Invalid value for memory: {value} in line {line}")
-
+                    except (ValueError, IndexError):
+                        logging.warning(f"Invalid value for memory: {value} in line {line}")
 
         if cores is None or memory is None:
             raise ValueError(f"Failed to extract valid cores or memory values for container {ctid}")
@@ -99,6 +105,7 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                     containers.update(container_data)
             except Exception as e:
                 logging.error(f"Error collecting data for a container: {e}")
+    logging.info(f"Collected data for containers: {list(containers.keys())}")
     return containers
 
 
@@ -120,6 +127,14 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
             containers = collect_container_data()
             collect_duration = time.time() - collect_start_time
             logging.debug(f"Container data collection took {collect_duration:.2f} seconds.")
+
+            # Validate tier settings from config.yaml
+            for ctid, data in containers.items():
+                tier = config.get("tiers", {}).get(ctid)
+                if tier:
+                    logging.info(f"Applying tier settings for container {ctid}: {tier}")
+                else:
+                    logging.warning(f"No tier settings found for container {ctid} in config.yaml")
 
             # Log time before adjusting resources
             adjust_start_time = time.time()
