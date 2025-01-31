@@ -93,6 +93,7 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
         futures = {
             executor.submit(collect_data_for_container, ctid): ctid
             for ctid in lxc_utils.get_containers()
+            if ctid not in IGNORE_LXC
         }
         for future in as_completed(futures):
             try:
@@ -127,10 +128,11 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
             # Validate tier settings from config.yaml
             for ctid, data in containers.items():
                 tier = config.get("tiers", {}).get(ctid)
+                containers[ctid]["tier"] = tier
                 if tier:
                     logging.info(f"Applying tier settings for container {ctid}: {tier}")
                 else:
-                    logging.info(f"No tier settings found for container {ctid} in config.yaml")
+                    logging.info(f"No tier settings found for container {ctid} in /etc/lxc_autoscale/lxc_Autoscale.yml")
 
             # Log time before adjusting resources
             adjust_start_time = time.time()

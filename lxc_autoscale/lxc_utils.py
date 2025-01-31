@@ -297,30 +297,28 @@ def get_cpu_usage(ctid: str) -> float:
     def proc_stat_method(ctid: str) -> float:
         """Calculate CPU usage using /proc/stat from within the container."""
         try:
-            # Get initial CPU stats from within container
-            cmd1 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
+            # Get initial CPU stats
+            cmd1 = f"pct exec {ctid} -- cat /proc/stat | head -n1"
             initial = run_command(cmd1)
-            if not initial:
+            if not initial or 'cpu' not in initial:
                 raise RuntimeError("Failed to get initial CPU stats")
                 
             initial_values = list(map(int, initial.split()[1:]))
             initial_idle = initial_values[3]
             initial_total = sum(initial_values)
 
-            # Wait a second
             time.sleep(1)
 
-            # Get CPU stats again
-            cmd2 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
+            # Get current CPU stats
+            cmd2 = f"pct exec {ctid} -- cat /proc/stat | head -n1"
             current = run_command(cmd2)
-            if not current:
+            if not current or 'cpu' not in current:
                 raise RuntimeError("Failed to get current CPU stats")
                 
             current_values = list(map(int, current.split()[1:]))
             current_idle = current_values[3]
             current_total = sum(current_values)
 
-            # Calculate usage
             total_diff = current_total - initial_total
             idle_diff = current_idle - initial_idle
 
@@ -430,7 +428,7 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
         futures = {
             executor.submit(collect_data_for_container, ctid): ctid
             for ctid in get_containers()
-            if not is_ignored(ctid)  # Double check ignore list
+            if not is_ignored(ctid)
         }
         
         for future in as_completed(futures):
@@ -439,29 +437,13 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                 result = future.result()
                 if result:
                     containers.update(result)
-                    # Apply tier settings if container is in a tier
+                    # Apply tier settings
                     if ctid in LXC_TIER_ASSOCIATIONS:
-                        tier_config = LXC_TIER_ASSOCIATIONS[ctid]
-                        containers[ctid].update({
-                            'cpu_upper_threshold': tier_config.get('cpu_upper_threshold'),
-                            'cpu_lower_threshold': tier_config.get('cpu_lower_threshold'),
-                            'memory_upper_threshold': tier_config.get('memory_upper_threshold'),
-                            'memory_lower_threshold': tier_config.get('memory_lower_threshold'),
-                            'min_cores': tier_config.get('min_cores'),
-                            'max_cores': tier_config.get('max_cores'),
-                            'min_memory': tier_config.get('min_memory'),
-                            'core_min_increment': tier_config.get('core_min_increment'),
-                            'core_max_increment': tier_config.get('core_max_increment'),
-                            'memory_min_increment': tier_config.get('memory_min_increment'),
-                            'min_decrease_chunk': tier_config.get('min_decrease_chunk')
-                        })
-                        logging.debug(f"Applied tier settings for container {ctid}")
-                else:
-                    logging.info(f"No tier settings found for container {ctid} in config.yaml")
+                        containers[ctid].update(LXC_TIER_ASSOCIATIONS[ctid])
+                        logging.info(f"Applied tier settings for container {ctid}: {LXC_TIER_ASSOCIATIONS[ctid]}")
             except Exception as e:
                 logging.error(f"Error collecting data for container {ctid}: {e}")
     
-    logging.info(f"Collected data for containers: {list(containers.keys())}")
     return containers
 
 
@@ -529,3 +511,4 @@ def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
 
 import atexit
 atexit.register(close_ssh_client)
+
