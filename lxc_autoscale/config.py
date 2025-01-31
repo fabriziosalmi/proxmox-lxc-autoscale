@@ -45,11 +45,16 @@ def get_config_value(section: str, key: str, default: Any) -> Any:
 # --- Default Configuration ---
 DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
 
+# --- Resource Scaling Constants ---
+CPU_SCALE_DIVISOR: float = DEFAULTS.get('cpu_scale_divisor', 2.0)
+MEMORY_SCALE_FACTOR: float = DEFAULTS.get('memory_scale_factor', 1.5)
+TIMEOUT_EXTENDED: int = DEFAULTS.get('timeout_extended', 60)
+
 # --- General Configuration ---
 LOG_FILE: str = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')
 LOCK_FILE: str = get_config_value('DEFAULT', 'lock_file', '/var/lock/lxc_autoscale.lock')
 BACKUP_DIR: str = get_config_value('DEFAULT', 'backup_dir', '/var/lib/lxc_autoscale/backups')
-IGNORE_LXC: Set[str] = set(str(x) for x in config.get('DEFAULTS', {}).get('ignore_lxc', []))
+IGNORE_LXC: Set[str] = set(str(x) for x in DEFAULTS.get('ignore_lxc', []))
 PROXMOX_HOSTNAME: str = gethostname()
 
 # --- Load Tier Configurations ---
@@ -67,24 +72,18 @@ for section, group_config in config.items():
             else:
                 print(f"Warning: lxc_containers in {section} is not a list and will be ignored")
 
-
 __all__ = [
     'CONFIG_FILE',
     'DEFAULTS',
     'LOG_FILE',
     'LOCK_FILE',
     'BACKUP_DIR',
-    'RESERVE_CPU_PERCENT',
-    'RESERVE_MEMORY_MB',
-    'OFF_PEAK_START',
-    'OFF_PEAK_END',
     'IGNORE_LXC',
-    'BEHAVIOUR',
     'PROXMOX_HOSTNAME',
-    'get_config_value',
-    'HORIZONTAL_SCALING_GROUPS',
-    'LXC_TIER_ASSOCIATIONS',
     'CPU_SCALE_DIVISOR',
     'MEMORY_SCALE_FACTOR',
     'TIMEOUT_EXTENDED',
+    'get_config_value',
+    'HORIZONTAL_SCALING_GROUPS',
+    'LXC_TIER_ASSOCIATIONS',
 ]
