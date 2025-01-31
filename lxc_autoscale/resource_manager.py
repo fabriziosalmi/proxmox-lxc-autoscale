@@ -9,7 +9,12 @@ import paramiko
 
 import lxc_utils
 import scaling_manager
-from config import config
+from config import (
+    config, 
+    DEFAULTS, 
+    LXC_TIER_ASSOCIATIONS,
+    IGNORE_LXC
+)
 from notification import send_notification
 
 
@@ -85,18 +90,18 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                 result = future.result()
                 if result:
                     containers.update(result)
-                    # Apply tier settings with validation
-                    tier_config = config.get("tiers", {}).get(ctid)
+                    # Apply tier settings
+                    tier_config = LXC_TIER_ASSOCIATIONS.get(ctid)
                     if tier_config:
                         if validate_tier_config(ctid, tier_config):
                             containers[ctid].update(tier_config)
-                            logging.info(f"Applied validated tier settings for container {ctid}: {tier_config}")
+                            logging.info(f"Applied tier settings for container {ctid} from tier {tier_config.get('tier_name', 'unknown')}")
                         else:
                             logging.warning(f"Using default settings for container {ctid} due to invalid tier configuration")
-                            containers[ctid].update(config.get("DEFAULTS", {}))
+                            containers[ctid].update(DEFAULTS)
                     else:
                         logging.info(f"No tier settings found for container {ctid}, using defaults")
-                        containers[ctid].update(config.get("DEFAULTS", {}))
+                        containers[ctid].update(DEFAULTS)
             except Exception as e:
                 logging.error(f"Error collecting data for container {ctid}: {e}")
     

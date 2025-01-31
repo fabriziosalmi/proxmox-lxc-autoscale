@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 from socket import gethostname
@@ -20,22 +21,33 @@ def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
     """Load and validate tier configurations."""
     tier_configs: Dict[str, Dict[str, Any]] = {}
     
+    # Initialize logging
+    logging.basicConfig(level=logging.INFO)
+    
     for section, values in config.items():
-        if section.startswith('TIER_') and isinstance(values, dict):
-            for ctid in values.get('lxc_containers', []):
-                tier_configs[str(ctid)] = {
-                    'cpu_upper_threshold': values.get('cpu_upper_threshold', DEFAULTS.get('cpu_upper_threshold')),
-                    'cpu_lower_threshold': values.get('cpu_lower_threshold', DEFAULTS.get('cpu_lower_threshold')),
-                    'memory_upper_threshold': values.get('memory_upper_threshold', DEFAULTS.get('memory_upper_threshold')),
-                    'memory_lower_threshold': values.get('memory_lower_threshold', DEFAULTS.get('memory_lower_threshold')),
-                    'min_cores': values.get('min_cores', DEFAULTS.get('min_cores')),
-                    'max_cores': values.get('max_cores', DEFAULTS.get('max_cores')),
-                    'min_memory': values.get('min_memory', DEFAULTS.get('min_memory')),
-                    'core_min_increment': values.get('core_min_increment', DEFAULTS.get('core_min_increment')),
-                    'core_max_increment': values.get('core_max_increment', DEFAULTS.get('core_max_increment')),
-                    'memory_min_increment': values.get('memory_min_increment', DEFAULTS.get('memory_min_increment')),
-                    'min_decrease_chunk': values.get('min_decrease_chunk', DEFAULTS.get('min_decrease_chunk'))
-                }
+        if section.startswith('TIER_'):
+            # Extract tier name from section
+            tier_name = section[5:]  # Remove 'TIER_' prefix
+            if isinstance(values, dict):
+                if 'lxc_containers' in values:
+                    # Apply tier settings to each container in the tier
+                    for ctid in values['lxc_containers']:
+                        tier_configs[str(ctid)] = {
+                            'cpu_upper_threshold': values.get('cpu_upper_threshold', DEFAULTS['cpu_upper_threshold']),
+                            'cpu_lower_threshold': values.get('cpu_lower_threshold', DEFAULTS['cpu_lower_threshold']),
+                            'memory_upper_threshold': values.get('memory_upper_threshold', DEFAULTS['memory_upper_threshold']),
+                            'memory_lower_threshold': values.get('memory_lower_threshold', DEFAULTS['memory_lower_threshold']),
+                            'min_cores': values.get('min_cores', DEFAULTS['min_cores']),
+                            'max_cores': values.get('max_cores', DEFAULTS['max_cores']),
+                            'min_memory': values.get('min_memory', DEFAULTS['min_memory']),
+                            'core_min_increment': values.get('core_min_increment', DEFAULTS.get('core_min_increment', 1)),
+                            'core_max_increment': values.get('core_max_increment', DEFAULTS.get('core_max_increment', 2)),
+                            'memory_min_increment': values.get('memory_min_increment', DEFAULTS.get('memory_min_increment', 256)),
+                            'min_decrease_chunk': values.get('min_decrease_chunk', DEFAULTS.get('min_decrease_chunk', 128)),
+                            'tier_name': tier_name
+                        }
+                        logging.info(f"Loaded tier configuration for container {ctid} from tier {tier_name}")
+
     return tier_configs
 
 def get_config_value(section: str, key: str, default: Any) -> Any:

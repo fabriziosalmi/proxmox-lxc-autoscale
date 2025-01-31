@@ -44,14 +44,14 @@ DEFAULTS:
 # Tier configurations
 TIER_webservers:
   lxc_containers:
-    - 102  # Container 102 shows higher memory usage
+    - 102
   cpu_upper_threshold: 70
-  cpu_lower_threshold: 20  # Adjusted to match logs
+  cpu_lower_threshold: 20
   memory_upper_threshold: 80
   memory_lower_threshold: 20
   min_cores: 1
-  max_cores: 4  # Increased based on usage patterns
-  min_memory: 4096  # Adjusted based on current allocation
+  max_cores: 4
+  min_memory: 4096
   core_min_increment: 1
   core_max_increment: 2
   memory_min_increment: 1024
@@ -59,14 +59,14 @@ TIER_webservers:
 
 TIER_other:
   lxc_containers:
-    - 103  # Removed 104 as it should be ignored
+    - 103
   cpu_upper_threshold: 60
-  cpu_lower_threshold: 20  # Adjusted to match logs
+  cpu_lower_threshold: 20
   memory_upper_threshold: 50
   memory_lower_threshold: 20
   min_cores: 1
   max_cores: 2
-  min_memory: 256  # Matches current allocation
+  min_memory: 256
   core_min_increment: 1
   core_max_increment: 1
   memory_min_increment: 128
