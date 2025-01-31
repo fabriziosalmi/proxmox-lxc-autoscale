@@ -32,7 +32,7 @@ DEFAULTS:
   min_memory: 256
   # Default core increment
   core_min_increment: 1
-  # Default core max increment
+  # Default core max increment: 2
   core_max_increment: 2
   # Default memory increment (MB)
   memory_min_increment: 256
@@ -45,6 +45,7 @@ DEFAULTS:
 TIER_webservers:
   lxc_containers:
     - 101
+    - 102  # Added container 102 to this tier
   cpu_upper_threshold: 70
   cpu_lower_threshold: 30
   memory_upper_threshold: 60
@@ -56,9 +57,11 @@ TIER_webservers:
   core_max_increment: 1
   memory_min_increment: 128
   min_decrease_chunk: 128
+
 TIER_other:
   lxc_containers:
     - 103
+    - 104  # Added container 104 to this tier
   cpu_upper_threshold: 60
   cpu_lower_threshold: 40
   memory_upper_threshold: 50
