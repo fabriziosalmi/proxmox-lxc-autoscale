@@ -13,7 +13,7 @@ from config import config
 from notification import send_notification
 
 
-IGNORE_LXC = ["container1", "container2"]  # Example list of containers to ignore
+IGNORE_LXC = config.get("DEFAULTS", {}).get("ignore_lxc", [])  # Example list of containers to ignore
 
 
 def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:

@@ -14,8 +14,6 @@ DEFAULTS:
   off_peak_start: 22
   # End hour for off-peak energy-saving mode (e.g., 6 AM)
   off_peak_end: 6
-  # List of LXC container IDs to ignore (e.g., [])
-  ignore_lxc: []
   # Behaviour mode (e.g., 'normal', 'conservative', 'aggressive')
   behaviour: normal
   # Default CPU upper threshold (%)
@@ -40,13 +38,13 @@ DEFAULTS:
   memory_min_increment: 256
   # Default memory decrement (MB)
   min_decrease_chunk: 256
-
+  ignore_lxc: 
+  - 104
+  
 # Tier configurations
 TIER_webservers:
   lxc_containers:
-    - 201
-    - 202
-    - 206
+    - 101
   cpu_upper_threshold: 70
   cpu_lower_threshold: 30
   memory_upper_threshold: 60
@@ -60,8 +58,7 @@ TIER_webservers:
   min_decrease_chunk: 128
 TIER_other:
   lxc_containers:
-    - 203
-    - 204
+    - 103
   cpu_upper_threshold: 60
   cpu_lower_threshold: 40
   memory_upper_threshold: 50
