@@ -154,12 +154,18 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
     # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
+        # Skip if container is in ignore list
         if is_ignored(ctid):
-            logging.info(f"Container {ctid} is ignored. Skipping resource adjustment.")
+            logging.info(f"Skipping ignored container {ctid}")
             continue
 
         # Retrieve the tier configuration for the container
         config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
+
+        tier_settings = config.get("tiers", {}).get(ctid, {})
+        if tier_settings:
+            logging.info(f"Applying tier settings for container {ctid}: {tier_settings}")
+            # ...apply custom thresholds or logic based on tier_settings...
 
         cpu_upper = config.get('cpu_upper_threshold')
         cpu_lower = config.get('cpu_lower_threshold')
@@ -265,14 +271,16 @@ def manage_horizontal_scaling(containers: Dict[str, Dict[str, Any]]) -> None:
         current_time = datetime.now()
         last_action_time = scale_last_action.get(group_name, current_time - timedelta(hours=1))
 
+        # Filter out ignored containers
+        group_lxc = [
+            ctid for ctid in group_config['lxc_containers']
+            if ctid in containers and not is_ignored(ctid)
+        ]
+
         # Calculate average CPU and memory usage for the group
-        total_cpu_usage = sum(
-            containers[ctid]['cpu'] for ctid in group_config['lxc_containers'] if ctid in containers
-        )
-        total_mem_usage = sum(
-            containers[ctid]['mem'] for ctid in group_config['lxc_containers'] if ctid in containers
-        )
-        num_containers = len(group_config['lxc_containers'])
+        total_cpu_usage = sum(containers[ctid]['cpu'] for ctid in group_lxc)
+        total_mem_usage = sum(containers[ctid]['mem'] for ctid in group_lxc)
+        num_containers = len(group_lxc)
 
         if num_containers > 0:
             avg_cpu_usage = total_cpu_usage / num_containers
