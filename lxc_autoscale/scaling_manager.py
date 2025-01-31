@@ -140,17 +140,25 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    # Print current resource usage for all running LXC containers
-    logging.info("Current resource usage for all containers:")
+    # Print current resource usage and tier settings for all running LXC containers
+    logging.info("Current resource usage and tier settings for all containers:")
     for ctid, usage in containers.items():
+        # Get tier configuration
+        tier_config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
         rounded_cpu_usage = round(usage['cpu'], 2)
         rounded_mem_usage = round(usage['mem'], 2)
         total_mem_allocated = usage['initial_memory']
         free_mem_percent = round(100 - ((rounded_mem_usage / total_mem_allocated) * 100), 2)
 
-        logging.info(f"Container {ctid}: CPU usage: {rounded_cpu_usage}%, Memory usage: {rounded_mem_usage}MB "
-                     f"({free_mem_percent}% free of {total_mem_allocated}MB total), "
-                     f"Initial cores: {usage['initial_cores']}, Initial memory: {total_mem_allocated}MB")
+        logging.info(
+            f"Container {ctid}:\n"
+            f"  CPU usage: {rounded_cpu_usage}% (Tier limits: {tier_config['cpu_lower_threshold']}%-{tier_config['cpu_upper_threshold']}%)\n"
+            f"  Memory usage: {rounded_mem_usage}MB ({free_mem_percent}% free of {total_mem_allocated}MB total)\n"
+            f"  Tier settings:\n"
+            f"    Min cores: {tier_config['min_cores']}, Max cores: {tier_config['max_cores']}\n"
+            f"    Min memory: {tier_config['min_memory']}MB\n"
+            f"    Current cores: {usage['initial_cores']}"
+        )
 
     # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
@@ -161,11 +169,12 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
         # Retrieve the tier configuration for the container
         config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
+        logging.info(f"Applying tier configuration for container {ctid}: {config}")
 
-        tier_settings = config.get("tiers", {}).get(ctid, {})
-        if tier_settings:
-            logging.info(f"Applying tier settings for container {ctid}: {tier_settings}")
-            # ...apply custom thresholds or logic based on tier_settings...
+        # Validate tier settings
+        if not validate_tier_settings(ctid, config):
+            logging.error(f"Invalid tier settings for container {ctid}. Skipping resource adjustment.")
+            continue
 
         cpu_upper = config.get('cpu_upper_threshold')
         cpu_lower = config.get('cpu_lower_threshold')
@@ -259,6 +268,56 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
                 send_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {min_memory}MB for energy efficiency.")
 
     logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
+
+
+def validate_tier_settings(ctid: str, tier_config: Dict[str, Any]) -> bool:
+    """Validate tier settings for a container.
+
+    Args:
+        ctid: The container ID.
+        tier_config: The tier configuration to validate.
+
+    Returns:
+        bool: True if settings are valid, False otherwise.
+    """
+    required_settings = [
+        ('cpu_upper_threshold', 0, 100),
+        ('cpu_lower_threshold', 0, 100),
+        ('memory_upper_threshold', 0, 100),
+        ('memory_lower_threshold', 0, 100),
+        ('min_cores', 1, None),
+        ('max_cores', 1, None),
+        ('min_memory', 128, None),
+    ]
+
+    for setting, min_val, max_val in required_settings:
+        value = tier_config.get(setting)
+        if value is None:
+            logging.error(f"Missing {setting} in tier configuration for container {ctid}")
+            return False
+        if not isinstance(value, (int, float)):
+            logging.error(f"Invalid type for {setting} in container {ctid}: {type(value)}")
+            return False
+        if min_val is not None and value < min_val:
+            logging.error(f"{setting} cannot be less than {min_val} in container {ctid}")
+            return False
+        if max_val is not None and value > max_val:
+            logging.error(f"{setting} cannot be greater than {max_val} in container {ctid}")
+            return False
+
+    # Additional validation for thresholds
+    if tier_config['cpu_lower_threshold'] >= tier_config['cpu_upper_threshold']:
+        logging.error(f"CPU thresholds misconfigured for container {ctid}: lower ({tier_config['cpu_lower_threshold']}) >= upper ({tier_config['cpu_upper_threshold']})")
+        return False
+    if tier_config['memory_lower_threshold'] >= tier_config['memory_upper_threshold']:
+        logging.error(f"Memory thresholds misconfigured for container {ctid}: lower ({tier_config['memory_lower_threshold']}) >= upper ({tier_config['memory_upper_threshold']})")
+        return False
+    if tier_config['min_cores'] > tier_config['max_cores']:
+        logging.error(f"Core limits misconfigured for container {ctid}: min ({tier_config['min_cores']}) > max ({tier_config['max_cores']})")
+        return False
+
+    logging.info(f"Tier settings validated successfully for container {ctid}")
+    return True
 
 
 def manage_horizontal_scaling(containers: Dict[str, Dict[str, Any]]) -> None:

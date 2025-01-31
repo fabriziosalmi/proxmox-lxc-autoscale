@@ -69,27 +69,97 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
 
 
 def collect_container_data() -> Dict[str, Dict[str, Any]]:
-    """Collect resource usage data for all LXC containers.
-
-    Returns:
-        A dictionary where the keys are container IDs and the values are their respective data.
-    """
+    """Collect resource usage data for all LXC containers."""
     containers: Dict[str, Dict[str, Any]] = {}
+    
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(collect_data_for_container, ctid): ctid
             for ctid in lxc_utils.get_containers()
             if ctid not in IGNORE_LXC
         }
+        
         for future in as_completed(futures):
+            ctid = futures[future]
             try:
-                container_data = future.result()
-                if container_data:
-                    containers.update(container_data)
+                result = future.result()
+                if result:
+                    containers.update(result)
+                    # Apply tier settings with validation
+                    tier_config = config.get("tiers", {}).get(ctid)
+                    if tier_config:
+                        if validate_tier_config(ctid, tier_config):
+                            containers[ctid].update(tier_config)
+                            logging.info(f"Applied validated tier settings for container {ctid}: {tier_config}")
+                        else:
+                            logging.warning(f"Using default settings for container {ctid} due to invalid tier configuration")
+                            containers[ctid].update(config.get("DEFAULTS", {}))
+                    else:
+                        logging.info(f"No tier settings found for container {ctid}, using defaults")
+                        containers[ctid].update(config.get("DEFAULTS", {}))
             except Exception as e:
-                logging.error(f"Error collecting data for a container: {e}")
-    logging.info(f"Collected data for containers: {list(containers.keys())}")
+                logging.error(f"Error collecting data for container {ctid}: {e}")
+    
     return containers
+
+def validate_tier_config(ctid: str, tier_config: Dict[str, Any]) -> bool:
+    """Validate tier configuration settings.
+
+    Args:
+        ctid: The container ID.
+        tier_config: The tier configuration to validate.
+
+    Returns:
+        bool: True if configuration is valid, False otherwise.
+    """
+    required_fields = [
+        'cpu_upper_threshold',
+        'cpu_lower_threshold',
+        'memory_upper_threshold',
+        'memory_lower_threshold',
+        'min_cores',
+        'max_cores',
+        'min_memory'
+    ]
+
+    # Check for missing fields
+    missing = [field for field in required_fields if field not in tier_config]
+    if missing:
+        logging.error(f"Missing required tier configuration fields for container {ctid}: {', '.join(missing)}")
+        return False
+
+    # Validate threshold relationships
+    try:
+        thresholds = [
+            ('CPU', 'cpu_lower_threshold', 'cpu_upper_threshold'),
+            ('Memory', 'memory_lower_threshold', 'memory_upper_threshold')
+        ]
+        
+        for resource, lower, upper in thresholds:
+            if not (0 <= tier_config[lower] < tier_config[upper] <= 100):
+                logging.error(
+                    f"Invalid {resource} thresholds for container {ctid}: "
+                    f"lower={tier_config[lower]}, upper={tier_config[upper]}"
+                )
+                return False
+
+        if not (0 < tier_config['min_cores'] <= tier_config['max_cores']):
+            logging.error(
+                f"Invalid core limits for container {ctid}: "
+                f"min={tier_config['min_cores']}, max={tier_config['max_cores']}"
+            )
+            return False
+
+        if tier_config['min_memory'] <= 0:
+            logging.error(f"Invalid minimum memory for container {ctid}: {tier_config['min_memory']}")
+            return False
+
+        logging.info(f"Tier configuration validated successfully for container {ctid}")
+        return True
+
+    except (TypeError, ValueError) as e:
+        logging.error(f"Invalid tier configuration values for container {ctid}: {e}")
+        return False
 
 
 def main_loop(poll_interval: int, energy_mode: bool) -> None:
