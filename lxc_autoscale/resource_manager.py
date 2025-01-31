@@ -118,7 +118,7 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
                 if tier:
                     logging.info(f"Applying tier settings for container {ctid}: {tier}")
                 else:
-                    logging.info(f"No tier settings found for container {ctid} in /etc/lxc_autoscale/lxc_Autoscale.yml")
+                    logging.info(f"No tier settings found for container {ctid} in /etc/lxc_autoscale/lxc_autoscale.yml")
 
             # Log time before adjusting resources
             adjust_start_time = time.time()
