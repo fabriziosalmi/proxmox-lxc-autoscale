@@ -139,44 +139,79 @@ cp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale/lxc_autoscale.yaml.b
 The configuration file uses a YAML format to define various settings. Below is a detailed explanation of the default parameters and how they influence the scaling behavior.
 
 ```yaml
-DEFAULT:
-  poll_interval: 300
+# Default configuration values
+DEFAULTS:
+  # Log file path
+  log_file: /var/log/lxc_autoscale.log
+  # Lock file path
+  lock_file: /var/lock/lxc_autoscale.lock
+  # Backup directory path
+  backup_dir: /var/lib/lxc_autoscale/backups
+  # Percentage of CPU cores to reserve (e.g., 10%)
+  reserve_cpu_percent: 10
+  # Amount of memory (in MB) to reserve (e.g., 2048 MB)
+  reserve_memory_mb: 2048
+  # Start hour for off-peak energy-saving mode (e.g., 10 PM)
+  off_peak_start: 22
+  # End hour for off-peak energy-saving mode (e.g., 6 AM)
+  off_peak_end: 6
+  # Behaviour mode (e.g., 'normal', 'conservative', 'aggressive')
+  behaviour: normal
+  # Default CPU upper threshold (%)
   cpu_upper_threshold: 80
+  # Default CPU lower threshold (%)
+  cpu_lower_threshold: 20
+  # Default Memory upper threshold (%)
+  memory_upper_threshold: 70
+  # Default Memory lower threshold (%)
+  memory_lower_threshold: 20
+  # Default minimum number of CPU cores
+  min_cores: 1
+  # Default maximum number of CPU cores
+  max_cores: 4
+  # Default minimum memory (MB)
+  min_memory: 256
+  # Default core increment
+  core_min_increment: 1
+  # Default core max increment: 2
+  core_max_increment: 2
+  # Default memory increment (MB)
+  memory_min_increment: 256
+  # Default memory decrement (MB)
+  min_decrease_chunk: 256
+  ignore_lxc: 
+    - "104"  # Update to string format for consistency
+  
+# Tier configurations
+TIER_webservers:
+  lxc_containers:
+    - "102"  # Update to string format
+  cpu_upper_threshold: 70
   cpu_lower_threshold: 20
   memory_upper_threshold: 80
   memory_lower_threshold: 20
-  core_min_increment: 1
-  core_max_increment: 4
-  memory_min_increment: 512
   min_cores: 1
-  max_cores: 8
-  min_memory: 512
-  min_decrease_chunk: 512
-  reserve_cpu_percent: 10
-  reserve_memory_mb: 2048
-  log_file: /var/log/lxc_autoscale.log
-  lock_file: /var/lock/lxc_autoscale.lock
-  backup_dir: /var/lib/lxc_autoscale/backups
-  off_peak_start: 22
-  off_peak_end: 6
-  energy_mode: False
-  gotify_url: ''
-  gotify_token: ''
-  ignore_lxc: []
-  behaviour: normal
-  smtp_server: ''
-  smtp_port: 587
-  smtp_username: 'api'
-  smtp_password: ''
-  smtp_from: ''
-  - ''
-  uptime_kuma_webhook_url: 'http://uptime-kuma:3001/api/push/XXXXXXXXXX?status=up&msg=OK&ping='
-  use_remote_proxmox: false  
-  proxmox_host: ''  
-  ssh_port: 22  
-  ssh_user: ''  
-  ssh_password: ''  
-  # ssh_key_path: '/path/to/private/key' 
+  max_cores: 4
+  min_memory: 4096
+  core_min_increment: 1
+  core_max_increment: 2
+  memory_min_increment: 1024
+  min_decrease_chunk: 1024
+
+TIER_other:
+  lxc_containers:
+    - "103"  # Update to string format
+  cpu_upper_threshold: 60
+  cpu_lower_threshold: 20
+  memory_upper_threshold: 50
+  memory_lower_threshold: 20
+  min_cores: 1
+  max_cores: 2
+  min_memory: 256
+  core_min_increment: 1
+  core_max_increment: 1
+  memory_min_increment: 128
+  min_decrease_chunk: 64
 ```
 
 #### Poll Interval (`poll_interval`)
