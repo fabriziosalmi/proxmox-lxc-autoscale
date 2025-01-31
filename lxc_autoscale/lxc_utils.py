@@ -415,6 +415,13 @@ def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def collect_data_for_container(ctid: str) -> Optional[Dict[str, Dict[str, Any]]]:
+    """Collect data for a single container."""
+    data = get_container_data(ctid)
+    if data:
+        return {ctid: data}
+    return None
+
 def collect_container_data() -> Dict[str, Dict[str, Any]]:
     """Collect resource usage data for all containers."""
     containers: Dict[str, Dict[str, Any]] = {}
@@ -422,8 +429,8 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
     with ThreadPoolExecutor(max_workers=8) as executor:
         futures = {
             executor.submit(collect_data_for_container, ctid): ctid
-            for ctid in lxc_utils.get_containers()
-            if not lxc_utils.is_ignored(ctid)  # Double check ignore list
+            for ctid in get_containers()
+            if not is_ignored(ctid)  # Double check ignore list
         }
         
         for future in as_completed(futures):
