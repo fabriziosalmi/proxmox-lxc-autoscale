@@ -25,10 +25,6 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
     Returns:
         A dictionary with resource data for the container, or None if the container is not running.
     """
-    if ctid in IGNORE_LXC:
-        logging.info(f"Container {ctid} is ignored. Skipping data collection.")
-        return None
-
     if not lxc_utils.is_container_running(ctid):
         return None
 
@@ -134,7 +130,7 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
                 if tier:
                     logging.info(f"Applying tier settings for container {ctid}: {tier}")
                 else:
-                    logging.warning(f"No tier settings found for container {ctid} in config.yaml")
+                    logging.info(f"No tier settings found for container {ctid} in config.yaml")
 
             # Log time before adjusting resources
             adjust_start_time = time.time()

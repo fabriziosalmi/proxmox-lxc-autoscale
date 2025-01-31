@@ -456,6 +456,8 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                             'min_decrease_chunk': tier_config.get('min_decrease_chunk')
                         })
                         logging.debug(f"Applied tier settings for container {ctid}")
+                else:
+                    logging.info(f"No tier settings found for container {ctid} in config.yaml")
             except Exception as e:
                 logging.error(f"Error collecting data for container {ctid}: {e}")
     
