@@ -122,14 +122,23 @@ def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
 
 
 def get_containers() -> List[str]:
-    """Return list of container IDs, excluding ignored ones.
-
-    Returns:
-        A list of container IDs.
-    """
+    """Return list of container IDs, excluding ignored ones."""
     containers = run_command("pct list | awk 'NR>1 {print $1}'")
-    return [ctid for ctid in containers.splitlines() if ctid not in IGNORE_LXC] if containers else []
+    if not containers:
+        return []
+        
+    container_list = containers.splitlines()
+    # Filter out ignored containers
+    filtered_containers = [
+        ctid for ctid in container_list 
+        if ctid and not is_ignored(ctid)
+    ]
+    logging.debug(f"Found containers: {filtered_containers}, ignored: {IGNORE_LXC}")
+    return filtered_containers
 
+def is_ignored(ctid: str) -> bool:
+    """Check if container should be ignored."""
+    return ctid in IGNORE_LXC
 
 def is_container_running(ctid: str) -> bool:
     """Check if a container is running.
@@ -269,87 +278,73 @@ def get_cpu_usage(ctid: str) -> float:
     Returns:
         The CPU usage as a float percentage (0.0 - 100.0).
     """
-    def run_cmd(command: str) -> str:
-        """Execute a command and return its output or an empty string if failed.
-
-        Args:
-            command: Command to be executed.
-
-        Returns:
-            The output of the command.
-        """
-        try:
-            result = subprocess.run(
-                command, shell=True, capture_output=True, text=True, check=True
-            )
-            return result.stdout.strip()
-        except subprocess.CalledProcessError as e:
-            logging.warning("Command failed: %s, Error: %s", command, str(e))
-            return ""
-
     def loadavg_method(ctid: str) -> float:
-        """Calculate CPU usage using load average.
-
-        Args:
-            ctid: The container ID.
-
-        Returns:
-            The CPU usage as a float percentage.
-        """
+        """Calculate CPU usage using load average from within the container."""
         try:
-            loadavg = float(run_cmd(f"pct exec {ctid} -- cat /proc/loadavg").split()[0])
-            num_cpus = int(run_cmd(f"pct exec {ctid} -- nproc"))
-            if num_cpus == 0:
-                raise ValueError("Number of CPUs is zero.")
+            # Use pct exec to run commands inside the container
+            loadavg_output = run_command(f"pct exec {ctid} -- cat /proc/loadavg")
+            if not loadavg_output:
+                raise RuntimeError("Failed to get loadavg")
+                
+            loadavg = float(loadavg_output.split()[0])
+            # Get number of CPUs allocated to the container
+            num_cpus = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'") or 1)
+            
             return round(min((loadavg / num_cpus) * 100, 100.0), 2)
-        except Exception as e:  # pylint: disable=broad-except
-            raise RuntimeError("Loadavg method failed: %s", str(e)) from e
+        except Exception as e:
+            raise RuntimeError(f"Loadavg method failed: {str(e)}") from e
 
-    def load_method(ctid: str) -> float:
-        """Calculate CPU usage using /proc/stat.
-
-        Args:
-            ctid: The container ID.
-
-        Returns:
-            The CPU usage as a float percentage.
-        """
+    def proc_stat_method(ctid: str) -> float:
+        """Calculate CPU usage using /proc/stat from within the container."""
         try:
-            cmd = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
-            initial_times = list(map(float, run_cmd(cmd).split()[1:]))
-            initial_total = sum(initial_times)
-            initial_idle = initial_times[3]
+            # Get initial CPU stats from within container
+            cmd1 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
+            initial = run_command(cmd1)
+            if not initial:
+                raise RuntimeError("Failed to get initial CPU stats")
+                
+            initial_values = list(map(int, initial.split()[1:]))
+            initial_idle = initial_values[3]
+            initial_total = sum(initial_values)
 
+            # Wait a second
             time.sleep(1)
 
-            new_times = list(map(float, run_cmd(cmd).split()[1:]))
-            new_total = sum(new_times)
-            new_idle = new_times[3]
+            # Get CPU stats again
+            cmd2 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
+            current = run_command(cmd2)
+            if not current:
+                raise RuntimeError("Failed to get current CPU stats")
+                
+            current_values = list(map(int, current.split()[1:]))
+            current_idle = current_values[3]
+            current_total = sum(current_values)
 
-            total_diff = new_total - initial_total
-            idle_diff = new_idle - initial_idle
+            # Calculate usage
+            total_diff = current_total - initial_total
+            idle_diff = current_idle - initial_idle
 
             if total_diff == 0:
-                raise ValueError("Total CPU time did not change.")
+                return 0.0
 
-            return round(
-                max(min(100.0 * (total_diff - idle_diff) / total_diff, 100.0), 0.0), 2
-            )
-        except Exception as e:  # pylint: disable=broad-except
-            raise RuntimeError("Load method failed: %s", str(e)) from e
+            usage = ((total_diff - idle_diff) / total_diff) * 100
+            return round(max(min(usage, 100.0), 0.0), 2)
+        except Exception as e:
+            raise RuntimeError(f"Proc stat method failed: {str(e)}") from e
 
-    methods: List[Tuple[str, Any]] = [
-        ("Load Average", loadavg_method),
-        ("Load", load_method),
+    # Try each method in order
+    methods = [
+        ("Proc Stat", proc_stat_method),
+        ("Load Average", loadavg_method)
     ]
 
     for method_name, method in methods:
         try:
             cpu = method(ctid)
             if cpu is not None and cpu >= 0.0:
-                logging.info("CPU usage for %s using %s: %s%%", ctid, method_name, cpu)
+                logging.info("CPU usage for %s using %s: %.2f%%", ctid, method_name, cpu)
                 return cpu
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             logging.warning("%s failed for %s: %s", method_name, ctid, str(e))
 
     logging.error("All CPU usage methods failed for %s. Using 0.0", ctid)
@@ -421,26 +416,43 @@ def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
 
 
 def collect_container_data() -> Dict[str, Dict[str, Any]]:
-    """Collect data from all containers in parallel.
-
-    Returns:
-        A dictionary containing container resource data for all containers.
-    """
+    """Collect resource usage data for all containers."""
     containers: Dict[str, Dict[str, Any]] = {}
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future_to_ctid = {
-            executor.submit(get_container_data, ctid): ctid
-            for ctid in get_containers()
+    
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = {
+            executor.submit(collect_data_for_container, ctid): ctid
+            for ctid in lxc_utils.get_containers()
+            if not lxc_utils.is_ignored(ctid)  # Double check ignore list
         }
-        for future in as_completed(future_to_ctid):
-            ctid = future_to_ctid[future]
+        
+        for future in as_completed(futures):
+            ctid = futures[future]
             try:
-                data = future.result()
-                if data:
-                    containers[ctid] = data
-                    logging.debug("Container %s data: %s", ctid, data)
-            except Exception as e:  # pylint: disable=broad-except
-                logging.error("Error retrieving data for %s: %s", ctid, str(e))
+                result = future.result()
+                if result:
+                    containers.update(result)
+                    # Apply tier settings if container is in a tier
+                    if ctid in LXC_TIER_ASSOCIATIONS:
+                        tier_config = LXC_TIER_ASSOCIATIONS[ctid]
+                        containers[ctid].update({
+                            'cpu_upper_threshold': tier_config.get('cpu_upper_threshold'),
+                            'cpu_lower_threshold': tier_config.get('cpu_lower_threshold'),
+                            'memory_upper_threshold': tier_config.get('memory_upper_threshold'),
+                            'memory_lower_threshold': tier_config.get('memory_lower_threshold'),
+                            'min_cores': tier_config.get('min_cores'),
+                            'max_cores': tier_config.get('max_cores'),
+                            'min_memory': tier_config.get('min_memory'),
+                            'core_min_increment': tier_config.get('core_min_increment'),
+                            'core_max_increment': tier_config.get('core_max_increment'),
+                            'memory_min_increment': tier_config.get('memory_min_increment'),
+                            'min_decrease_chunk': tier_config.get('min_decrease_chunk')
+                        })
+                        logging.debug(f"Applied tier settings for container {ctid}")
+            except Exception as e:
+                logging.error(f"Error collecting data for container {ctid}: {e}")
+    
+    logging.info(f"Collected data for containers: {list(containers.keys())}")
     return containers
 
 
