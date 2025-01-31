@@ -39,12 +39,12 @@ DEFAULTS:
   # Default memory decrement (MB)
   min_decrease_chunk: 256
   ignore_lxc: 
-  - 104  # Keep 104 in ignore list as shown in logs
+    - "104"  # Update to string format for consistency
   
 # Tier configurations
 TIER_webservers:
   lxc_containers:
-    - 102
+    - "102"  # Update to string format
   cpu_upper_threshold: 70
   cpu_lower_threshold: 20
   memory_upper_threshold: 80
@@ -59,7 +59,7 @@ TIER_webservers:
 
 TIER_other:
   lxc_containers:
-    - 103
+    - "103"  # Update to string format
   cpu_upper_threshold: 60
   cpu_lower_threshold: 20
   memory_upper_threshold: 50
