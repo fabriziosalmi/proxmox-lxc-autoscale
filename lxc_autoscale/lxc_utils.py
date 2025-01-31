@@ -428,8 +428,9 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                     containers.update(result)
                     # Apply tier settings
                     if ctid in LXC_TIER_ASSOCIATIONS:
-                        containers[ctid].update(LXC_TIER_ASSOCIATIONS[ctid])
-                        logging.info(f"Applied tier settings for container {ctid}: {LXC_TIER_ASSOCIATIONS[ctid]}")
+                        tier_config = LXC_TIER_ASSOCIATIONS[ctid]
+                        containers[ctid].update(tier_config)
+                        logging.info(f"Applied tier settings for container {ctid} from tier {tier_config.get('tier_name', 'unknown')}")
             except Exception as e:
                 logging.error(f"Error collecting data for container {ctid}: {e}")
     
