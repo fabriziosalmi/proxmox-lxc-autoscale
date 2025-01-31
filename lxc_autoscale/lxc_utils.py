@@ -138,7 +138,7 @@ def get_containers() -> List[str]:
 
 def is_ignored(ctid: str) -> bool:
     """Check if container should be ignored."""
-    return ctid in IGNORE_LXC
+    return str(ctid) in IGNORE_LXC
 
 def is_container_running(ctid: str) -> bool:
     """Check if a container is running.
@@ -297,36 +297,37 @@ def get_cpu_usage(ctid: str) -> float:
     def proc_stat_method(ctid: str) -> float:
         """Calculate CPU usage using /proc/stat from within the container."""
         try:
-            # Get initial CPU stats
-            cmd1 = f"pct exec {ctid} -- cat /proc/stat | head -n1"
+            # Get initial CPU stats with better parsing
+            cmd1 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
             initial = run_command(cmd1)
-            if not initial or 'cpu' not in initial:
+            if not initial:
                 raise RuntimeError("Failed to get initial CPU stats")
                 
             initial_values = list(map(int, initial.split()[1:]))
-            initial_idle = initial_values[3]
+            initial_idle = initial_values[3] + initial_values[4]  # idle + iowait
             initial_total = sum(initial_values)
 
+            # Wait for a short period
             time.sleep(1)
 
             # Get current CPU stats
-            cmd2 = f"pct exec {ctid} -- cat /proc/stat | head -n1"
+            cmd2 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
             current = run_command(cmd2)
-            if not current or 'cpu' not in current:
+            if not current:
                 raise RuntimeError("Failed to get current CPU stats")
                 
             current_values = list(map(int, current.split()[1:]))
-            current_idle = current_values[3]
+            current_idle = current_values[3] + current_values[4]  # idle + iowait
             current_total = sum(current_values)
 
-            total_diff = current_total - initial_total
-            idle_diff = current_idle - initial_idle
+            delta_idle = current_idle - initial_idle
+            delta_total = current_total - initial_total
 
-            if total_diff == 0:
+            if delta_total <= 0:
                 return 0.0
 
-            usage = ((total_diff - idle_diff) / total_diff) * 100
-            return round(max(min(usage, 100.0), 0.0), 2)
+            cpu_usage = ((delta_total - delta_idle) / delta_total) * 100
+            return round(max(min(cpu_usage, 100.0), 0.0), 2)
         except Exception as e:
             raise RuntimeError(f"Proc stat method failed: {str(e)}") from e
 
@@ -370,18 +371,6 @@ def get_memory_usage(ctid: str) -> float:
             logging.error("Failed to parse memory info for %s: '%s'", ctid, mem_info)
     logging.error("Failed to get memory usage for %s", ctid)
     return 0.0
-
-
-def is_ignored(ctid: str) -> bool:
-    """Check if a container is in the ignore list.
-
-    Args:
-        ctid: The container ID.
-
-    Returns:
-        True if the container is in the ignore list, False otherwise.
-    """
-    return str(ctid) in IGNORE_LXC
 
 
 def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:

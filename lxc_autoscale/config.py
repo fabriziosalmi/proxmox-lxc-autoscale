@@ -42,8 +42,36 @@ def get_config_value(section: str, key: str, default: Any) -> Any:
     """Retrieve a configuration value with a fallback to a default."""
     return config.get(section, {}).get(key, default)
 
+def validate_config() -> None:
+    """Validate essential configuration values."""
+    required_defaults = [
+        'reserve_cpu_percent',
+        'reserve_memory_mb',
+        'off_peak_start',
+        'off_peak_end',
+        'behaviour',
+        'cpu_upper_threshold',
+        'cpu_lower_threshold',
+        'memory_upper_threshold',
+        'memory_lower_threshold'
+    ]
+    
+    missing = [key for key in required_defaults if key not in DEFAULTS]
+    if missing:
+        sys.exit(f"Missing required configuration values in DEFAULTS: {', '.join(missing)}")
+
+    # Validate thresholds
+    if DEFAULTS['cpu_lower_threshold'] >= DEFAULTS['cpu_upper_threshold']:
+        sys.exit("CPU lower threshold must be less than upper threshold")
+    
+    if DEFAULTS['memory_lower_threshold'] >= DEFAULTS['memory_upper_threshold']:
+        sys.exit("Memory lower threshold must be less than upper threshold")
+
 # --- Default Configuration ---
 DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
+
+# Call validation after loading config
+validate_config()
 
 # --- Resource Scaling Constants ---
 CPU_SCALE_DIVISOR: float = DEFAULTS.get('cpu_scale_divisor', 2.0)

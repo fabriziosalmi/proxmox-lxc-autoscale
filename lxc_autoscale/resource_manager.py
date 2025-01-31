@@ -26,59 +26,45 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
         A dictionary with resource data for the container, or None if the container is not running.
     """
     if not lxc_utils.is_container_running(ctid):
+        logging.debug(f"Container {ctid} is not running")
         return None
 
-    logging.debug(f"Collecting data for container {ctid}...")
-
     try:
-        # Retrieve the current configuration of the container using Python string operations
+        # Get container config more reliably
         config_output = lxc_utils.run_command(f"pct config {ctid}")
         if not config_output:
-            logging.error(f"Failed to retrieve configuration for container {ctid}")
-            return None
+            raise ValueError(f"No configuration found for container {ctid}")
 
-        # Initialize values for cores and memory
-        cores: Optional[int] = None
-        memory: Optional[int] = None
-
-        # Parse the config_output for cores and memory
+        cores = memory = None
         for line in config_output.splitlines():
-            parts = line.split(":", 1)  # Split at the first colon
-            if len(parts) == 2:
-                key, value = parts[0].strip(), parts[1].strip()
-                if 'cores' == key:
-                    try:
-                        cores = int(value)
-                    except (ValueError, IndexError):
-                        logging.warning(f"Invalid value for cores: {value} in line {line}")
-                elif 'memory' == key:
-                    try:
-                        memory = int(value)
-                    except (ValueError, IndexError):
-                        logging.warning(f"Invalid value for memory: {value} in line {line}")
+            if ':' not in line:
+                continue
+            key, value = [x.strip() for x in line.split(':', 1)]
+            if key == 'cores':
+                cores = int(value)
+            elif key == 'memory':
+                memory = int(value)
 
         if cores is None or memory is None:
-            raise ValueError(f"Failed to extract valid cores or memory values for container {ctid}")
+            raise ValueError(f"Missing cores or memory configuration for container {ctid}")
 
-        settings = {"cores": cores, "memory": memory}
+        # Get resource usage with better error handling
+        cpu_usage = lxc_utils.get_cpu_usage(ctid)
+        mem_usage = lxc_utils.get_memory_usage(ctid)
 
-        # Backup the current settings
-        lxc_utils.backup_container_settings(ctid, settings)
+        if cpu_usage is None or mem_usage is None:
+            raise ValueError(f"Failed to get resource usage for container {ctid}")
 
-        # Collect CPU and memory usage data
         return {
             ctid: {
-                "cpu": lxc_utils.get_cpu_usage(ctid),
-                "mem": lxc_utils.get_memory_usage(ctid),
+                "cpu": cpu_usage,
+                "mem": mem_usage,
                 "initial_cores": cores,
                 "initial_memory": memory,
             }
         }
-    except (ValueError, IndexError) as ve:
-        logging.error(f"Error parsing core or memory values for container {ctid}: {ve}")
-        return None
     except Exception as e:
-        logging.error(f"Error retrieving or parsing configuration for container {ctid}: {e}")
+        logging.error(f"Error collecting data for container {ctid}: {str(e)}")
         return None
 
 
