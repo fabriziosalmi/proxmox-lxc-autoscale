@@ -104,12 +104,9 @@ LXC AutoScale is an open-source project, and contributions are welcome! Whether 
 - Submit a pull request to the repository.
 - Fork the repository to experiment and develop your custom features.
 
-## Disclaimer
-
+### ⚠️ Disclaimer
 > [!CAUTION]
-> I am not responsible for any potential damage or issues that may arise from using this tool. 
-
-
+> The author assumes no responsibility for any damage or issues that may arise from using this tool.
 
 ## License
 
