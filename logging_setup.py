@@ -15,8 +15,13 @@ def setup_logging():
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
     
-    # New file handler for LOG_FILE
-    file_handler = logging.FileHandler(LOG_FILE)
+    # Ensure log directory exists
+    log_dir = os.path.dirname(LOG_FILE)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+    
+    # File handler with append mode
+    file_handler = logging.FileHandler(LOG_FILE, mode='a')
     file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
