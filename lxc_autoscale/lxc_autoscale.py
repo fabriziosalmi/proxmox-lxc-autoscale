@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os  # Added import for directory operations
 from typing import Optional
 
 import paramiko  # Import the paramiko library
@@ -53,6 +54,11 @@ def parse_arguments() -> argparse.Namespace:
 if __name__ == "__main__":
     # Parse command-line arguments
     args: argparse.Namespace = parse_arguments()
+
+    # Ensure the log file directory exists
+    log_dir = os.path.dirname(LOG_FILE)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
 
     # Setup logging based on the configuration
     setup_logging()
