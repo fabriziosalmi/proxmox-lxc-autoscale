@@ -33,7 +33,7 @@ def calculate_increment(current: float, upper_threshold: float, min_increment: i
         Calculated increment value.
     """
     proportional_increment = int((current - upper_threshold) / CPU_SCALE_DIVISOR)
-    logging.debug(f"Calculated increment: {proportional_increment} (current: {current}, upper_threshold: {upper_threshold})")
+    logging.debug(f"Calculated increment: {proportional_increment} (current: {current}, upper_threshold: {upper_threshold}, min_increment: {min_increment}, max_increment: {max_increment})")
     return min(max(min_increment, proportional_increment), max_increment)
 
 
@@ -51,7 +51,7 @@ def calculate_decrement(current: float, lower_threshold: float, current_allocate
          Calculated decrement value.
     """
     dynamic_decrement = max(1, int((lower_threshold - current) / CPU_SCALE_DIVISOR))
-    logging.debug(f"Calculated decrement: {dynamic_decrement} (current: {current}, lower_threshold: {lower_threshold})")
+    logging.debug(f"Calculated decrement: {dynamic_decrement} (current: {current}, lower_threshold: {lower_threshold}, current_allocated: {current_allocated}, min_decrement: {min_decrement}, min_allocated: {min_allocated})")
     return max(min(current_allocated - min_allocated, dynamic_decrement), min_decrement)
 
 
@@ -98,7 +98,7 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
             int((mem_usage - mem_upper) * config['memory_min_increment'] / MEMORY_SCALE_FACTOR),
         )
         if available_memory >= increment:
-            logging.info(f"Increasing memory for container {ctid} by {increment}MB...")
+            logging.info(f"Increasing memory for container {ctid} by {increment}MB (current: {current_memory}MB, new: {new_memory}MB)")
             new_memory = current_memory + increment
             run_command(f"pct set {ctid} -memory {new_memory}")
             available_memory -= increment
@@ -115,7 +115,7 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
             min_memory,
         )
         if decrease_amount > 0:
-            logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB...")
+            logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB (current: {current_memory}MB, new: {new_memory}MB)")
             new_memory = current_memory - decrease_amount
             run_command(f"pct set {ctid} -memory {new_memory}")
             available_memory += decrease_amount
@@ -221,13 +221,14 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
         behaviour_multiplier = get_behaviour_multiplier()
 
+        logging.info(f"Container {ctid} - CPU usage: {cpu_usage}%, Memory usage: {mem_usage}MB")
+
         # Adjust CPU cores if needed
         if cpu_usage > cpu_upper:
             increment = calculate_increment(cpu_usage, cpu_upper, config['core_min_increment'], config['core_max_increment'])
             new_cores = current_cores + increment
 
-            logging.info(f"Container {ctid} - CPU usage exceeds upper threshold.")
-            logging.info(f"Container {ctid} - Increment: {increment}, New cores: {new_cores}")
+            logging.info(f"Container {ctid} - CPU usage exceeds upper threshold. Increment: {increment}, New cores: {new_cores}")
 
             if available_cores >= increment and new_cores <= max_cores:
                 run_command(f"pct set {ctid} -cores {new_cores}")
@@ -242,8 +243,7 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
             decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)
             new_cores = max(min_cores, current_cores - decrement)
 
-            logging.info(f"Container {ctid} - CPU usage below lower threshold.")
-            logging.info(f"Container {ctid} - Decrement: {decrement}, New cores: {new_cores}")
+            logging.info(f"Container {ctid} - CPU usage below lower threshold. Decrement: {decrement}, New cores: {new_cores}")
 
             if new_cores >= min_cores:
                 run_command(f"pct set {ctid} -cores {new_cores}")
