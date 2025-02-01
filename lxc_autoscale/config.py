@@ -17,6 +17,9 @@ with open(CONFIG_FILE, 'r', encoding='utf-8') as file:
 if not isinstance(config, dict):
     sys.exit("Invalid configuration format. Expected a dictionary.")
 
+# --- Default Configuration (moved to top) ---
+DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
+
 def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
     """Load and validate tier configurations."""
     tier_configs: Dict[str, Dict[str, Any]] = {}
@@ -50,6 +53,9 @@ def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
 
 def get_config_value(section: str, key: str, default: Any) -> Any:
     """Retrieve a configuration value with a fallback to a default."""
+    # Map "DEFAULT" to "DEFAULTS" to match YAML
+    if section == "DEFAULT":
+        section = "DEFAULTS"
     return config.get(section, {}).get(key, default)
 
 def validate_config() -> None:
@@ -76,9 +82,6 @@ def validate_config() -> None:
     
     if DEFAULTS['memory_lower_threshold'] >= DEFAULTS['memory_upper_threshold']:
         sys.exit("Memory lower threshold must be less than upper threshold")
-
-# --- Default Configuration ---
-DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
 
 # Call validation after loading config
 validate_config()

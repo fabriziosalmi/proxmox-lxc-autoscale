@@ -177,14 +177,18 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
             collect_duration = time.time() - collect_start_time
             logging.debug(f"Container data collection took {collect_duration:.2f} seconds.")
 
-            # Validate tier settings from config.yaml
-            for ctid, data in containers.items():
+            # Validate tier settings from configuration
+            for ctid in list(containers.keys()):
                 tier = config.get("tiers", {}).get(ctid)
                 containers[ctid]["tier"] = tier
                 if tier:
-                    logging.info(f"Applying tier settings for container {ctid}: {tier}")
+                    if not validate_tier_config(ctid, tier):
+                        logging.error("Tier configuration for container %s is invalid. Removing container from scaling.", ctid)
+                        del containers[ctid]
+                        continue
+                    logging.info("Applying tier settings for container %s: %s", ctid, tier)
                 else:
-                    logging.info(f"No tier settings found for container {ctid} in /etc/lxc_autoscale/lxc_autoscale.yml")
+                    logging.info("No tier settings found for container %s in /etc/lxc_autoscale/lxc_autoscale.yml", ctid)
 
             # Log time before adjusting resources
             adjust_start_time = time.time()

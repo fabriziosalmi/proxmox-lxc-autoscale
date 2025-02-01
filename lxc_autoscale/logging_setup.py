@@ -30,3 +30,9 @@ def setup_logging():
 
     # Add the console handler to the root logger, so it outputs to both file and console
     logging.getLogger().addHandler(console)
+
+    # Ensure that log messages are flushed immediately to the file.
+    logging.info("Logging is set up. Log file: %s", LOG_FILE)
+    for handler in logging.getLogger().handlers:
+        if hasattr(handler, 'flush'):
+            handler.flush()
