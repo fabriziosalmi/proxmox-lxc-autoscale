@@ -1,9 +1,7 @@
 import logging  # Import the logging module to handle logging throughout the application
 import os  # Import os module to handle directory operations
-from config import get_config_value  # Import the get_config_value function to retrieve configuration settings
 
-# Retrieve the log file path from the configuration
-LOG_FILE = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')
+# Removed: from config import get_config_value  and global LOG_FILE assignment
 
 def setup_logging():
     """
@@ -13,6 +11,10 @@ def setup_logging():
     Log messages will include timestamps and the severity level of the message.
     """
     
+    # Lazy import to break circular dependency
+    from config import get_config_value  
+    LOG_FILE = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')
+
     # Ensure the directory for the log file exists
     log_dir = os.path.dirname(LOG_FILE)
     if not os.path.exists(log_dir):

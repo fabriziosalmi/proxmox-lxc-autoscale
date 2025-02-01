@@ -5,7 +5,6 @@ from socket import gethostname
 from typing import Any, Dict, List, Set, Union
 
 import yaml
-from logging_setup import setup_logging  # Import the logging setup function
 
 CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
 
@@ -24,9 +23,6 @@ DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
 def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
     """Load and validate tier configurations."""
     tier_configs: Dict[str, Dict[str, Any]] = {}
-    
-    # Setup logging based on the configuration
-    setup_logging()
     
     for section, values in config.items():
         if section.startswith('TIER_'):
