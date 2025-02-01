@@ -33,6 +33,7 @@ def calculate_increment(current: float, upper_threshold: float, min_increment: i
         Calculated increment value.
     """
     proportional_increment = int((current - upper_threshold) / CPU_SCALE_DIVISOR)
+    logging.debug(f"Calculated increment: {proportional_increment} (current: {current}, upper_threshold: {upper_threshold})")
     return min(max(min_increment, proportional_increment), max_increment)
 
 
@@ -50,6 +51,7 @@ def calculate_decrement(current: float, lower_threshold: float, current_allocate
          Calculated decrement value.
     """
     dynamic_decrement = max(1, int((lower_threshold - current) / CPU_SCALE_DIVISOR))
+    logging.debug(f"Calculated decrement: {dynamic_decrement} (current: {current}, lower_threshold: {lower_threshold})")
     return max(min(current_allocated - min_allocated, dynamic_decrement), min_decrement)
 
 
@@ -60,10 +62,13 @@ def get_behaviour_multiplier() -> float:
          The behavior multiplier (1.0 for normal, 0.5 for conservative, 2.0 for aggressive).
     """
     if DEFAULTS['behaviour'] == 'conservative':
-        return 0.5
+        multiplier = 0.5
     elif DEFAULTS['behaviour'] == 'aggressive':
-        return 2.0
-    return 1.0
+        multiplier = 2.0
+    else:
+        multiplier = 1.0
+    logging.debug(f"Behavior multiplier set to {multiplier} based on configuration: {DEFAULTS['behaviour']}")
+    return multiplier
 
 
 def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float, current_memory: int, min_memory: int, available_memory: int, config: Dict[str, Any]) -> Tuple[int, bool]:
@@ -84,6 +89,8 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
     """
     memory_changed = False
     behaviour_multiplier = get_behaviour_multiplier()
+
+    logging.info(f"Memory scaling for container {ctid} - Usage: {mem_usage}%, Upper threshold: {mem_upper}%, Lower threshold: {mem_lower}%")
 
     if mem_usage > mem_upper:
         increment = max(
@@ -457,4 +464,5 @@ def is_off_peak() -> bool:
          True if it is off-peak, otherwise False.
     """
     current_hour = datetime.now().hour
+    logging.debug(f"Current hour: {current_hour}, Off-peak hours: {DEFAULTS['off_peak_start']} - {DEFAULTS['off_peak_end']}")
     return DEFAULTS['off_peak_start'] <= current_hour or current_hour < DEFAULTS['off_peak_end']

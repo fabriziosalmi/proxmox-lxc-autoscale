@@ -53,6 +53,7 @@ def close_ssh_client() -> None:
     if ssh_client:
         logging.debug("Closing SSH connection...")
         ssh_client.close()
+        logging.info("SSH connection closed.")
         ssh_client = None
 
 def run_command(cmd: str, timeout: int = 30) -> Optional[str]:
@@ -67,6 +68,7 @@ def run_command(cmd: str, timeout: int = 30) -> Optional[str]:
     """
     use_remote_proxmox = config.get('DEFAULT', {}).get('use_remote_proxmox', False)
     logging.debug("Inside run_command: use_remote_proxmox = %s", use_remote_proxmox)
+    logging.debug(f"Running command: {cmd} (timeout: {timeout}s)")
     return (run_remote_command if use_remote_proxmox else run_local_command)(cmd, timeout)
 
 
@@ -84,7 +86,7 @@ def run_local_command(cmd: str, timeout: int = 30) -> Optional[str]:
         result = subprocess.check_output(
             cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT,
         ).decode('utf-8').strip()
-        logging.debug("Command '%s' executed successfully. Output: %s", cmd, result)
+        logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
         return result
     except subprocess.TimeoutExpired:
         logging.error("Command '%s' timed out after %d seconds", cmd, timeout)
@@ -112,7 +114,7 @@ def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
     try:
         _, stdout, _ = ssh.exec_command(cmd, timeout=timeout)
         output = stdout.read().decode('utf-8').strip()
-        logging.debug("Remote command '%s' executed successfully: %s", cmd, output)
+        logging.debug(f"Remote command '{cmd}' executed successfully: {output}")
         return output
     except paramiko.SSHException as e:
         logging.error("SSH execution failed: %s", str(e))
@@ -138,7 +140,9 @@ def get_containers() -> List[str]:
 
 def is_ignored(ctid: str) -> bool:
     """Check if container should be ignored."""
-    return str(ctid) in IGNORE_LXC
+    ignored = str(ctid) in IGNORE_LXC
+    logging.debug(f"Container {ctid} is ignored: {ignored}")
+    return ignored
 
 def is_container_running(ctid: str) -> bool:
     """Check if a container is running.
@@ -150,7 +154,9 @@ def is_container_running(ctid: str) -> bool:
         True if the container is running, False otherwise.
     """
     status = run_command(f"pct status {ctid}")
-    return bool(status and "status: running" in status.lower())
+    running = bool(status and "status: running" in status.lower())
+    logging.debug(f"Container {ctid} running status: {running}")
+    return running
 
 
 def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None:
@@ -226,6 +232,7 @@ def log_json_event(ctid: str, action: str, resource_change: str) -> None:
     with lock:
         with open(LOG_FILE.replace('.log', '.json'), 'a', encoding='utf-8') as json_log_file:
             json_log_file.write(json.dumps(log_data) + '\n')
+    logging.info("Logged event for container %s: %s - %s", ctid, action, resource_change)
 
 
 def get_total_cores() -> int:
@@ -366,7 +373,9 @@ def get_memory_usage(ctid: str) -> float:
     if mem_info:
         try:
             total, used = map(int, mem_info.split())
-            return (used * 100) / total
+            mem_usage = (used * 100) / total
+            logging.info("Memory usage for %s: %.2f%%", ctid, mem_usage)
+            return mem_usage
         except ValueError:
             logging.error("Failed to parse memory info for %s: '%s'", ctid, mem_info)
     logging.error("Failed to get memory usage for %s", ctid)
@@ -406,6 +415,7 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Dict[str, Any]]]
     """Collect data for a single container."""
     data = get_container_data(ctid)
     if data:
+        logging.debug("Data collected for container %s: %s", ctid, data)
         return {ctid: data}
     return None
 
@@ -434,6 +444,7 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
             except Exception as e:
                 logging.error(f"Error collecting data for container {ctid}: {e}")
     
+    logging.info("Collected data for containers: %s", containers)
     return containers
 
 
@@ -472,7 +483,9 @@ def get_container_config(ctid: str) -> Dict[str, Any]:
     Returns:
         The container's tier configuration.
     """
-    return LXC_TIER_ASSOCIATIONS.get(ctid, config)
+    config = LXC_TIER_ASSOCIATIONS.get(ctid, config)
+    logging.debug("Configuration for container %s: %s", ctid, config)
+    return config
 
 
 def generate_unique_snapshot_name(base_name: str) -> str:
@@ -484,7 +497,9 @@ def generate_unique_snapshot_name(base_name: str) -> str:
     Returns:
         A unique snapshot name.
     """
-    return f"{base_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    snapshot_name = f"{base_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    logging.debug("Generated unique snapshot name: %s", snapshot_name)
+    return snapshot_name
 
 
 def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
@@ -497,7 +512,9 @@ def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
     Returns:
         A unique hostname for the cloned container.
     """
-    return f"{base_name}-cloned-{clone_number}"
+    hostname = f"{base_name}-cloned-{clone_number}"
+    logging.debug("Generated cloned hostname: %s", hostname)
+    return hostname
 
 import atexit
 atexit.register(close_ssh_client)

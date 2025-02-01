@@ -47,18 +47,20 @@ def parse_arguments() -> argparse.Namespace:
         help="Rollback to previous container configurations"  # Option to revert containers to their backed-up settings
     )
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    logging.debug(f"Parsed arguments: {args}")
+    return args
 
 
 # Entry point of the script
 if __name__ == "__main__":
+    # Setup logging based on the configuration
+    setup_logging()
+
     # Parse command-line arguments
     args: argparse.Namespace = parse_arguments()
 
-    # Remove automatic creation of log directory and file
-
-    # Setup logging based on the configuration
-    setup_logging()
+    logging.info("Starting LXC autoscaling daemon with arguments: %s", args)
 
     # Acquire a lock to ensure that only one instance of the script runs at a time
     with acquire_lock() as lock_file:

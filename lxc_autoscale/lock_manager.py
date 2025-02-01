@@ -23,8 +23,10 @@ def acquire_lock():
     # Open the lock file for writing
     lock_file = open(LOCK_FILE, 'w')
     try:
+        logging.info("Acquiring lock on %s", LOCK_FILE)
         # Try to acquire an exclusive lock on the file (non-blocking)
         fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        logging.info("Lock acquired on %s", LOCK_FILE)
         # Yield control back to the calling context, keeping the lock in place
         yield lock_file
     except IOError:
@@ -32,5 +34,6 @@ def acquire_lock():
         logging.error("Another instance of the script is already running. Exiting to avoid overlap.")
         sys.exit(1)
     finally:
+        logging.info("Lock released on %s", LOCK_FILE)
         # Ensure the lock file is closed when done, releasing the lock
         lock_file.close()

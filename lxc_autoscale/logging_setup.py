@@ -20,6 +20,13 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S'  # Date format for timestamps
     )
 
+    # Debug: Verify that the log file is writable
+    try:
+        with open(LOG_FILE, 'a') as f:
+            f.write("# Log file initialized successfully.\n")
+    except Exception as err:
+        print(f"Error writing to log file ({LOG_FILE}): {err}")
+
     # Create a console handler to output log messages to the console
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)  # Set the logging level for the console output
