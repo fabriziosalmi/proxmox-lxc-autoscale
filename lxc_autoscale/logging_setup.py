@@ -1,9 +1,7 @@
 import logging  # Import the logging module to handle logging throughout the application
 import os  # Import os module to handle directory operations
 
-# Removed: from config import get_config_value  and global LOG_FILE assignment
-
-def setup_logging():
+def setup_logging(log_file: str = '/var/log/lxc_autoscale.log') -> None:
     """
     Set up the logging configuration for the application.
     This function configures logging to write to both a log file and the console.
@@ -11,18 +9,14 @@ def setup_logging():
     Log messages will include timestamps and the severity level of the message.
     """
     
-    # Lazy import to break circular dependency
-    from config import get_config_value  
-    LOG_FILE = get_config_value('DEFAULT', 'log_file', '/var/log/lxc_autoscale.log')
-
     # Ensure the directory for the log file exists
-    log_dir = os.path.dirname(LOG_FILE)
+    log_dir = os.path.dirname(log_file)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
     # Configure the logging to write to a file with the specified format and date format
     logging.basicConfig(
-        filename=LOG_FILE,  # Log file path
+        filename=log_file,  # Log file path
         level=logging.INFO,  # Log level: INFO (this can be adjusted to DEBUG, WARNING, etc.)
         format='%(asctime)s - %(levelname)s - %(message)s',  # Format of log messages
         datefmt='%Y-%m-%d %H:%M:%S'  # Date format for timestamps
@@ -30,10 +24,10 @@ def setup_logging():
 
     # Debug: Verify that the log file is writable
     try:
-        with open(LOG_FILE, 'a') as f:
+        with open(log_file, 'a') as f:
             f.write("# Log file initialized successfully.\n")
     except Exception as err:
-        print(f"Error writing to log file ({LOG_FILE}): {err}")
+        print(f"Error writing to log file ({log_file}): {err}")
 
     # Create a console handler to output log messages to the console
     console = logging.StreamHandler()
@@ -47,7 +41,7 @@ def setup_logging():
     logging.getLogger().addHandler(console)
 
     # Ensure that log messages are flushed immediately to the file.
-    logging.info("Logging is set up. Log file: %s", LOG_FILE)
+    logging.info("Logging is set up. Log file: %s", log_file)
     for handler in logging.getLogger().handlers:
         if hasattr(handler, 'flush'):
             handler.flush()

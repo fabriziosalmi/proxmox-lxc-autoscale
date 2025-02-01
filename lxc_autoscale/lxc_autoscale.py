@@ -54,8 +54,8 @@ def parse_arguments() -> argparse.Namespace:
 
 # Entry point of the script
 if __name__ == "__main__":
-    # Setup logging based on the configuration
-    setup_logging()
+    # Setup logging with the configured log file
+    setup_logging(LOG_FILE)
 
     # Parse command-line arguments
     args: argparse.Namespace = parse_arguments()

@@ -1,24 +1,59 @@
-import logging
 import os
 import sys
+import yaml
 from socket import gethostname
 from typing import Any, Dict, List, Set, Union
 
-import yaml
+CONFIG_FILE = '/etc/lxc_autoscale/lxc_autoscale.yml'
+LOG_FILE = '/var/log/lxc_autoscale.log'
+BACKUP_DIR = '/var/lib/lxc_autoscale/backups'
+PROXMOX_HOSTNAME = os.uname().nodename
 
-CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
+# Load configuration
+def load_config() -> Dict[str, Any]:
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            return yaml.safe_load(f) or {}
+    except Exception:
+        return {}
 
-if not os.path.exists(CONFIG_FILE):
-    sys.exit(f"Configuration file {CONFIG_FILE} does not exist. Exiting...")
+config = load_config()
 
-with open(CONFIG_FILE, 'r', encoding='utf-8') as file:
-    config: Dict[str, Any] = yaml.safe_load(file)
+# Default settings
+DEFAULTS = {
+    'poll_interval': 300,
+    'energy_mode': False,
+    'behaviour': 'normal',
+    'reserve_cpu_percent': 10,
+    'reserve_memory_mb': 2048,
+    'off_peak_start': 22,
+    'off_peak_end': 6,
+    'cpu_upper_threshold': 80,
+    'cpu_lower_threshold': 20,
+    'memory_upper_threshold': 80,
+    'memory_lower_threshold': 20,
+    'min_cores': 1,
+    'max_cores': 4,
+    'min_memory': 512,
+    'core_min_increment': 1,
+    'core_max_increment': 2,
+    'memory_min_increment': 256,
+    'min_decrease_chunk': 128,
+}
 
-if not isinstance(config, dict):
-    sys.exit("Invalid configuration format. Expected a dictionary.")
+# Update defaults with values from config file
+DEFAULTS.update(config.get('DEFAULT', {}))
 
-# --- Default Configuration (moved to top) ---
-DEFAULTS: Dict[str, Any] = config.get('DEFAULTS', {})
+def get_config_value(section: str, key: str, default: Any = None) -> Any:
+    """Get configuration value with fallback to default."""
+    return config.get(section, {}).get(key, DEFAULTS.get(key, default))
+
+IGNORE_LXC = set(config.get('DEFAULT', {}).get('ignore_lxc', []))
+HORIZONTAL_SCALING_GROUPS = config.get('horizontal_scaling_groups', {})
+LXC_TIER_ASSOCIATIONS = config.get('lxc_tier_associations', {})
+CPU_SCALE_DIVISOR = config.get('cpu_scale_divisor', 10)
+MEMORY_SCALE_FACTOR = config.get('memory_scale_factor', 1.5)
+TIMEOUT_EXTENDED = 300
 
 def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
     """Load and validate tier configurations."""
@@ -48,13 +83,6 @@ def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
                     logging.info(f"Loaded tier configuration for container {ctid} from tier {tier_name}")
 
     return tier_configs
-
-def get_config_value(section: str, key: str, default: Any) -> Any:
-    """Retrieve a configuration value with a fallback to a default."""
-    # Map "DEFAULT" to "DEFAULTS" to match YAML
-    if section == "DEFAULT":
-        section = "DEFAULTS"
-    return config.get(section, {}).get(key, default)
 
 def validate_config() -> None:
     """Validate essential configuration values."""
