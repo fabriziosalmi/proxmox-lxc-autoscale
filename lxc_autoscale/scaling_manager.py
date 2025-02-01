@@ -464,5 +464,10 @@ def is_off_peak() -> bool:
          True if it is off-peak, otherwise False.
     """
     current_hour = datetime.now().hour
-    logging.debug(f"Current hour: {current_hour}, Off-peak hours: {DEFAULTS['off_peak_start']} - {DEFAULTS['off_peak_end']}")
-    return DEFAULTS['off_peak_start'] <= current_hour or current_hour < DEFAULTS['off_peak_end']
+    start = DEFAULTS['off_peak_start']
+    end = DEFAULTS['off_peak_end']
+    logging.debug(f"Current hour: {current_hour}, Off-peak hours: {start} - {end}")
+    if start < end:
+        return start <= current_hour < end
+    else:
+        return current_hour >= start or current_hour < end
