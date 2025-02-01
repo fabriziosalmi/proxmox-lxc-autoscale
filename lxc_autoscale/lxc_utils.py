@@ -21,8 +21,8 @@ lock = Lock()
 # Global variable to hold the SSH client
 ssh_client: Optional[paramiko.SSHClient] = None
 
-def get_ssh_client() -> Optional[paramiko.SSHClient]:
-    """Get or create a new SSH client connection."""
+def get_ssh_client() -> Optional['paramiko.SSHClient']:
+    """Get or create SSH client with better error handling."""
     global ssh_client
     if ssh_client is None:
         logging.debug("Creating a new SSH connection...")
@@ -43,7 +43,7 @@ def get_ssh_client() -> Optional[paramiko.SSHClient]:
             logging.error("SSH connection failed: %s", str(e))
             return None
         except Exception as e:
-            logging.error("Unexpected error establishing SSH connection: %s", str(e))
+            logging.error(f"Failed to create SSH client: {e}")
             return None
     return ssh_client
 

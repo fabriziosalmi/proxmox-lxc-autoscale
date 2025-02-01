@@ -2,16 +2,13 @@
 
 import argparse
 import logging
-import os  # Added import for directory operations
 from typing import Optional
 
-import paramiko  # Import the paramiko library
-
-from config import DEFAULTS, get_config_value, IGNORE_LXC, LOG_FILE, PROXMOX_HOSTNAME, BACKUP_DIR  # Import configuration constants and utility functions
-from logging_setup import setup_logging  # Import the logging setup function
-from lock_manager import acquire_lock  # Function to acquire a lock, ensuring only one instance of the script runs
-from lxc_utils import get_containers, rollback_container_settings  # Utility functions for managing LXC containers
-from resource_manager import main_loop  # Main loop function that handles the resource allocation and scaling process
+from config import DEFAULTS, LOG_FILE
+from logging_setup import setup_logging
+from lock_manager import acquire_lock
+from lxc_utils import get_containers, rollback_container_settings
+from resource_manager import main_loop
 
 
 

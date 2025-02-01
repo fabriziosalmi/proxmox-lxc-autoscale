@@ -30,6 +30,10 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
     Returns:
         A dictionary with resource data for the container, or None if the container is not running.
     """
+    if ctid in IGNORE_LXC:
+        logging.debug(f"Skipping ignored container {ctid}")
+        return None
+
     if not lxc_utils.is_container_running(ctid):
         logging.debug(f"Container {ctid} is not running")
         return None

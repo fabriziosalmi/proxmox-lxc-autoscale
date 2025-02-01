@@ -3,6 +3,7 @@ import sys
 import yaml
 from socket import gethostname
 from typing import Any, Dict, List, Set, Union
+import logging
 
 CONFIG_FILE = '/etc/lxc_autoscale/lxc_autoscale.yml'
 LOG_FILE = '/var/log/lxc_autoscale.log'
@@ -11,11 +12,19 @@ PROXMOX_HOSTNAME = os.uname().nodename
 
 # Load configuration
 def load_config() -> Dict[str, Any]:
+    """Load configuration from YAML file with better error handling."""
     try:
-        with open(CONFIG_FILE, 'r') as f:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
             return yaml.safe_load(f) or {}
-    except Exception:
+    except FileNotFoundError:
+        logging.warning(f"Config file not found at {CONFIG_FILE}, using defaults")
         return {}
+    except yaml.YAMLError as e:
+        logging.error(f"Error parsing config file: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logging.error(f"Unexpected error loading config: {e}")
+        sys.exit(1)
 
 config = load_config()
 

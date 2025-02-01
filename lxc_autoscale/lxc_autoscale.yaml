@@ -1,11 +1,10 @@
 # Default configuration values
 DEFAULTS:
-  # Log file path
   log_file: /var/log/lxc_autoscale.log
-  # Lock file path
   lock_file: /var/lock/lxc_autoscale.lock
-  # Backup directory path
   backup_dir: /var/lib/lxc_autoscale/backups
+  reserve_cpu_percent: 10
+  reserve_memory_mb: 2048
   # Percentage of CPU cores to reserve (e.g., 10%)
   reserve_cpu_percent: 10
   # Amount of memory (in MB) to reserve (e.g., 2048 MB)
