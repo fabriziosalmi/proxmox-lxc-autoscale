@@ -1,4 +1,5 @@
 import logging  # Import the logging module to handle logging throughout the application
+import os  # Import os module to handle directory operations
 from config import get_config_value  # Import the get_config_value function to retrieve configuration settings
 
 # Retrieve the log file path from the configuration
@@ -12,6 +13,11 @@ def setup_logging():
     Log messages will include timestamps and the severity level of the message.
     """
     
+    # Ensure the directory for the log file exists
+    log_dir = os.path.dirname(LOG_FILE)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
     # Configure the logging to write to a file with the specified format and date format
     logging.basicConfig(
         filename=LOG_FILE,  # Log file path
