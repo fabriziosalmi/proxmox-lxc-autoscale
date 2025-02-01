@@ -5,7 +5,7 @@ from socket import gethostname
 from typing import Any, Dict, List, Set, Union
 import logging
 
-CONFIG_FILE = '/etc/lxc_autoscale/lxc_autoscale.yml'
+CONFIG_FILE = '/etc/lxc_autoscale/lxc_autoscale.yaml'
 LOG_FILE = '/var/log/lxc_autoscale.log'
 BACKUP_DIR = '/var/lib/lxc_autoscale/backups'
 PROXMOX_HOSTNAME = os.uname().nodename
