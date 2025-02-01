@@ -59,6 +59,9 @@ if __name__ == "__main__":
     log_dir = os.path.dirname(LOG_FILE)
     if not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
+    # Ensure the log file exists to avoid tail errors
+    if not os.path.exists(LOG_FILE):
+        open(LOG_FILE, 'w').close()
 
     # Setup logging based on the configuration
     setup_logging()
