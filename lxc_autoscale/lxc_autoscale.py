@@ -44,6 +44,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Rollback to previous container configurations"  # Option to revert containers to their backed-up settings
     )
 
+    # Add debug mode argument
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug logging"
+    )
+
     args = parser.parse_args()
     logging.debug(f"Parsed arguments: {args}")
     return args
@@ -51,13 +58,14 @@ def parse_arguments() -> argparse.Namespace:
 
 # Entry point of the script
 if __name__ == "__main__":
-    # Setup logging with the configured log file
-    setup_logging(LOG_FILE)
-
-    # Parse command-line arguments
+    # Parse arguments first to get debug flag
     args: argparse.Namespace = parse_arguments()
+    
+    # Setup logging with the configured log file and debug mode
+    setup_logging(LOG_FILE, args.debug)
 
-    logging.info("Starting LXC autoscaling daemon with arguments: %s", args)
+    logging.info("Starting LXC autoscaling daemon")
+    logging.debug("Arguments: %s", args)
 
     # Acquire a lock to ensure that only one instance of the script runs at a time
     with acquire_lock() as lock_file:
