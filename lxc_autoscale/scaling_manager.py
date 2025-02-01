@@ -98,8 +98,8 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
             int((mem_usage - mem_upper) * config['memory_min_increment'] / MEMORY_SCALE_FACTOR),
         )
         if available_memory >= increment:
-            logging.info(f"Increasing memory for container {ctid} by {increment}MB (current: {current_memory}MB, new: {new_memory}MB)")
             new_memory = current_memory + increment
+            logging.info(f"Increasing memory for container {ctid} by {increment}MB (current: {current_memory}MB, new: {new_memory}MB)")
             run_command(f"pct set {ctid} -memory {new_memory}")
             available_memory -= increment
             memory_changed = True
@@ -115,8 +115,8 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
             min_memory,
         )
         if decrease_amount > 0:
-            logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB (current: {current_memory}MB, new: {new_memory}MB)")
             new_memory = current_memory - decrease_amount
+            logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB (current: {current_memory}MB, new: {new_memory}MB)")
             run_command(f"pct set {ctid} -memory {new_memory}")
             available_memory += decrease_amount
             memory_changed = True

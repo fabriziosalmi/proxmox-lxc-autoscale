@@ -37,10 +37,10 @@ class GotifyNotification(NotificationProxy):
         headers = {'X-Gotify-Key': self.token}
 
         try:
-            response = requests.post(f"{self.url}/message", data=payload, headers=headers)
+            response = requests.post(f"{self.url}/message", json=payload, headers=headers, timeout=10)
             response.raise_for_status()
             logging.info(f"Gotify notification sent: {title} - {message}")
-        except requests.exceptions.RequestException as e:
+        except Exception as e:
             logging.error(f"Gotify notification failed: {e}")
 
 # Email notification implementation
@@ -71,7 +71,7 @@ class EmailNotification(NotificationProxy):
         msg['To'] = ', '.join(self.to_addrs)
 
         try:
-            with smtplib.SMTP(self.smtp_server, self.port) as server:
+            with smtplib.SMTP(self.smtp_server, self.port, timeout=10) as server:
                 server.starttls()  # Encrypt the connection
                 server.login(self.username, self.password)  # Authenticate with the SMTP server
                 server.sendmail(self.from_addr, self.to_addrs, msg.as_string())  # Send the email
@@ -97,13 +97,11 @@ class UptimeKumaNotification(NotificationProxy):
             priority (int): Unused, but kept for interface consistency.
         """
         try:
-            response = requests.get(self.webhook_url)
-            if response.status_code == 200:
-                logging.info("Uptime Kuma notification sent successfully")
-            else:
-                logging.error(f"Failed to send Uptime Kuma notification: {response.status_code}")
+            response = requests.post(self.webhook_url, json={'title': title, 'message': message, 'priority': priority}, timeout=10)
+            response.raise_for_status()
+            logging.info("Uptime Kuma notification sent successfully")
         except Exception as e:
-            logging.error(f"Error sending Uptime Kuma notification: {e}")
+            logging.error(f"Failed to send Uptime Kuma notification: {e}")
 
 # Send notification to all initialized notifiers
 def send_notification(title, message, priority=5):
