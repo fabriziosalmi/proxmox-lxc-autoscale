@@ -1,6 +1,9 @@
 name: Pylint
 on: [push]
 
+permissions:
+  contents: read  # Needed to read Python files for linting
+
 jobs:
  build:
    runs-on: ubuntu-latest
