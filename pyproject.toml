@@ -1,0 +1,7 @@
+[tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
+module-root = "lxc_autoscale"
+tests-root = "lxc_autoscale"
+test-framework = "pytest"
+ignore-paths = []
+formatter-cmds = ["disabled"]

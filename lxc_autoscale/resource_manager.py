@@ -94,11 +94,24 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                 result = future.result()
                 if result:
                     containers.update(result)
-                    # Apply tier settings
+                    # Apply tier settings with validation
                     tier = config.get("tiers", {}).get(ctid)
+                    if tier:
+                        logging.info(f"Applied tier {tier} settings to container {ctid}")
                     containers[ctid]["tier"] = tier
+                    # Add timestamp for tracking
+                    containers[ctid]["last_update"] = time.time()
+                    # Log successful data collection
+                    logging.debug(f"Successfully collected data for container {ctid}: {result[ctid]}")
             except Exception as e:
-                logging.error(f"Error collecting data for container {ctid}: {e}")
+                logging.error(f"Failed to collect data for container {ctid}: {str(e)}")
+                # Notify about critical failures
+                if isinstance(e, (paramiko.SSHException, ConnectionError)):
+                    send_notification(
+                        "Resource Collection Error",
+                        f"Failed to collect data for container {ctid} due to connection issue: {str(e)}",
+                        priority=8
+                    )
     
     return containers
 
