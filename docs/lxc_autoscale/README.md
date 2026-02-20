@@ -1,6 +1,6 @@
 # LXC AutoScale Documentation
 
-**LXC AutoScale** is a dynamic scaling solution designed to automatically adjust CPU and memory resources for LXC containers based on real-time usage metrics. This service ensures that your containers always have the appropriate amount of resources allocated, optimizing performance and efficiency in both homelab and self-hosting environments.
+**LXC AutoScale** is a resource management daemon that automatically adjusts CPU and memory for LXC containers based on real-time usage metrics. It can operate locally on the Proxmox host or connect remotely via SSH.
 
 ## Summary
 
@@ -25,7 +25,7 @@
 
 ## LXC AutoScale
 
-**LXC AutoScale** is a powerful tool that automates the dynamic scaling of CPU and memory resources for LXC containers. Designed with both performance optimization and resource efficiency in mind, it continuously monitors container resource usage and adjusts allocations based on pre-configured thresholds. This ensures that each container has just the right amount of resources, minimizing waste and maximizing performance. LXC AutoScale can operate both locally or by remotely connecting via SSH to your Proxmox hosts.
+**LXC AutoScale** monitors container resource usage and adjusts CPU and memory allocations based on pre-configured thresholds. It can run locally on the Proxmox host or connect remotely via SSH.
 
 ---
 
@@ -103,19 +103,19 @@ docker logs lxc_autoscale
 
 ## Installation
 
-Getting started with LXC AutoScale is quick and simple. The easiest way to install (or update) the service is by using the following `curl` command:
+The easiest way to install (or update) the service:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/install.sh | bash
 ```
 
-Once installed, the service should be up and running. You can verify this by executing:
+Verify the service is running:
 
 ```bash
 systemctl status lxc_autoscale.service
 ```
 
-If the conditions set in the configuration are met, you will quickly observe scaling operations in action:
+Example output when the service is running and performing scaling:
 
 ```
 root@proxmox:~# systemctl status lxc_autoscale.service
@@ -143,17 +143,17 @@ Aug 19 01:38:13 proxmox python3[40462]: 2024-08-19 01:38:13 - Resource allocatio
 
 ## Configuration
 
-The core of **LXC AutoScale** lies in its configuration file, where you can fine-tune the behavior of the scaling daemon to suit your specific needs. This section provides an in-depth look at how to configure LXC AutoScale, including a breakdown of key parameters, optional tiers, and horizontal scaling.
+The core of **LXC AutoScale** is the configuration file, which controls scaling behaviour. This section explains the key parameters.
 
 ### Configuration File Location
 
-The main configuration file for LXC AutoScale is located at:
+The main configuration file is located at:
 
 ```bash
 /etc/lxc_autoscale/lxc_autoscale.yaml
 ```
 
-This file contains all the settings that control how the daemon manages resource scaling. Before making any changes, it’s recommended to back up the existing configuration file to avoid losing your settings:
+Back up the file before making changes:
 
 ```bash
 cp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale/lxc_autoscale.yaml.backup
@@ -161,7 +161,7 @@ cp /etc/lxc_autoscale/lxc_autoscale.yaml /etc/lxc_autoscale/lxc_autoscale.yaml.b
 
 ### Important Parameters
 
-The configuration file uses a YAML format to define various settings. Below is a detailed explanation of the default parameters and how they influence the scaling behavior.
+The configuration file uses YAML format. Below is an explanation of the default parameters.
 
 ```yaml
 # Default configuration values
@@ -240,43 +240,29 @@ TIER_other:
 ```
 
 #### Poll Interval (`poll_interval`)
-Sets the frequency (in seconds) at which LXC AutoScale polls container metrics.
-> [!NOTE]
-> A shorter interval means more frequent checks, which can lead to quicker scaling responses but may increase the load on the host. For high-traffic environments, a lower poll interval (e.g., 60 seconds) may be beneficial, whereas for stable environments, the default of 300 seconds may suffice.
+How often (in seconds) the daemon polls container metrics. Default: 300. Shorter intervals respond faster but increase host overhead.
 
 #### CPU Thresholds (`cpu_upper_threshold` and `cpu_lower_threshold`)
-Define the CPU usage percentages that trigger scaling actions.
-> [!NOTE]
-> If a container’s CPU usage exceeds `cpu_upper_threshold`, additional CPU cores are allocated. If usage falls below `cpu_lower_threshold`, cores are deallocated. Adjust these thresholds based on the performance requirements of your containers. For instance, a CPU-intensive application might require a lower `cpu_upper_threshold` to ensure it has enough resources during peak loads.
+When CPU usage exceeds `cpu_upper_threshold`, cores are added. When it falls below `cpu_lower_threshold`, cores are removed.
 
 #### Memory Thresholds (`memory_upper_threshold` and `memory_lower_threshold`)
-Control when memory scaling actions are triggered.
-> [!NOTE]
-> These settings help prevent out-of-memory (OOM) conditions by scaling up memory when usage is high and scaling down when it’s low. Memory-intensive applications, such as databases, may benefit from a higher `memory_upper_threshold` to avoid performance bottlenecks.
+When memory usage exceeds `memory_upper_threshold`, memory is increased. When it falls below `memory_lower_threshold`, memory is reduced.
 
 #### Core and Memory Increments (`core_min_increment`, `core_max_increment`, `memory_min_increment`)
-Define the minimum and maximum increments for scaling CPU cores and memory.
-> [!NOTE]
-> Larger increments lead to more significant changes in resource allocation, which can be useful in environments where workloads vary dramatically. Smaller increments allow for finer control, which is ideal for environments where workloads change gradually.
+Control the size of each scaling step for CPU cores and memory.
 
 #### Resource Reservation (`reserve_cpu_percent` and `reserve_memory_mb`)
-Reserve a portion of the host’s CPU and memory resources.
-> [!IMPORTANT]
-> This reservation ensures that the host remains responsive even under heavy container loads. It’s particularly important in homelab setups where the host may also be running other critical services.
+Reserves a percentage of host CPU and a fixed amount of memory that cannot be allocated to containers.
 
 #### Logging (`log_file`)
-Specifies the file path for logging LXC AutoScale’s actions.
-> [!WARNING]
-> Regularly reviewing these logs helps you understand how the daemon is performing and can aid in troubleshooting any issues.
+Path to the log file. Review logs to monitor behaviour and troubleshoot issues.
 
 #### Energy Mode (`energy_mode`)
-Activates a mode that reduces resource allocation during off-peak hours.
-> [!TIP]
-> Useful for saving energy in environments where container usage is predictable, such as a homelab that primarily operates during specific hours.
+When enabled, reduces container resources to their configured minimums during off-peak hours (defined by `off_peak_start` and `off_peak_end`).
 
 ### Tiers (Optional)
 
-Tiers allow you to apply different scaling rules to groups of containers, enabling more granular control based on the specific needs of each service.
+Tiers allow you to apply different scaling rules to groups of containers.
 
 #### Example Configuration:
 
@@ -294,14 +280,14 @@ TIER_TEST:
   - 101
 ```
 
-- **Usage Scenario**: You might use a tier like `TIER_TEST` for non-critical containers or testing environments. This tier allows these containers to use more resources when needed but also scales them down aggressively to free up resources for other critical containers.
+- **Example**: `TIER_TEST` can be used for non-critical or test containers, allowing wider resource ranges while still freeing resources when usage is low.
 
 > [!TIP]
 > For more configuration examples check the [TIER collection](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md) with 40 snippets customized to fit minimal and recommended requirements for the most popular self-hosted applications.
 
 ### Horizontal Scaling Group (Optional)
 
-Horizontal scaling allows LXC AutoScale to clone containers based on resource demand. This feature is still experimental and is designed for environments that require scaling out services rather than just scaling up resources.
+Horizontal scaling clones containers when group-level resource usage exceeds thresholds. This feature is experimental.
 
 #### Example Configuration:
 
@@ -326,13 +312,13 @@ HORIZONTAL_SCALING_GROUP_1:
 > [!NOTE]
 > If using DHCP for network configuration, set `clone_network_type: "dhcp"` and `static_ip_range: []`.
 
-- **Usage Scenario**: This feature is ideal for homelab users running a web service that experiences fluctuating traffic. When traffic spikes, LXC AutoScale can clone additional instances of the service, ensuring availability without manual intervention.
+- **Example**: When a web service container group exceeds CPU or memory thresholds, LXC AutoScale can clone an additional instance to distribute load.
 
 ---
 
 ## Service Management
 
-Managing the LXC AutoScale daemon is straightforward with systemd. Here’s how to control the service:
+Use systemd to manage the LXC AutoScale daemon:
 
 - **Start the service:**
   ```bash
@@ -360,13 +346,9 @@ To ensure that LXC AutoScale starts automatically at boot, use:
 systemctl enable lxc_autoscale.service
 ```
 
-This command ensures that the daemon is always running, providing continuous scaling based on container needs.
-
 ---
 
 ## Logging
-
-LXC AutoScale logs its actions to help you monitor its behavior and troubleshoot any issues.
 
 ### Log Files
 
@@ -390,7 +372,7 @@ cat /var/log/lxc_autoscale.json | jq .
 
 ### Log Interpretation
 
-Understanding the logs can help you fine-tune LXC AutoScale’s configuration. For example, if you notice frequent scaling actions, you might need to adjust the thresholds or increments to reduce the load on the host.
+Frequent scaling actions may indicate that thresholds are too tight. Adjust `cpu_upper_threshold`, `memory_upper_threshold`, or increment values to reduce unnecessary scaling.
 
 
 ### Notifications
@@ -419,15 +401,11 @@ uptime_kuma_webhook_url: 'http://uptime-kuma-host:3001/api/push/YOUR_PUSH_ID?sta
 > [!TIP]
 > You can enable one, multiple, or all notification methods. Leave the configuration empty or remove it if you don't want to use a specific notification method.
 
-
-
 ## Uninstallation
-
-If you need to remove LXC AutoScale from your system, the process is straightforward.
 
 ### Automated Uninstallation
 
-Use the following `curl` command to automatically uninstall LXC AutoScale:
+To automatically uninstall LXC AutoScale:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/uninstall.sh | bash
@@ -459,8 +437,6 @@ rm -f /var/log/lxc_autoscale.json
 # Reload systemd
 systemctl daemon-reload
 ```
-
-This will completely remove the service and all associated files from your system.
 
 ---
 
@@ -552,39 +528,33 @@ If using remote execution via SSH:
 
 ## Use Cases
 
-### Scenario 1: Media Server
+### Media Server
 
-**Use Case**: You’re running a self-hosted media server using Plex or Jellyfin on your homelab. During evenings and weekends, when your family is likely to be streaming content, LXC AutoScale can automatically allocate more CPU cores and memory to your media server container, ensuring smooth playback. During the day, when usage is low, it scales down resources to save energy.
+A media server container (e.g., Plex or Jellyfin) can have more CPU and memory allocated during peak usage hours. Set `cpu_upper_threshold` and `memory_upper_threshold` lower (e.g., 75%) for faster scale-up response.
 
-**Configuration Tip**: Set the `cpu_upper_threshold` and `memory_upper_threshold` to slightly lower values (e.g., 75%) to ensure quick scaling during peak times.
+### Multiple Development Environments
 
-### Scenario 2: Development Environment
+When running multiple LXC containers for development, assign different tiers with appropriate thresholds and core limits to keep containers from competing for resources.
 
-**Use Case**: You have a homelab where you run multiple development environments in LXC containers. Each environment has different resource needs depending on the projects you’re working on. LXC AutoScale can dynamically adjust resources based on the current workload, allowing you to focus on coding rather than managing resources.
+### Web Server with Variable Traffic
 
-**Configuration Tip**: Create tiers for different projects, assigning higher thresholds to more demanding projects to ensure they get the resources they need without affecting other containers.
-
-### Scenario 3: Personal Web Hosting
-
-**Use Case**: You’re self-hosting a personal website or blog. Occasionally, your site experiences traffic spikes, such as when a blog post gains popularity. LXC AutoScale can clone your web server container to handle the increased load, ensuring that your site remains responsive without manual intervention.
-
-**Configuration Tip**: Enable horizontal scaling with a conservative `horiz_cpu_upper_threshold` to ensure that clones are only created when absolutely necessary, saving resources for other tasks.
+For a web server container that experiences traffic spikes, horizontal scaling can clone the container automatically. Set a conservative `horiz_cpu_upper_threshold` to avoid unnecessary clones.
 
 ---
 
 ## Best Practices and Tips
 
-### 1. Regularly Review and Adjust Configuration
-As your usage patterns change, revisit the LXC AutoScale configuration to ensure it remains optimal. For example, if you add new services or containers, you may need to adjust thresholds or add new tiers.
+### 1. Regularly Review Configuration
+Revisit thresholds and tier settings when adding new containers or when workloads change.
 
-### 2. Monitor Logs Frequently
-Use the log files to monitor how LXC AutoScale is managing resources. Frequent scaling actions may indicate that your thresholds are too tight, leading to unnecessary scaling.
+### 2. Monitor Logs
+Review log files to understand scaling behaviour. Frequent actions may indicate overly tight thresholds.
 
-### 3. Balance Performance and Resource Efficiency
-Finding the right balance between performance and resource efficiency is key. For most homelab users, setting slightly conservative thresholds helps avoid over-allocation while still maintaining good performance.
+### 3. Balance Thresholds
+Conservative thresholds reduce over-allocation; aggressive thresholds allow faster scaling. Tune based on your workload.
 
-### 4. Test Configuration Changes in a Controlled Environment
-Before applying significant changes to the configuration in a production environment, test them in a controlled setting to understand their impact.
+### 4. Test Changes Before Production
+Test configuration changes on non-critical containers before applying to production.
 
-### 5. Use Tiers to Group Similar Containers
-If you have multiple containers with similar resource needs, grouping them into tiers can simplify management and ensure consistent scaling behavior.
+### 5. Use Tiers for Similar Containers
+Grouping containers with similar requirements into tiers simplifies management and ensures consistent scaling.
