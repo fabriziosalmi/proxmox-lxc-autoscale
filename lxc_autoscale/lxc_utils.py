@@ -31,7 +31,7 @@ def validate_container_id(ctid: str) -> None:
     Raises:
         ValueError: If the container ID is not a valid numeric string.
     """
-    if not _CTID_RE.match(str(ctid)):
+    if not _CTID_RE.match(ctid):
         raise ValueError(f"Invalid container ID: {ctid!r}")
 
 # Global variable to hold the SSH client
@@ -332,6 +332,7 @@ def get_cpu_usage(ctid: str) -> float:
 
     def _get_num_cpus(ctid: str) -> int:
         """Parse core count from pct config output."""
+        validate_container_id(ctid)
         config_output = run_command(["pct", "config", ctid])
         if config_output:
             for line in config_output.splitlines():
@@ -341,6 +342,7 @@ def get_cpu_usage(ctid: str) -> float:
 
     def _get_cpu_line(ctid: str) -> Optional[str]:
         """Return the aggregate 'cpu ' line from /proc/stat inside the container."""
+        validate_container_id(ctid)
         stat_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/stat"])
         if not stat_output:
             return None
