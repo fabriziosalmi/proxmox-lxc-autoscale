@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+import re
+import shlex
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,6 +19,20 @@ from config import (BACKUP_DIR,  IGNORE_LXC, LOG_FILE,
                     LXC_TIER_ASSOCIATIONS, PROXMOX_HOSTNAME, config, get_config_value)
 
 lock = Lock()
+
+_CTID_RE = re.compile(r'^[0-9]+$')
+
+def validate_container_id(ctid: str) -> None:
+    """Validate that a container ID consists only of digits.
+
+    Args:
+        ctid: The container ID to validate.
+
+    Raises:
+        ValueError: If the container ID is not a valid numeric string.
+    """
+    if not _CTID_RE.match(ctid):
+        raise ValueError(f"Invalid container ID: {ctid!r}")
 
 # Global variable to hold the SSH client
 ssh_client: Optional[paramiko.SSHClient] = None
@@ -56,11 +72,11 @@ def close_ssh_client() -> None:
         logging.info("SSH connection closed.")
         ssh_client = None
 
-def run_command(cmd: str, timeout: int = 30) -> Optional[str]:
+def run_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
     """Execute a command locally or remotely based on configuration.
 
     Args:
-        cmd: The command to execute.
+        cmd: The command to execute. Use a list for shell=False local execution.
         timeout: Timeout in seconds for the command execution.
 
     Returns:
@@ -72,19 +88,25 @@ def run_command(cmd: str, timeout: int = 30) -> Optional[str]:
     return (run_remote_command if use_remote_proxmox else run_local_command)(cmd, timeout)
 
 
-def run_local_command(cmd: str, timeout: int = 30) -> Optional[str]:
+def run_local_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
     """Execute a command locally with timeout.
 
+    When *cmd* is a list the command is executed with ``shell=False`` to
+    prevent shell-injection attacks.  String commands are kept for the rare
+    cases where a shell feature (e.g. a pipe in a static, hard-coded command)
+    is genuinely required.
+
     Args:
-        cmd: The command to execute.
+        cmd: The command to execute. Prefer a list to avoid shell injection.
         timeout: Timeout in seconds for the command execution.
 
     Returns:
         The command output or None if the command failed.
     """
+    use_shell = isinstance(cmd, str)
     try:
         result = subprocess.check_output(
-            cmd, shell=True, timeout=timeout, stderr=subprocess.STDOUT,
+            cmd, shell=use_shell, timeout=timeout, stderr=subprocess.STDOUT,
         ).decode('utf-8').strip()
         logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
         return result
@@ -97,16 +119,19 @@ def run_local_command(cmd: str, timeout: int = 30) -> Optional[str]:
     return None
 
 
-def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
+def run_remote_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
     """Execute a command on a remote Proxmox host via SSH.
 
     Args:
-        cmd: The command to execute.
+        cmd: The command to execute. A list is joined into a quoted shell
+             command string before being sent to the remote host.
         timeout: Timeout in seconds for the command execution.
 
     Returns:
         The command output or None if the command failed.
     """
+    if isinstance(cmd, list):
+        cmd = shlex.join(cmd)
     logging.debug("Running remote command: %s", cmd)
     ssh = get_ssh_client()
     if not ssh:
@@ -125,14 +150,25 @@ def run_remote_command(cmd: str, timeout: int = 30) -> Optional[str]:
 
 def get_containers() -> List[str]:
     """Return list of container IDs, excluding ignored ones."""
-    containers = run_command("pct list | awk 'NR>1 {print $1}'")
-    if not containers:
+    output = run_command(["pct", "list"])
+    if not output:
         return []
-        
-    container_list = containers.splitlines()
+
+    container_list = []
+    for line in output.splitlines()[1:]:  # skip header row
+        parts = line.split()
+        if not parts:
+            continue
+        ctid = parts[0]
+        try:
+            validate_container_id(ctid)
+            container_list.append(ctid)
+        except ValueError:
+            logging.warning("Skipping container with invalid ID from pct list: %r", ctid)
+
     # Filter out ignored containers
     filtered_containers = [
-        ctid for ctid in container_list 
+        ctid for ctid in container_list
         if ctid and not is_ignored(ctid)
     ]
     logging.debug(f"Found containers: {filtered_containers}, ignored: {IGNORE_LXC}")
@@ -153,7 +189,8 @@ def is_container_running(ctid: str) -> bool:
     Returns:
         True if the container is running, False otherwise.
     """
-    status = run_command(f"pct status {ctid}")
+    validate_container_id(ctid)
+    status = run_command(["pct", "status", ctid])
     running = bool(status and "status: running" in status.lower())
     logging.debug(f"Container {ctid} running status: {running}")
     return running
@@ -210,8 +247,9 @@ def rollback_container_settings(ctid: str) -> None:
     settings = load_backup_settings(ctid)
     if settings:
         logging.info("Rolling back container %s to backup settings", ctid)
-        run_command(f"pct set {ctid} -cores {settings['cores']}")
-        run_command(f"pct set {ctid} -memory {settings['memory']}")
+        validate_container_id(ctid)
+        run_command(["pct", "set", ctid, "-cores", str(settings['cores'])])
+        run_command(["pct", "set", ctid, "-memory", str(settings['memory'])])
 
 
 def log_json_event(ctid: str, action: str, resource_change: str) -> None:
@@ -241,7 +279,7 @@ def get_total_cores() -> int:
     Returns:
         The available number of CPU cores.
     """
-    total_cores = int(run_command("nproc") or 0)
+    total_cores = int(run_command(["nproc"]) or 0)
     reserved_cores = max(1, int(total_cores * int(get_config_value('DEFAULT', 'reserve_cpu_percent', 10)) / 100))
     available_cores = total_cores - reserved_cores
     logging.debug(
@@ -260,8 +298,13 @@ def get_total_memory() -> int:
         The available memory in MB.
     """
     try:
-        command_output = run_command("free -m | awk '/^Mem:/ {print $2}'")
-        total_memory = int(command_output.strip()) if command_output else 0
+        output = run_command(["free", "-m"])
+        total_memory = 0
+        if output:
+            for line in output.splitlines():
+                if line.startswith("Mem:"):
+                    total_memory = int(line.split()[1])
+                    break
     except (ValueError, subprocess.CalledProcessError) as e:
         logging.error("Failed to get total memory: %s", str(e))
         total_memory = 0
@@ -285,18 +328,40 @@ def get_cpu_usage(ctid: str) -> float:
     Returns:
         The CPU usage as a float percentage (0.0 - 100.0).
     """
+    validate_container_id(ctid)
+
+    def _get_num_cpus(ctid: str) -> int:
+        """Parse core count from pct config output."""
+        validate_container_id(ctid)
+        config_output = run_command(["pct", "config", ctid])
+        if config_output:
+            for line in config_output.splitlines():
+                if line.startswith("cores:"):
+                    return int(line.split()[1])
+        return 1
+
+    def _get_cpu_line(ctid: str) -> Optional[str]:
+        """Return the aggregate 'cpu ' line from /proc/stat inside the container."""
+        validate_container_id(ctid)
+        stat_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/stat"])
+        if not stat_output:
+            return None
+        for line in stat_output.splitlines():
+            if line.startswith("cpu "):
+                return line
+        return None
+
     def loadavg_method(ctid: str) -> float:
         """Calculate CPU usage using load average from within the container."""
         try:
             # Use pct exec to run commands inside the container
-            loadavg_output = run_command(f"pct exec {ctid} -- cat /proc/loadavg")
+            loadavg_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/loadavg"])
             if not loadavg_output:
                 raise RuntimeError("Failed to get loadavg")
-                
+
             loadavg = float(loadavg_output.split()[0])
-            # Get number of CPUs allocated to the container
-            num_cpus = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'") or 1)
-            
+            num_cpus = _get_num_cpus(ctid)
+
             return round(min((loadavg / num_cpus) * 100, 100.0), 2)
         except Exception as e:
             raise RuntimeError(f"Loadavg method failed: {str(e)}") from e
@@ -304,12 +369,11 @@ def get_cpu_usage(ctid: str) -> float:
     def proc_stat_method(ctid: str) -> float:
         """Calculate CPU usage using /proc/stat from within the container."""
         try:
-            # Get initial CPU stats with better parsing
-            cmd1 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
-            initial = run_command(cmd1)
+            # Get initial CPU stats
+            initial = _get_cpu_line(ctid)
             if not initial:
                 raise RuntimeError("Failed to get initial CPU stats")
-                
+
             initial_values = list(map(int, initial.split()[1:]))
             initial_idle = initial_values[3] + initial_values[4]  # idle + iowait
             initial_total = sum(initial_values)
@@ -318,11 +382,10 @@ def get_cpu_usage(ctid: str) -> float:
             time.sleep(1)
 
             # Get current CPU stats
-            cmd2 = f"pct exec {ctid} -- cat /proc/stat | grep '^cpu '"
-            current = run_command(cmd2)
+            current = _get_cpu_line(ctid)
             if not current:
                 raise RuntimeError("Failed to get current CPU stats")
-                
+
             current_values = list(map(int, current.split()[1:]))
             current_idle = current_values[3] + current_values[4]  # idle + iowait
             current_total = sum(current_values)
@@ -366,18 +429,24 @@ def get_memory_usage(ctid: str) -> float:
     Returns:
         The memory usage as a float percentage (0.0 - 100.0).
     """
-    mem_info = run_command(
-        f"pct exec {ctid} -- awk '/MemTotal/ {{t=$2}} /MemAvailable/ {{a=$2}} "
-        f"END {{print t, t-a}}' /proc/meminfo"
-    )
-    if mem_info:
+    validate_container_id(ctid)
+    meminfo_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/meminfo"])
+    if meminfo_output:
         try:
-            total, used = map(int, mem_info.split())
-            mem_usage = (used * 100) / total
-            logging.info("Memory usage for %s: %.2f%%", ctid, mem_usage)
-            return mem_usage
-        except ValueError:
-            logging.error("Failed to parse memory info for %s: '%s'", ctid, mem_info)
+            total = used_calc = 0
+            mem_available = None
+            for line in meminfo_output.splitlines():
+                if line.startswith("MemTotal:"):
+                    total = int(line.split()[1])
+                elif line.startswith("MemAvailable:"):
+                    mem_available = int(line.split()[1])
+            if total and mem_available is not None:
+                used_calc = total - mem_available
+                mem_usage = (used_calc * 100) / total
+                logging.info("Memory usage for %s: %.2f%%", ctid, mem_usage)
+                return mem_usage
+        except (ValueError, IndexError):
+            logging.error("Failed to parse memory info for %s", ctid)
     logging.error("Failed to get memory usage for %s", ctid)
     return 0.0
 
@@ -396,8 +465,14 @@ def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
 
     logging.debug("Collecting data for container %s", ctid)
     try:
-        cores = int(run_command(f"pct config {ctid} | grep cores | awk '{{print $2}}'") or 0)
-        memory = int(run_command(f"pct config {ctid} | grep memory | awk '{{print $2}}'") or 0)
+        config_output = run_command(["pct", "config", ctid])
+        cores = memory = 0
+        if config_output:
+            for line in config_output.splitlines():
+                if line.startswith("cores:"):
+                    cores = int(line.split()[1])
+                elif line.startswith("memory:"):
+                    memory = int(line.split()[1])
         settings = {"cores": cores, "memory": memory}
         backup_container_settings(ctid, settings)
         return {

@@ -40,7 +40,7 @@ def collect_data_for_container(ctid: str) -> Optional[Dict[str, Any]]:
 
     try:
         # Get container config more reliably
-        config_output = lxc_utils.run_command(f"pct config {ctid}")
+        config_output = lxc_utils.run_command(["pct", "config", ctid])
         if not config_output:
             raise ValueError(f"No configuration found for container {ctid}")
 

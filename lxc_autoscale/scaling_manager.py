@@ -147,7 +147,7 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
         if available_memory >= increment:
             new_memory = current_memory + increment
             logging.info(f"Increasing memory for container {ctid} by {increment}MB (current: {current_memory}MB, new: {new_memory}MB)")
-            run_command(f"pct set {ctid} -memory {new_memory}")
+            run_command(["pct", "set", ctid, "-memory", str(new_memory)])
             available_memory -= increment
             memory_changed = True
             log_json_event(ctid, "Increase Memory", f"{increment}MB")
@@ -164,7 +164,7 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
         if decrease_amount > 0:
             new_memory = current_memory - decrease_amount
             logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB (current: {current_memory}MB, new: {new_memory}MB)")
-            run_command(f"pct set {ctid} -memory {new_memory}")
+            run_command(["pct", "set", ctid, "-memory", str(new_memory)])
             available_memory += decrease_amount
             memory_changed = True
             log_json_event(ctid, "Decrease Memory", f"{decrease_amount}MB")
@@ -301,7 +301,7 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
             logging.info(f"Container {ctid} - CPU usage exceeds upper threshold. Increment: {increment}, New cores: {new_cores}")
 
             if available_cores >= increment and new_cores <= max_cores:
-                run_command(f"pct set {ctid} -cores {new_cores}")
+                run_command(["pct", "set", ctid, "-cores", str(new_cores)])
                 available_cores -= increment
                 cores_changed = True
                 log_json_event(ctid, "Increase Cores", f"{increment}")
@@ -316,7 +316,7 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
             logging.info(f"Container {ctid} - CPU usage below lower threshold. Decrement: {decrement}, New cores: {new_cores}")
 
             if new_cores >= min_cores:
-                run_command(f"pct set {ctid} -cores {new_cores}")
+                run_command(["pct", "set", ctid, "-cores", str(new_cores)])
                 available_cores += (current_cores - new_cores)
                 cores_changed = True
                 log_json_event(ctid, "Decrease Cores", f"{decrement}")
@@ -333,13 +333,13 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
         if energy_mode and is_off_peak():
             if current_cores > min_cores:
                 logging.info(f"Reducing cores for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(f"pct set {ctid} -cores {min_cores}")
+                run_command(["pct", "set", ctid, "-cores", str(min_cores)])
                 available_cores += (current_cores - min_cores)
                 log_json_event(ctid, "Reduce Cores (Off-Peak)", f"{current_cores - min_cores}")
                 send_notification(f"CPU Reduced for Container {ctid}", f"CPU cores reduced to {min_cores} for energy efficiency.")
             if current_memory > min_memory:
                 logging.info(f"Reducing memory for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(f"pct set {ctid} -memory {min_memory}")
+                run_command(["pct", "set", ctid, "-memory", str(min_memory)])
                 available_memory += (current_memory - min_memory)
                 log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
                 send_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {min_memory}MB for energy efficiency.")
@@ -490,7 +490,8 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
     logging.info(f"Creating snapshot {unique_snapshot_name} of container {base_snapshot}...")
 
     # Create the snapshot
-    snapshot_cmd = f"pct snapshot {base_snapshot} {unique_snapshot_name} --description 'Auto snapshot for scaling'"
+    snapshot_cmd = ["pct", "snapshot", str(base_snapshot), unique_snapshot_name,
+                    "--description", "Auto snapshot for scaling"]
     if run_command(snapshot_cmd):
         logging.info(f"Snapshot {unique_snapshot_name} created successfully.")
 
@@ -498,11 +499,12 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
 
         # Clone the container using the snapshot, with an extended timeout
         clone_hostname = generate_cloned_hostname(base_snapshot, len(current_instances) + 1)
-        clone_cmd = f"pct clone {base_snapshot} {new_ctid} --snapname {unique_snapshot_name} --hostname {clone_hostname}"
+        clone_cmd = ["pct", "clone", str(base_snapshot), str(new_ctid),
+                     "--snapname", unique_snapshot_name, "--hostname", clone_hostname]
         if run_command(clone_cmd, timeout=TIMEOUT_EXTENDED):  # Extended timeout to 300 seconds
             # Network setup based on group configuration
             if group_config['clone_network_type'] == "dhcp":
-                run_command(f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip=dhcp")
+                run_command(["pct", "set", str(new_ctid), "-net0", "name=eth0,bridge=vmbr0,ip=dhcp"])
             elif group_config['clone_network_type'] == "static":
                 static_ip_range = group_config.get('static_ip_range', [])
                 if static_ip_range:
@@ -512,7 +514,8 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
                     if available_ips:
                         ip_address = available_ips[0]
                         run_command(
-                            f"pct set {new_ctid} -net0 name=eth0,bridge=vmbr0,ip={ip_address}/24"
+                            ["pct", "set", str(new_ctid), "-net0",
+                             f"name=eth0,bridge=vmbr0,ip={ip_address}/24"]
                         )
                     else:
                         logging.warning(
@@ -520,7 +523,7 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
                         )
 
             # Start the new container
-            run_command(f"pct start {new_ctid}")
+            run_command(["pct", "start", str(new_ctid)])
             current_instances.append(new_ctid)
 
             # Update the configuration and tracking
