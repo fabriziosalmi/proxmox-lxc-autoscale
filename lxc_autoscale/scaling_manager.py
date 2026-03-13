@@ -12,7 +12,8 @@ from lxc_utils import (backup_container_settings, get_containers, get_cpu_usage,
                        get_memory_usage, get_total_cores, get_total_memory,
                        is_container_running, is_ignored, load_backup_settings,
                        log_json_event, rollback_container_settings,
-                       run_command, generate_unique_snapshot_name, generate_cloned_hostname)
+                       run_command, generate_unique_snapshot_name, generate_cloned_hostname,
+                       validate_container_id)
 from notification import send_notification
 
 
@@ -484,6 +485,17 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
     )
     base_snapshot = group_config['base_snapshot_name']
 
+    # Validate both container IDs before using them in subprocess commands.
+    # 'base_snapshot_name' is the source VMID (passed to 'pct snapshot <vmid>'
+    # and 'pct clone <vmid>') so it must be a numeric container ID, not a
+    # snapshot label.  Reject anything non-numeric to prevent injection.
+    try:
+        validate_container_id(str(new_ctid))
+        validate_container_id(str(base_snapshot))
+    except ValueError as exc:
+        logging.error("scale_out aborted for %s: %s", group_name, exc)
+        return
+
     # Create a unique snapshot name
     unique_snapshot_name = generate_unique_snapshot_name("snap")
 
@@ -535,7 +547,7 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
 
             # Log the scale-out event to JSON
             log_json_event(
-                new_ctid,
+                str(new_ctid),
                 "Scale Out",
                 f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.",
             )
@@ -547,6 +559,50 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
         logging.error(
             f"Failed to create snapshot {unique_snapshot_name} of container {base_snapshot}."
         )
+
+
+def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
+    """Scale in a horizontal scaling group by stopping and removing the last cloned container.
+
+    Only containers whose ID is >= ``starting_clone_id`` (i.e. containers
+    that were cloned by ``scale_out``) are eligible for removal.
+
+    Args:
+        group_name: The name of the scaling group.
+        group_config: Configuration details for the scaling group.
+    """
+    current_instances = sorted(map(int, group_config['lxc_containers']))
+    starting_clone_id = group_config['starting_clone_id']
+    min_containers = group_config.get('min_containers', 1)
+
+    if len(current_instances) <= min_containers:
+        logging.info(f"Min containers ({min_containers}) reached for {group_name}. No scale in performed.")
+        return
+
+    # Only remove containers that were created by scale_out (ID >= starting_clone_id)
+    cloned = sorted([c for c in current_instances if c >= starting_clone_id])
+    if not cloned:
+        logging.info(f"No cloned containers to remove for {group_name}.")
+        return
+
+    target_ctid = str(cloned[-1])
+
+    try:
+        validate_container_id(target_ctid)
+    except ValueError as exc:
+        logging.error("scale_in aborted for %s: %s", group_name, exc)
+        return
+
+    logging.info(f"Scaling in: stopping and removing container {target_ctid} from {group_name}.")
+    run_command(["pct", "stop", target_ctid])
+    run_command(["pct", "destroy", target_ctid])
+
+    group_config['lxc_containers'] = set(map(str, current_instances)) - {target_ctid}
+    scale_last_action[group_name] = datetime.now()
+
+    send_notification(f"Scale In: {group_name}", f"Container {target_ctid} stopped and removed.")
+    log_json_event(target_ctid, "Scale In", f"Container {target_ctid} removed from {group_name}.")
+
 
 
 def is_off_peak() -> bool:

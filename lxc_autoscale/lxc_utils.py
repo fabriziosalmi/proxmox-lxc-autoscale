@@ -18,9 +18,24 @@ except ImportError:
 from config import (BACKUP_DIR,  IGNORE_LXC, LOG_FILE,
                     LXC_TIER_ASSOCIATIONS, PROXMOX_HOSTNAME, config, get_config_value)
 
-lock = Lock()
+# Per-container locks prevent concurrent modification of the same container's
+# backup files.  A separate lock guards the shared JSON event log.
+_log_lock = Lock()
+_container_locks: Dict[str, Lock] = {}
+_locks_mutex = Lock()
+
+
+def _get_container_lock(ctid: str) -> Lock:
+    """Return the lock dedicated to *ctid*, creating it on first use."""
+    with _locks_mutex:
+        if ctid not in _container_locks:
+            _container_locks[ctid] = Lock()
+        return _container_locks[ctid]
+
 
 _CTID_RE = re.compile(r'^[0-9]+$')
+# Safe hostname characters: letters, digits, hyphens (RFC 1123)
+_UNSAFE_HOSTNAME_RE = re.compile(r'[^a-zA-Z0-9\-]')
 
 def validate_container_id(ctid: str) -> None:
     """Validate that a container ID consists only of digits.
@@ -206,7 +221,7 @@ def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None:
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-        with lock:
+        with _get_container_lock(ctid):
             with open(backup_file, 'w', encoding='utf-8') as f:
                 json.dump(settings, f)
         logging.debug("Backup saved for container %s: %s", ctid, settings)
@@ -226,7 +241,7 @@ def load_backup_settings(ctid: str) -> Optional[Dict[str, Any]]:
     try:
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
         if os.path.exists(backup_file):
-            with lock:
+            with _get_container_lock(ctid):
                 with open(backup_file, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
             logging.debug("Loaded backup for container %s: %s", ctid, settings)
@@ -267,7 +282,7 @@ def log_json_event(ctid: str, action: str, resource_change: str) -> None:
         "action": action,
         "change": resource_change,
     }
-    with lock:
+    with _log_lock:
         with open(LOG_FILE.replace('.log', '.json'), 'a', encoding='utf-8') as json_log_file:
             json_log_file.write(json.dumps(log_data) + '\n')
     logging.info("Logged event for container %s: %s - %s", ctid, action, resource_change)
@@ -580,6 +595,11 @@ def generate_unique_snapshot_name(base_name: str) -> str:
 def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
     """Generate unique hostname for cloned container.
 
+    The resulting hostname is sanitised so that it only contains characters
+    that are valid in an RFC 1123 hostname (letters, digits, hyphens).  Any
+    other character in *base_name* is replaced with a hyphen to prevent
+    unexpected shell or tool behaviour.
+
     Args:
         base_name: Base name for the cloned container.
         clone_number: The clone number.
@@ -587,7 +607,8 @@ def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
     Returns:
         A unique hostname for the cloned container.
     """
-    hostname = f"{base_name}-cloned-{clone_number}"
+    safe_base = _UNSAFE_HOSTNAME_RE.sub('-', str(base_name)).strip('-') or 'container'
+    hostname = f"{safe_base}-cloned-{clone_number}"
     logging.debug("Generated cloned hostname: %s", hostname)
     return hostname
 

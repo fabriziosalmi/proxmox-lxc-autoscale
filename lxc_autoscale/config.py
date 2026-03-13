@@ -10,21 +10,68 @@ LOG_FILE = '/var/log/lxc_autoscale.log'
 BACKUP_DIR = '/var/lib/lxc_autoscale/backups'
 PROXMOX_HOSTNAME = os.uname().nodename
 
+# Mapping of environment variable name → (config section, config key).
+# These env vars override sensitive values from the YAML config so that
+# secrets do not have to be stored in plain text on disk.
+_ENV_SECRET_MAP: Dict[str, tuple] = {
+    'LXC_AUTOSCALE_SSH_PASSWORD': ('DEFAULT', 'ssh_password'),
+    'LXC_AUTOSCALE_SMTP_PASSWORD': ('DEFAULT', 'smtp_password'),
+    'LXC_AUTOSCALE_GOTIFY_TOKEN': ('DEFAULT', 'gotify_token'),
+    'LXC_AUTOSCALE_UPTIME_KUMA_WEBHOOK': ('DEFAULT', 'uptime_kuma_webhook_url'),
+}
+
+
+def _check_config_permissions(path: str) -> None:
+    """Warn when the config file is readable by group or other users.
+
+    Secrets stored in the config file are at risk when the file is
+    world- or group-readable.  The recommended permission is 0600
+    (owner read/write only).
+    """
+    try:
+        mode = os.stat(path).st_mode & 0o777
+        if mode & 0o077:  # any group or other permission bit is set
+            logging.warning(
+                "Config file %s has insecure permissions %04o. "
+                "Recommended permissions are 0600 (owner read/write only).",
+                path, mode,
+            )
+    except OSError:
+        pass  # File not found is handled separately in load_config()
+
+
+def _apply_env_overrides(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Override sensitive config values from environment variables.
+
+    Each mapping in ``_ENV_SECRET_MAP`` is checked; when the environment
+    variable is set its value replaces the corresponding entry in *cfg*
+    so that secrets need not be stored in the YAML file.
+    """
+    for env_var, (section, key) in _ENV_SECRET_MAP.items():
+        value = os.environ.get(env_var)
+        if value:
+            cfg.setdefault(section, {})[key] = value
+            logging.debug("Config key '%s.%s' overridden from environment variable %s.", section, key, env_var)
+    return cfg
+
+
 # Load configuration
 def load_config() -> Dict[str, Any]:
     """Load configuration from YAML file with better error handling."""
+    _check_config_permissions(CONFIG_FILE)
     try:
         with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f) or {}
+            cfg = yaml.safe_load(f) or {}
     except FileNotFoundError:
         logging.warning(f"Config file not found at {CONFIG_FILE}, using defaults")
-        return {}
+        cfg = {}
     except yaml.YAMLError as e:
         logging.error(f"Error parsing config file: {e}")
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except  # any OS-level or permissions error
         logging.error(f"Unexpected error loading config: {e}")
         sys.exit(1)
+    return _apply_env_overrides(cfg)
 
 config = load_config()
 
