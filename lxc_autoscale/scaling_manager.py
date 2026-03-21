@@ -12,7 +12,8 @@ from lxc_utils import (backup_container_settings, get_containers, get_cpu_usage,
                        get_memory_usage, get_total_cores, get_total_memory,
                        is_container_running, is_ignored, load_backup_settings,
                        log_json_event, rollback_container_settings,
-                       run_command, generate_unique_snapshot_name, generate_cloned_hostname)
+                       run_command, generate_unique_snapshot_name, generate_cloned_hostname,
+                       validate_container_id)
 from notification import send_notification
 
 
@@ -135,6 +136,9 @@ def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float
          Updated available memory and a flag indicating if memory was changed.
     """
     memory_changed = False
+
+    validate_container_id(ctid)
+
     behaviour_multiplier = get_behaviour_multiplier()
 
     logging.info(f"Memory scaling for container {ctid} - Usage: {mem_usage}%, Upper threshold: {mem_upper}%, Lower threshold: {mem_lower}%")
@@ -239,6 +243,13 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
     # Proceed with the rest of the logic for adjusting resources
     for ctid, usage in containers.items():
+        # Validate container ID before any subprocess call
+        try:
+            validate_container_id(ctid)
+        except ValueError:
+            logging.error(f"Invalid container ID {ctid!r}, skipping")
+            continue
+
         # Skip if container is in ignore list
         if is_ignored(ctid):
             logging.info(f"Skipping ignored container {ctid}")
@@ -483,6 +494,14 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
         [ctid for ctid in current_instances if int(ctid) >= starting_clone_id]
     )
     base_snapshot = group_config['base_snapshot_name']
+
+    # Validate both IDs before any subprocess call
+    try:
+        validate_container_id(str(new_ctid))
+        validate_container_id(str(base_snapshot))
+    except ValueError as e:
+        logging.error(f"Invalid container/snapshot ID for scale_out in {group_name}: {e}")
+        return
 
     # Create a unique snapshot name
     unique_snapshot_name = generate_unique_snapshot_name("snap")

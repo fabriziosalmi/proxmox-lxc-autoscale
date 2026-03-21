@@ -1,9 +1,13 @@
 import os
+import re
+import stat
 import sys
 import yaml
 from socket import gethostname
 from typing import Any, Dict, List, Set, Union
 import logging
+
+_CTID_RE = re.compile(r'^[0-9]+$')
 
 CONFIG_FILE = '/etc/lxc_autoscale/lxc_autoscale.yaml'
 LOG_FILE = '/var/log/lxc_autoscale.log'
@@ -27,6 +31,37 @@ def load_config() -> Dict[str, Any]:
         sys.exit(1)
 
 config = load_config()
+
+# --- Config file permission check ---
+def _check_config_permissions(path: str) -> None:
+    """Warn if the config file is readable by group or others."""
+    try:
+        st = os.stat(path)
+        mode = st.st_mode
+        if mode & (stat.S_IRGRP | stat.S_IROTH):
+            logging.warning(
+                "Config file %s is readable by group/others (mode %o). "
+                "Recommend chmod 0600 to protect secrets.",
+                path, stat.S_IMODE(mode),
+            )
+    except OSError:
+        pass  # file may not exist when using defaults
+
+_check_config_permissions(CONFIG_FILE)
+
+# --- Environment variable overrides for secrets ---
+_ENV_SECRET_MAP = {
+    'LXC_AUTOSCALE_SSH_PASSWORD': 'ssh_password',
+    'LXC_AUTOSCALE_SMTP_PASSWORD': 'smtp_password',
+    'LXC_AUTOSCALE_GOTIFY_TOKEN': 'gotify_token',
+    'LXC_AUTOSCALE_UPTIME_KUMA_WEBHOOK': 'uptime_kuma_webhook_url',
+}
+
+for _env_var, _config_key in _ENV_SECRET_MAP.items():
+    _env_val = os.environ.get(_env_var)
+    if _env_val is not None:
+        config.setdefault('DEFAULT', {})[_config_key] = _env_val
+        logging.info("Secret '%s' overridden from environment variable %s", _config_key, _env_var)
 
 # Default settings
 DEFAULTS = {
@@ -75,6 +110,9 @@ def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
                 # Convert container IDs to strings for consistent comparison
                 containers = [str(ctid) for ctid in values['lxc_containers']]
                 for ctid in containers:
+                    if not _CTID_RE.match(ctid):
+                        logging.warning(f"Skipping invalid container ID {ctid!r} in tier {tier_name}")
+                        continue
                     tier_configs[ctid] = {
                         'cpu_upper_threshold': values.get('cpu_upper_threshold', DEFAULTS['cpu_upper_threshold']),
                         'cpu_lower_threshold': values.get('cpu_lower_threshold', DEFAULTS['cpu_lower_threshold']),
