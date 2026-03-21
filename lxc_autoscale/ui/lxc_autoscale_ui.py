@@ -33,4 +33,9 @@ def get_full_log():
     return jsonify({"log": ""})  # Return empty log if file does not exist
 
 if __name__ == "__main__":
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+    socketio.run(
+        app,
+        host=os.environ.get('LXC_AUTOSCALE_UI_HOST', '127.0.0.1'),
+        port=int(os.environ.get('LXC_AUTOSCALE_UI_PORT', '5000')),
+        debug=os.environ.get('LXC_AUTOSCALE_UI_DEBUG', '').lower() == 'true',
+    )

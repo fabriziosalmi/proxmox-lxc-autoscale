@@ -18,7 +18,21 @@ except ImportError:
 from config import (BACKUP_DIR,  IGNORE_LXC, LOG_FILE,
                     LXC_TIER_ASSOCIATIONS, PROXMOX_HOSTNAME, config, get_config_value)
 
-lock = Lock()
+# Dedicated lock for the shared JSON event log
+_log_lock = Lock()
+
+# Per-container locks — created on demand so concurrent threads for
+# *different* containers no longer block each other.
+_container_locks: Dict[str, Lock] = {}
+_locks_mutex = Lock()
+
+
+def _get_container_lock(ctid: str) -> Lock:
+    """Return a per-container lock, creating one on first access."""
+    with _locks_mutex:
+        if ctid not in _container_locks:
+            _container_locks[ctid] = Lock()
+        return _container_locks[ctid]
 
 _CTID_RE = re.compile(r'^[0-9]+$')
 
@@ -91,22 +105,21 @@ def run_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
 def run_local_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
     """Execute a command locally with timeout.
 
-    When *cmd* is a list the command is executed with ``shell=False`` to
-    prevent shell-injection attacks.  String commands are kept for the rare
-    cases where a shell feature (e.g. a pipe in a static, hard-coded command)
-    is genuinely required.
+    Always uses ``shell=False`` to prevent shell-injection attacks.
+    String commands are split via :func:`shlex.split`.
 
     Args:
-        cmd: The command to execute. Prefer a list to avoid shell injection.
+        cmd: The command to execute (list preferred; strings are split safely).
         timeout: Timeout in seconds for the command execution.
 
     Returns:
         The command output or None if the command failed.
     """
-    use_shell = isinstance(cmd, str)
+    if isinstance(cmd, str):
+        cmd = shlex.split(cmd)
     try:
         result = subprocess.check_output(
-            cmd, shell=use_shell, timeout=timeout, stderr=subprocess.STDOUT,
+            cmd, shell=False, timeout=timeout, stderr=subprocess.STDOUT,
         ).decode('utf-8').strip()
         logging.debug(f"Command '{cmd}' executed successfully. Output: {result}")
         return result
@@ -206,7 +219,7 @@ def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None:
     try:
         os.makedirs(BACKUP_DIR, exist_ok=True)
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-        with lock:
+        with _get_container_lock(ctid):
             with open(backup_file, 'w', encoding='utf-8') as f:
                 json.dump(settings, f)
         logging.debug("Backup saved for container %s: %s", ctid, settings)
@@ -226,7 +239,7 @@ def load_backup_settings(ctid: str) -> Optional[Dict[str, Any]]:
     try:
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
         if os.path.exists(backup_file):
-            with lock:
+            with _get_container_lock(ctid):
                 with open(backup_file, 'r', encoding='utf-8') as f:
                     settings = json.load(f)
             logging.debug("Loaded backup for container %s: %s", ctid, settings)
@@ -267,7 +280,7 @@ def log_json_event(ctid: str, action: str, resource_change: str) -> None:
         "action": action,
         "change": resource_change,
     }
-    with lock:
+    with _log_lock:
         with open(LOG_FILE.replace('.log', '.json'), 'a', encoding='utf-8') as json_log_file:
             json_log_file.write(json.dumps(log_data) + '\n')
     logging.info("Logged event for container %s: %s - %s", ctid, action, resource_change)
@@ -580,6 +593,10 @@ def generate_unique_snapshot_name(base_name: str) -> str:
 def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
     """Generate unique hostname for cloned container.
 
+    Strips non-RFC-1123 characters from *base_name* to prevent injection
+    through hostnames.  Falls back to ``'container'`` when the sanitised
+    name is empty.
+
     Args:
         base_name: Base name for the cloned container.
         clone_number: The clone number.
@@ -587,7 +604,10 @@ def generate_cloned_hostname(base_name: str, clone_number: int) -> str:
     Returns:
         A unique hostname for the cloned container.
     """
-    hostname = f"{base_name}-cloned-{clone_number}"
+    sanitised = re.sub(r'[^a-zA-Z0-9-]', '-', str(base_name)).strip('-')
+    if not sanitised:
+        sanitised = 'container'
+    hostname = f"{sanitised}-cloned-{clone_number}"
     logging.debug("Generated cloned hostname: %s", hostname)
     return hostname
 
