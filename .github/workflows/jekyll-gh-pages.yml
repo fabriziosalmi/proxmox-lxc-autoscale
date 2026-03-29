@@ -1,4 +1,4 @@
-name: Deploy Jekyll with GitHub Pages dependencies preinstalled
+name: Deploy VitePress to GitHub Pages
 
 on:
   push:
@@ -23,15 +23,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: docs/package.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: docs
+
+      - name: Build VitePress
+        run: npm run docs:build
+        working-directory: docs
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
-      - name: Build with Jekyll
-        uses: actions/jekyll-build-pages@v1
-        with:
-          source: ./docs  # Set source to the docs folder
-          destination: ./_site
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
 
   deploy:
     environment:

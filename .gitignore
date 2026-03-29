@@ -4,3 +4,6 @@ lxc_autoscale/.env
 __pycache__/
 *.log
 *.lock
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
