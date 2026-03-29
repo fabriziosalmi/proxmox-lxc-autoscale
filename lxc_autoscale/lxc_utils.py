@@ -624,41 +624,6 @@ def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def collect_data_for_container(ctid: str) -> Optional[Dict[str, Dict[str, Any]]]:
-    """Collect data for a single container."""
-    data = get_container_data(ctid)
-    if data:
-        logging.debug("Data collected for container %s: %s", ctid, data)
-        return {ctid: data}
-    return None
-
-def collect_container_data() -> Dict[str, Dict[str, Any]]:
-    """Collect resource usage data for all containers."""
-    containers: Dict[str, Dict[str, Any]] = {}
-    
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        futures = {
-            executor.submit(collect_data_for_container, ctid): ctid
-            for ctid in get_containers()
-            if not is_ignored(ctid)
-        }
-        
-        for future in as_completed(futures):
-            ctid = futures[future]
-            try:
-                result = future.result()
-                if result:
-                    containers.update(result)
-                    # Apply tier settings
-                    if ctid in LXC_TIER_ASSOCIATIONS:
-                        tier_config = LXC_TIER_ASSOCIATIONS[ctid]
-                        containers[ctid].update(tier_config)
-                        logging.info(f"Applied tier settings for container {ctid} from tier {tier_config.get('tier_name', 'unknown')}")
-            except Exception as e:
-                logging.error(f"Error collecting data for container {ctid}: {e}")
-    
-    logging.info("Collected data for containers: %s", containers)
-    return containers
 
 
 def prioritize_containers(containers: Dict[str, Dict[str, Any]]) -> List[Tuple[str, Dict[str, Any]]]:

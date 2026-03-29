@@ -2,7 +2,7 @@
 
 **LXC AutoScale** is a resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It can run locally on the Proxmox host or connect remotely via SSH. Container cloning (horizontal scaling) is also supported as an experimental feature.
 
-- **Tested with Proxmox 8.3.3**
+- **Tested with Proxmox 8.x** (8.3.3+)
 
 **Quick Start**
 
@@ -34,14 +34,11 @@
 
 ### Prerequisites
 
-- **Proxmox VE 8.x** (tested with 8.3.3)
-- **Python 3.6+**
+- **Proxmox VE 7.x or 8.x** (tested with 8.3.3)
+- **Python 3.9+**
 - **Root access** to the Proxmox host
 - **LXC containers** already created and configured
 - **Internet connection** for downloading the installation script
-
-> [!IMPORTANT]
-> LXC AutoScale requires LXCFS to be properly configured. See the LXCFS configuration section below for details.
 
 ### Installation
 
@@ -56,36 +53,30 @@ curl -sSL https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/
 > systemctl status lxc_autoscale.service
 > ```
 
-### LXCFS Configuration (Important)
+### CPU Measurement
 
-> [!IMPORTANT]
-> You need to check your `/lib/systemd/system/lxcfs.service` file for the presence of the `-l` option which makes `loadavg` retrieval work as expected. Here is the required configuration:
->
-> ```
-> [Unit]
-> Description=FUSE filesystem for LXC
-> ConditionVirtualization=!container
-> Before=lxc.service
-> Documentation=man:lxcfs(1)
-> 
-> [Service]
-> OOMScoreAdjust=-1000
-> ExecStartPre=/bin/mkdir -p /var/lib/lxcfs
-> # ExecStart=/usr/bin/lxcfs /var/lib/lxcfs
-> ExecStart=/usr/bin/lxcfs /var/lib/lxcfs -l
-> KillMode=process
-> Restart=on-failure
-> ExecStopPost=-/bin/fusermount -u /var/lib/lxcfs
-> Delegate=yes
-> ExecReload=/bin/kill -USR1 $MAINPID
->
-> [Install]
-> WantedBy=multi-user.target
-> ```
-> 
-> Just update the `/lib/systemd/system/lxcfs.service` file, execute `systemctl daemon-reload && systemctl restart lxcfs`, and when you are ready to apply the fix, restart the LXC containers.
-> 
-> _Thanks to No-Pen9082 for pointing this out. [Here](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) is the Proxmox forum thread on the topic._
+Starting with v1.2.0, CPU usage is measured via **host-side cgroup accounting** (cgroup v2/v1). This reads the kernel's own CPU time tracking for each container directly from the Proxmox host, without needing to execute commands inside containers. Benefits:
+
+- Accurate measurements that match what Proxmox shows in its web UI
+- No dependency on LXCFS being installed in containers
+- Minimal overhead (simple file reads instead of `pct exec` per container)
+- Works correctly on low-core hosts with many containers
+
+If cgroup accounting is unavailable, the daemon falls back to `/proc/stat` (requires LXCFS) and then to load average estimation.
+
+<details>
+<summary>LXCFS Configuration (optional, for fallback method)</summary>
+
+If you want the `/proc/stat` fallback to work correctly, configure LXCFS with the `-l` flag in `/lib/systemd/system/lxcfs.service`:
+
+```
+ExecStart=/usr/bin/lxcfs /var/lib/lxcfs -l
+```
+
+Then run `systemctl daemon-reload && systemctl restart lxcfs` and restart your containers.
+
+_See the [Proxmox forum thread](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) for details._
+</details>
 
 ## Configuration
 
