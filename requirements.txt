@@ -1,3 +1,5 @@
 PyYAML>=5.0
 paramiko>=2.7
 requests>=2.20
+flask>=2.0
+flask-socketio>=5.0

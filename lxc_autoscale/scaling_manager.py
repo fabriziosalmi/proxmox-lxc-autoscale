@@ -564,6 +564,39 @@ def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
         )
 
 
+def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
+    """Scale in a horizontal scaling group by stopping the last cloned container.
+
+    Args:
+        group_name: The name of the scaling group.
+        group_config: Configuration details for the scaling group.
+    """
+    current_instances = sorted(map(int, group_config['lxc_containers']))
+    min_containers = group_config.get('min_containers', 1)
+
+    if len(current_instances) <= min_containers:
+        logging.info(f"Already at minimum containers ({min_containers}) for {group_name}. No scale in performed.")
+        return
+
+    # Remove the last (highest-ID) container
+    remove_ctid = str(current_instances[-1])
+    try:
+        validate_container_id(remove_ctid)
+    except ValueError as e:
+        logging.error(f"Invalid container ID for scale_in in {group_name}: {e}")
+        return
+
+    logging.info(f"Scaling in {group_name}: stopping container {remove_ctid}")
+    run_command(["pct", "stop", remove_ctid])
+    current_instances.pop()
+    group_config['lxc_containers'] = set(map(str, current_instances))
+    scale_last_action[group_name] = datetime.now()
+
+    logging.info(f"Container {remove_ctid} stopped for scale-in of {group_name}.")
+    send_notification(f"Scale In: {group_name}", f"Container {remove_ctid} stopped.")
+    log_json_event(remove_ctid, "Scale In", f"Container {remove_ctid} stopped in group {group_name}.")
+
+
 def is_off_peak() -> bool:
     """Determine if the current time is within off-peak hours.
 
