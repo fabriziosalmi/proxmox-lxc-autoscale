@@ -221,24 +221,19 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
 
     logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
 
-    # Print current resource usage and tier settings for all running LXC containers
-    logging.info("Current resource usage and tier settings for all containers:")
+    # Log current resource usage and tier settings for all running containers
     for ctid, usage in containers.items():
-        # Get tier configuration
         tier_config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
-        rounded_cpu_usage = round(usage['cpu'], 2)
-        rounded_mem_usage = round(usage['mem'], 2)
-        total_mem_allocated = usage['initial_memory']
-        free_mem_percent = round(100 - ((rounded_mem_usage / total_mem_allocated) * 100), 2)
-
+        tier_label = tier_config.get('tier_name', 'DEFAULT')
         logging.info(
-            f"Container {ctid}:\n"
-            f"  CPU usage: {rounded_cpu_usage}% (Tier limits: {tier_config['cpu_lower_threshold']}%-{tier_config['cpu_upper_threshold']}%)\n"
-            f"  Memory usage: {rounded_mem_usage}MB ({free_mem_percent}% free of {total_mem_allocated}MB total)\n"
-            f"  Tier settings:\n"
-            f"    Min cores: {tier_config['min_cores']}, Max cores: {tier_config['max_cores']}\n"
-            f"    Min memory: {tier_config['min_memory']}MB\n"
-            f"    Current cores: {usage['initial_cores']}"
+            "Container %s [%s]: CPU %.1f%% (thresholds %d%%-%d%%), "
+            "Mem %.1f%% of %dMB (thresholds %d%%-%d%%), "
+            "cores %d (min %d, max %d)",
+            ctid, tier_label,
+            usage['cpu'], tier_config['cpu_lower_threshold'], tier_config['cpu_upper_threshold'],
+            usage['mem'], usage['initial_memory'],
+            tier_config['memory_lower_threshold'], tier_config['memory_upper_threshold'],
+            usage['initial_cores'], tier_config['min_cores'], tier_config['max_cores'],
         )
 
     # Proceed with the rest of the logic for adjusting resources
@@ -309,16 +304,17 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
             increment = calculate_increment(cpu_usage, cpu_upper, config['core_min_increment'], config['core_max_increment'])
             new_cores = current_cores + increment
 
-            logging.info(f"Container {ctid} - CPU usage exceeds upper threshold. Increment: {increment}, New cores: {new_cores}")
-
-            if available_cores >= increment and new_cores <= max_cores:
+            if new_cores > max_cores:
+                logging.info(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold but already at max cores ({current_cores}/{max_cores})")
+            elif available_cores < increment:
+                logging.warning(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold, need {increment} cores but only {available_cores} available on host")
+            else:
+                logging.info(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold, scaling {current_cores} -> {new_cores} cores")
                 run_command(["pct", "set", ctid, "-cores", str(new_cores)])
                 available_cores -= increment
                 cores_changed = True
                 log_json_event(ctid, "Increase Cores", f"{increment}")
                 send_notification(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}.")
-            else:
-                logging.warning(f"Container {ctid} - Not enough available cores to increase.")
 
         elif cpu_usage < cpu_lower and current_cores > min_cores:
             decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)

@@ -94,11 +94,11 @@ def collect_container_data() -> Dict[str, Dict[str, Any]]:
                 result = future.result()
                 if result:
                     containers.update(result)
-                    # Apply tier settings with validation
-                    tier = config.get("tiers", {}).get(ctid)
-                    if tier:
-                        logging.info(f"Applied tier {tier} settings to container {ctid}")
+                    # Attach tier config (if any) for downstream use
+                    tier = LXC_TIER_ASSOCIATIONS.get(ctid)
                     containers[ctid]["tier"] = tier
+                    if tier:
+                        logging.debug("Container %s uses tier %s", ctid, tier.get("tier_name", "unknown"))
                     # Add timestamp for tracking
                     containers[ctid]["last_update"] = time.time()
                     # Log successful data collection
@@ -196,16 +196,16 @@ def main_loop(poll_interval: int, energy_mode: bool) -> None:
 
             # Validate tier settings from configuration
             for ctid in list(containers.keys()):
-                tier = config.get("tiers", {}).get(ctid)
+                tier = LXC_TIER_ASSOCIATIONS.get(ctid)
                 containers[ctid]["tier"] = tier
                 if tier:
                     if not validate_tier_config(ctid, tier):
-                        logging.error("Tier configuration for container %s is invalid. Removing container from scaling.", ctid)
+                        logging.error("Invalid tier config for container %s, skipping.", ctid)
                         del containers[ctid]
                         continue
-                    logging.info("Applying tier settings for container %s: %s", ctid, tier)
+                    logging.debug("Container %s: tier %s", ctid, tier.get("tier_name", "unknown"))
                 else:
-                    logging.info("No tier settings found for container %s in /etc/lxc_autoscale/lxc_autoscale.yml", ctid)
+                    logging.debug("Container %s: no tier configured, using defaults", ctid)
 
             # Log time before adjusting resources
             adjust_start_time = time.time()

@@ -332,92 +332,217 @@ def get_total_memory() -> int:
     return available_memory
 
 
+## ---------------------------------------------------------------------------
+## CPU measurement helpers (module-level for caching across poll cycles)
+## ---------------------------------------------------------------------------
+
+# Cache: ctid -> cgroup file path that worked last time
+_cgroup_path_cache: Dict[str, str] = {}
+
+# Cache: ctid -> (usage_usec, monotonic_timestamp) from previous poll cycle.
+# Allows delta calculation without sleeping on subsequent runs.
+_prev_cpu_readings: Dict[str, Tuple[float, float]] = {}
+
+
+def _get_num_cpus(ctid: str) -> int:
+    """Parse core count from ``pct config`` output."""
+    validate_container_id(ctid)
+    config_output = run_command(["pct", "config", ctid])
+    if config_output:
+        for line in config_output.splitlines():
+            if line.startswith("cores:"):
+                return int(line.split()[1])
+    return 1
+
+
+def _read_cgroup_cpu_usec(ctid: str) -> Optional[float]:
+    """Read cumulative CPU usage in microseconds from host-side cgroup.
+
+    Tries cgroup v2 paths first, then cgroup v1.  The working path is
+    cached so subsequent calls for the same container are a single ``cat``.
+    """
+    validate_container_id(ctid)
+
+    # Fast path: use cached path
+    cached = _cgroup_path_cache.get(ctid)
+    if cached:
+        val = _parse_cgroup_file(cached)
+        if val is not None:
+            return val
+        # Cached path stopped working (container restarted?), rediscover.
+        del _cgroup_path_cache[ctid]
+
+    # cgroup v2 candidates (Proxmox VE 7+/8+)
+    v2_paths = [
+        f"/sys/fs/cgroup/lxc.payload.{ctid}/cpu.stat",
+        f"/sys/fs/cgroup/lxc/{ctid}/cpu.stat",
+    ]
+    for path in v2_paths:
+        val = _parse_cgroup_v2(path)
+        if val is not None:
+            _cgroup_path_cache[ctid] = path
+            return val
+
+    # cgroup v1 fallback
+    v1_path = f"/sys/fs/cgroup/cpuacct/lxc/{ctid}/cpuacct.usage"
+    val = _parse_cgroup_v1(v1_path)
+    if val is not None:
+        _cgroup_path_cache[ctid] = v1_path
+        return val
+
+    return None
+
+
+def _parse_cgroup_file(path: str) -> Optional[float]:
+    """Dispatch to v1 or v2 parser based on the file path."""
+    if path.endswith("cpu.stat"):
+        return _parse_cgroup_v2(path)
+    return _parse_cgroup_v1(path)
+
+
+def _parse_cgroup_v2(path: str) -> Optional[float]:
+    """Extract ``usage_usec`` from a cgroup v2 ``cpu.stat`` file."""
+    output = run_command(["cat", path])
+    if not output:
+        return None
+    for line in output.splitlines():
+        if line.startswith("usage_usec"):
+            try:
+                return float(line.split()[1])
+            except (IndexError, ValueError):
+                return None
+    return None
+
+
+def _parse_cgroup_v1(path: str) -> Optional[float]:
+    """Read cgroup v1 ``cpuacct.usage`` (nanoseconds) and return microseconds."""
+    output = run_command(["cat", path])
+    if not output:
+        return None
+    try:
+        return float(output.strip()) / 1000.0
+    except ValueError:
+        return None
+
+
+def _cgroup_method(ctid: str) -> float:
+    """Calculate CPU usage from host-side cgroup accounting.
+
+    On the first call for a container there is no previous sample, so we
+    sleep briefly and take two readings.  On subsequent poll cycles the
+    cached previous reading is used, giving an accurate measurement over
+    the full poll interval with zero extra overhead.
+    """
+    usage_usec = _read_cgroup_cpu_usec(ctid)
+    if usage_usec is None:
+        raise RuntimeError("cgroup CPU path not found")
+
+    now = time.monotonic()
+    prev = _prev_cpu_readings.get(ctid)
+
+    if prev is None:
+        # First reading — take a second sample after a short sleep.
+        _prev_cpu_readings[ctid] = (usage_usec, now)
+        time.sleep(2)
+        usage_usec_2 = _read_cgroup_cpu_usec(ctid)
+        if usage_usec_2 is None:
+            raise RuntimeError("Failed to read second cgroup CPU sample")
+        now_2 = time.monotonic()
+        _prev_cpu_readings[ctid] = (usage_usec_2, now_2)
+        delta_usec = usage_usec_2 - usage_usec
+        delta_sec = now_2 - now
+    else:
+        prev_usec, prev_ts = prev
+        _prev_cpu_readings[ctid] = (usage_usec, now)
+        delta_usec = usage_usec - prev_usec
+        delta_sec = now - prev_ts
+
+    # Guard against counter resets (container restart) or clock issues
+    if delta_sec <= 0 or delta_usec < 0:
+        # Stale/reset reading — clear cache, return 0 this cycle
+        _prev_cpu_readings.pop(ctid, None)
+        return 0.0
+
+    num_cpus = _get_num_cpus(ctid)
+    # usage_usec accumulates across all CPUs; normalise by core count.
+    cpu_pct = (delta_usec / (delta_sec * 1_000_000 * num_cpus)) * 100
+    return round(max(min(cpu_pct, 100.0), 0.0), 2)
+
+
+def _proc_stat_method(ctid: str) -> float:
+    """Calculate CPU usage via /proc/stat inside the container.
+
+    This is a fallback method — it requires LXCFS to be installed in
+    the container for correct results.  Without LXCFS the container
+    sees the *host* /proc/stat, giving wildly inaccurate readings.
+    """
+    validate_container_id(ctid)
+
+    def _get_cpu_line() -> str:
+        stat_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/stat"])
+        if not stat_output:
+            raise RuntimeError("Failed to read /proc/stat")
+        for line in stat_output.splitlines():
+            if line.startswith("cpu "):
+                return line
+        raise RuntimeError("/proc/stat has no aggregate cpu line")
+
+    initial = _get_cpu_line()
+    initial_values = list(map(int, initial.split()[1:]))
+    initial_idle = initial_values[3] + initial_values[4]  # idle + iowait
+    initial_total = sum(initial_values)
+
+    time.sleep(2)
+
+    current = _get_cpu_line()
+    current_values = list(map(int, current.split()[1:]))
+    current_idle = current_values[3] + current_values[4]
+    current_total = sum(current_values)
+
+    delta_idle = current_idle - initial_idle
+    delta_total = current_total - initial_total
+
+    if delta_total <= 0:
+        return 0.0
+
+    cpu_usage = ((delta_total - delta_idle) / delta_total) * 100
+    return round(max(min(cpu_usage, 100.0), 0.0), 2)
+
+
+def _loadavg_method(ctid: str) -> float:
+    """Estimate CPU usage from load average inside the container."""
+    validate_container_id(ctid)
+    loadavg_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/loadavg"])
+    if not loadavg_output:
+        raise RuntimeError("Failed to read /proc/loadavg")
+
+    loadavg = float(loadavg_output.split()[0])
+    num_cpus = _get_num_cpus(ctid)
+    return round(min((loadavg / num_cpus) * 100, 100.0), 2)
+
+
 def get_cpu_usage(ctid: str) -> float:
     """Get container CPU usage using multiple fallback methods.
+
+    Method priority:
+      1. **cgroup** — reads host-side cgroup accounting (most accurate,
+         no ``pct exec`` overhead, works without LXCFS).
+      2. **proc_stat** — reads /proc/stat inside the container (requires
+         LXCFS for correct results).
+      3. **loadavg** — rough estimate from /proc/loadavg.
 
     Args:
         ctid: The container ID.
 
     Returns:
-        The CPU usage as a float percentage (0.0 - 100.0).
+        CPU usage as a percentage (0.0–100.0).
     """
     validate_container_id(ctid)
 
-    def _get_num_cpus(ctid: str) -> int:
-        """Parse core count from pct config output."""
-        validate_container_id(ctid)
-        config_output = run_command(["pct", "config", ctid])
-        if config_output:
-            for line in config_output.splitlines():
-                if line.startswith("cores:"):
-                    return int(line.split()[1])
-        return 1
-
-    def _get_cpu_line(ctid: str) -> Optional[str]:
-        """Return the aggregate 'cpu ' line from /proc/stat inside the container."""
-        validate_container_id(ctid)
-        stat_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/stat"])
-        if not stat_output:
-            return None
-        for line in stat_output.splitlines():
-            if line.startswith("cpu "):
-                return line
-        return None
-
-    def loadavg_method(ctid: str) -> float:
-        """Calculate CPU usage using load average from within the container."""
-        try:
-            # Use pct exec to run commands inside the container
-            loadavg_output = run_command(["pct", "exec", ctid, "--", "cat", "/proc/loadavg"])
-            if not loadavg_output:
-                raise RuntimeError("Failed to get loadavg")
-
-            loadavg = float(loadavg_output.split()[0])
-            num_cpus = _get_num_cpus(ctid)
-
-            return round(min((loadavg / num_cpus) * 100, 100.0), 2)
-        except Exception as e:
-            raise RuntimeError(f"Loadavg method failed: {str(e)}") from e
-
-    def proc_stat_method(ctid: str) -> float:
-        """Calculate CPU usage using /proc/stat from within the container."""
-        try:
-            # Get initial CPU stats
-            initial = _get_cpu_line(ctid)
-            if not initial:
-                raise RuntimeError("Failed to get initial CPU stats")
-
-            initial_values = list(map(int, initial.split()[1:]))
-            initial_idle = initial_values[3] + initial_values[4]  # idle + iowait
-            initial_total = sum(initial_values)
-
-            # Wait for a short period
-            time.sleep(1)
-
-            # Get current CPU stats
-            current = _get_cpu_line(ctid)
-            if not current:
-                raise RuntimeError("Failed to get current CPU stats")
-
-            current_values = list(map(int, current.split()[1:]))
-            current_idle = current_values[3] + current_values[4]  # idle + iowait
-            current_total = sum(current_values)
-
-            delta_idle = current_idle - initial_idle
-            delta_total = current_total - initial_total
-
-            if delta_total <= 0:
-                return 0.0
-
-            cpu_usage = ((delta_total - delta_idle) / delta_total) * 100
-            return round(max(min(cpu_usage, 100.0), 0.0), 2)
-        except Exception as e:
-            raise RuntimeError(f"Proc stat method failed: {str(e)}") from e
-
-    # Try each method in order
     methods = [
-        ("Proc Stat", proc_stat_method),
-        ("Load Average", loadavg_method)
+        ("cgroup", _cgroup_method),
+        ("proc_stat", _proc_stat_method),
+        ("loadavg", _loadavg_method),
     ]
 
     for method_name, method in methods:
@@ -427,9 +552,9 @@ def get_cpu_usage(ctid: str) -> float:
                 logging.info("CPU usage for %s using %s: %.2f%%", ctid, method_name, cpu)
                 return cpu
         except Exception as e:
-            logging.warning("%s failed for %s: %s", method_name, ctid, str(e))
+            logging.debug("%s method failed for %s: %s", method_name, ctid, str(e))
 
-    logging.error("All CPU usage methods failed for %s. Using 0.0", ctid)
+    logging.error("All CPU usage methods failed for container %s, returning 0.0", ctid)
     return 0.0
 
 
@@ -563,7 +688,7 @@ def prioritize_containers(containers: Dict[str, Dict[str, Any]]) -> List[Tuple[s
 
 
 def get_container_config(ctid: str) -> Dict[str, Any]:
-    """Get container tier configuration.
+    """Get container tier configuration, falling back to DEFAULTS.
 
     Args:
         ctid: The container ID.
@@ -571,9 +696,10 @@ def get_container_config(ctid: str) -> Dict[str, Any]:
     Returns:
         The container's tier configuration.
     """
-    config = LXC_TIER_ASSOCIATIONS.get(ctid, config)
-    logging.debug("Configuration for container %s: %s", ctid, config)
-    return config
+    from config import DEFAULTS
+    tier = LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
+    logging.debug("Configuration for container %s: %s", ctid, tier)
+    return tier
 
 
 def generate_unique_snapshot_name(base_name: str) -> str:
