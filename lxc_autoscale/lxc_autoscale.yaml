@@ -68,3 +68,27 @@ TIER_other:
   core_max_increment: 1
   memory_min_increment: 128
   min_decrease_chunk: 64
+
+# Example: CPU core pinning for hybrid Intel CPUs (Big.LITTLE)
+# Uncomment and adjust for your setup.
+#
+# TIER_performance:
+#   lxc_containers:
+#     - "105"
+#   cpu_pinning: p-cores       # Pin to Performance cores
+#   max_cores: 8
+#   min_cores: 2
+#   min_memory: 4096
+#
+# TIER_background:
+#   lxc_containers:
+#     - "106"
+#     - "107"
+#   cpu_pinning: e-cores       # Pin to Efficiency cores
+#   max_cores: 4
+#   min_cores: 1
+#   min_memory: 512
+#
+# cpu_pinning accepts: "p-cores", "e-cores", "all", or an explicit
+# range like "0-11" or "0,2,4,6-8".  Requires Intel Alder Lake+
+# (12th gen or newer) for automatic P/E-core detection.

@@ -125,6 +125,7 @@ def load_tier_configurations() -> Dict[str, Dict[str, Any]]:
                         'core_max_increment': values.get('core_max_increment', DEFAULTS.get('core_max_increment', 2)),
                         'memory_min_increment': values.get('memory_min_increment', DEFAULTS.get('memory_min_increment', 256)),
                         'min_decrease_chunk': values.get('min_decrease_chunk', DEFAULTS.get('min_decrease_chunk', 128)),
+                        'cpu_pinning': values.get('cpu_pinning'),
                         'tier_name': tier_name
                     }
                     logging.info(f"Loaded tier configuration for container {ctid} from tier {tier_name}")

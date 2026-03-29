@@ -333,6 +333,196 @@ def get_total_memory() -> int:
 
 
 ## ---------------------------------------------------------------------------
+## CPU topology detection & core pinning (Intel Big.LITTLE / hybrid CPUs)
+## ---------------------------------------------------------------------------
+
+_CPU_RANGE_RE = re.compile(r'^[0-9]+([-,][0-9]+)*$')
+
+# Cached topology — detected once, reused across poll cycles.
+_cached_topology: Optional[Dict[str, Any]] = None
+
+
+def _cpus_to_range(cpus: List[int]) -> str:
+    """Convert a sorted list of CPU IDs to a compact range string.
+
+    Example: [0,1,2,3,8,9,10] -> ``"0-3,8-10"``
+    """
+    if not cpus:
+        return ""
+    ranges: List[str] = []
+    start = end = cpus[0]
+    for cpu in cpus[1:]:
+        if cpu == end + 1:
+            end = cpu
+        else:
+            ranges.append(f"{start}-{end}" if end > start else str(start))
+            start = end = cpu
+    ranges.append(f"{start}-{end}" if end > start else str(start))
+    return ",".join(ranges)
+
+
+def detect_cpu_topology() -> Dict[str, Any]:
+    """Detect P-core / E-core topology on hybrid Intel CPUs.
+
+    Uses ``/sys/devices/system/cpu/cpu*/topology/core_type`` (kernel 5.18+)
+    which reports ``"Core"`` for P-cores and ``"Atom"`` for E-cores on
+    Intel Alder Lake / Raptor Lake and newer.
+
+    Returns:
+        Dict with keys ``p_cores``, ``e_cores``, ``all`` (each a list of
+        CPU IDs) and ``hybrid`` (bool).
+    """
+    global _cached_topology
+    if _cached_topology is not None:
+        return _cached_topology
+
+    nproc_out = run_command(["nproc"])
+    if not nproc_out:
+        _cached_topology = {'p_cores': [], 'e_cores': [], 'all': [], 'hybrid': False}
+        return _cached_topology
+
+    num_cpus = int(nproc_out)
+    all_cpus = list(range(num_cpus))
+
+    # Single shell command to read all core_type files at once.
+    script = (
+        'for f in /sys/devices/system/cpu/cpu[0-9]*/topology/core_type; do '
+        '[ -f "$f" ] && printf "%s:%s\\n" '
+        '"$(basename $(dirname $(dirname "$f")))" "$(cat "$f")"; done'
+    )
+    output = run_command(["sh", "-c", script])
+
+    p_cores: List[int] = []
+    e_cores: List[int] = []
+
+    if output:
+        for line in output.strip().splitlines():
+            if ':' not in line:
+                continue
+            cpu_name, core_type = line.split(':', 1)
+            # cpu_name is like "cpu0", "cpu12"
+            try:
+                cpu_id = int(cpu_name.replace('cpu', ''))
+            except ValueError:
+                continue
+            ct = core_type.strip().lower()
+            if ct in ('atom', 'efficiency'):
+                e_cores.append(cpu_id)
+            else:
+                p_cores.append(cpu_id)
+
+    hybrid = bool(p_cores and e_cores)
+
+    if not hybrid:
+        # Non-hybrid system — all cores are equal.
+        p_cores = all_cpus
+        e_cores = []
+        logging.info("CPU topology: %d cores, no hybrid (Big.LITTLE) architecture detected", num_cpus)
+    else:
+        logging.info(
+            "CPU topology: hybrid detected — %d P-cores (%s), %d E-cores (%s)",
+            len(p_cores), _cpus_to_range(sorted(p_cores)),
+            len(e_cores), _cpus_to_range(sorted(e_cores)),
+        )
+
+    _cached_topology = {
+        'p_cores': sorted(p_cores),
+        'e_cores': sorted(e_cores),
+        'all': sorted(all_cpus),
+        'hybrid': hybrid,
+    }
+    return _cached_topology
+
+
+def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
+    """Resolve a ``cpu_pinning`` config value to an actual CPU range string.
+
+    Args:
+        pinning_config: One of ``"p-cores"``, ``"e-cores"``, ``"all"``,
+            or an explicit range like ``"0-11"`` or ``"0,2,4,6-8"``.
+
+    Returns:
+        A validated CPU range string, or ``None`` if resolution fails.
+    """
+    val = pinning_config.strip().lower()
+    topo = detect_cpu_topology()
+
+    if val == 'p-cores':
+        if not topo['p_cores']:
+            logging.warning("cpu_pinning 'p-cores' requested but no P-cores detected")
+            return None
+        return _cpus_to_range(topo['p_cores'])
+    elif val == 'e-cores':
+        if not topo['e_cores']:
+            logging.warning("cpu_pinning 'e-cores' requested but no E-cores detected")
+            return None
+        return _cpus_to_range(topo['e_cores'])
+    elif val == 'all':
+        return _cpus_to_range(topo['all'])
+    elif _CPU_RANGE_RE.match(val):
+        return val
+    else:
+        logging.error("Invalid cpu_pinning value: %r", pinning_config)
+        return None
+
+
+def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
+    """Apply CPU core pinning to a container's LXC configuration.
+
+    Writes or updates ``lxc.cgroup2.cpuset.cpus`` in
+    ``/etc/pve/lxc/{ctid}.conf``.
+
+    Args:
+        ctid: Container ID (digits only).
+        cpu_range: Validated CPU range string (e.g. ``"0-11"``).
+
+    Returns:
+        True on success, False on failure.
+    """
+    validate_container_id(ctid)
+    if not _CPU_RANGE_RE.match(cpu_range):
+        logging.error("Invalid CPU range %r for container %s", cpu_range, ctid)
+        return False
+
+    conf_path = f"/etc/pve/lxc/{ctid}.conf"
+    current = run_command(["cat", conf_path])
+    if current is None:
+        logging.error("Cannot read config file %s for container %s", conf_path, ctid)
+        return False
+
+    target_line = f"lxc.cgroup2.cpuset.cpus: {cpu_range}"
+
+    # Check if pinning is already set to the desired value
+    for line in current.splitlines():
+        if line.strip() == target_line:
+            logging.debug("Container %s already pinned to %s", ctid, cpu_range)
+            return True
+
+    if 'lxc.cgroup2.cpuset.cpus:' in current:
+        # Update existing line via sed (safe: cpu_range is validated digits/commas/dashes)
+        result = run_command([
+            "sed", "-i",
+            f"s|^lxc.cgroup2.cpuset.cpus:.*|{target_line}|",
+            conf_path,
+        ])
+        if result is None:
+            logging.error("Failed to update CPU pinning for container %s", ctid)
+            return False
+    else:
+        # Append new line
+        result = run_command([
+            "sh", "-c",
+            f'printf "%s\\n" "{target_line}" >> "{conf_path}"',
+        ])
+        if result is None:
+            logging.error("Failed to add CPU pinning for container %s", ctid)
+            return False
+
+    logging.info("Container %s: CPU pinning set to %s", ctid, cpu_range)
+    return True
+
+
+## ---------------------------------------------------------------------------
 ## CPU measurement helpers (module-level for caching across poll cycles)
 ## ---------------------------------------------------------------------------
 

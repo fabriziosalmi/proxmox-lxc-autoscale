@@ -8,10 +8,11 @@ import paramiko
 
 from config import (CPU_SCALE_DIVISOR, DEFAULTS, HORIZONTAL_SCALING_GROUPS,
                     IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED, config, LXC_TIER_ASSOCIATIONS)
-from lxc_utils import (backup_container_settings, get_containers, get_cpu_usage,
+from lxc_utils import (apply_cpu_pinning, backup_container_settings,
+                       get_containers, get_cpu_usage,
                        get_memory_usage, get_total_cores, get_total_memory,
                        is_container_running, is_ignored, load_backup_settings,
-                       log_json_event, rollback_container_settings,
+                       log_json_event, resolve_cpu_pinning, rollback_container_settings,
                        run_command, generate_unique_snapshot_name, generate_cloned_hostname,
                        validate_container_id)
 from notification import send_notification
@@ -335,6 +336,13 @@ def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -
         available_memory, memory_changed = scale_memory(
             ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memory, available_memory, config
         )
+
+        # Apply CPU core pinning if configured in tier
+        pinning_cfg = config.get('cpu_pinning')
+        if pinning_cfg:
+            cpu_range = resolve_cpu_pinning(str(pinning_cfg))
+            if cpu_range:
+                apply_cpu_pinning(ctid, cpu_range)
 
         # Apply energy efficiency mode if enabled
         if energy_mode and is_off_peak():

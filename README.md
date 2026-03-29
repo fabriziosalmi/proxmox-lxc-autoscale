@@ -16,6 +16,7 @@
 - Automatic vertical scaling of CPU cores and memory based on usage thresholds
 - Horizontal scaling via container cloning (experimental)
 - Per-container or per-group threshold configuration using tiers
+- **CPU core pinning** for Intel hybrid CPUs (Alder Lake+): pin containers to P-cores or E-cores
 - Host CPU and memory reservation to prevent over-allocation
 - Container exclusion list (`ignore_lxc`)
 - Energy efficiency mode that reduces resources during off-peak hours
@@ -77,6 +78,25 @@ Then run `systemctl daemon-reload && systemctl restart lxcfs` and restart your c
 
 _See the [Proxmox forum thread](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) for details._
 </details>
+
+### CPU Core Pinning (Intel Big.LITTLE)
+
+On hybrid Intel CPUs (Alder Lake / Raptor Lake / Arrow Lake, 12th gen+), you can pin containers to Performance or Efficiency cores via the `cpu_pinning` tier setting:
+
+```yaml
+TIER_databases:
+  lxc_containers:
+    - "102"
+  cpu_pinning: p-cores       # Run on Performance cores only
+
+TIER_background_tasks:
+  lxc_containers:
+    - "105"
+    - "106"
+  cpu_pinning: e-cores       # Run on Efficiency cores only
+```
+
+Accepted values: `p-cores`, `e-cores`, `all`, or an explicit range like `0-11` or `0,2,4,6-8`. Core topology is auto-detected from the kernel at startup.
 
 ## Configuration
 
