@@ -7,17 +7,42 @@ Performance optimizations:
 """
 
 import asyncio
+import ipaddress
 import logging
 import smtplib
 from abc import ABC, abstractmethod
 from email.mime.text import MIMEText
 from typing import Dict
+from urllib.parse import urlparse
 
 import requests
 
 from config import DEFAULTS
 
 logger = logging.getLogger(__name__)
+
+
+def _is_safe_url(url: str) -> bool:
+    """Check that a URL does not point to internal/private network addresses (SSRF prevention)."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        # Block obvious internal targets
+        if hostname in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+            return False
+        # Try to parse as IP and reject private/reserved ranges
+        try:
+            addr = ipaddress.ip_address(hostname)
+            if addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved:
+                return False
+        except ValueError:
+            # Not a raw IP — hostname, allow it (DNS resolution is not our job here)
+            pass
+        return True
+    except (ValueError, TypeError):
+        return False
 
 # #9: Shared HTTP session with connection pooling
 _http_session: requests.Session = None
@@ -120,9 +145,15 @@ def _get_notifiers():
         except (KeyError, TypeError) as e:
             logger.error("Failed to initialize Email notifier: %s", e)
     if DEFAULTS.get('gotify_url') and DEFAULTS.get('gotify_token'):
-        notifiers.append(GotifyNotification(DEFAULTS['gotify_url'], DEFAULTS['gotify_token']))
+        if _is_safe_url(DEFAULTS['gotify_url']):
+            notifiers.append(GotifyNotification(DEFAULTS['gotify_url'], DEFAULTS['gotify_token']))
+        else:
+            logger.error("Gotify URL rejected (SSRF): %s", DEFAULTS['gotify_url'])
     if DEFAULTS.get('uptime_kuma_webhook_url'):
-        notifiers.append(UptimeKumaNotification(DEFAULTS['uptime_kuma_webhook_url']))
+        if _is_safe_url(DEFAULTS['uptime_kuma_webhook_url']):
+            notifiers.append(UptimeKumaNotification(DEFAULTS['uptime_kuma_webhook_url']))
+        else:
+            logger.error("Uptime Kuma URL rejected (SSRF): %s", DEFAULTS['uptime_kuma_webhook_url'])
     _notifiers_cache = notifiers
     return notifiers
 

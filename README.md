@@ -4,8 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![GitHub release](https://img.shields.io/github/v/release/fabriziosalmi/proxmox-lxc-autoscale)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-235%20passed-brightgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
-[![Coverage](https://img.shields.io/badge/coverage-70%25-yellowgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
+[![Tests](https://img.shields.io/badge/tests-260%20passed-brightgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
+[![Coverage](https://img.shields.io/badge/coverage-71%25-yellowgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
 
 **LXC AutoScale** is an async resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It supports local execution, remote execution via SSH, or the **Proxmox REST API** as backend. Container cloning (horizontal scaling) is also supported as an experimental feature.
 
@@ -39,7 +39,7 @@
 - JSON metrics log with rotation (10MB limit)
 - Local execution, remote execution via SSH, or REST API
 - Docker support with optional non-root user for API-only mode
-- **235 tests** with 70% code coverage
+- **260 tests** with 71% code coverage
 
 > [!NOTE]
 > If you need to autoscale Virtual Machine resources on Proxmox hosts, you will like [this project](https://github.com/fabriziosalmi/proxmox-vm-autoscale).

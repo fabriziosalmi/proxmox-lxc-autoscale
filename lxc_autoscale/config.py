@@ -57,7 +57,7 @@ class DefaultsConfig(BaseModel):
     poll_interval: int = 300
     energy_mode: bool = False
     behaviour: Literal["normal", "conservative", "aggressive"] = "normal"
-    timezone: str = "UTC"
+    timezone: str = "UTC"  # validated below
 
     # Resource reserves
     reserve_cpu_percent: int = 10
@@ -128,6 +128,16 @@ class DefaultsConfig(BaseModel):
             raise ValueError("memory_lower_threshold must be < memory_upper_threshold")
         if self.min_cores > self.max_cores:
             raise ValueError("min_cores must be <= max_cores")
+        if not (0 <= self.off_peak_start <= 23):
+            raise ValueError("off_peak_start must be 0-23")
+        if not (0 <= self.off_peak_end <= 23):
+            raise ValueError("off_peak_end must be 0-23")
+        # Validate timezone at config load, not at runtime
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(self.timezone)
+        except (KeyError, Exception) as exc:
+            raise ValueError(f"Invalid timezone: {self.timezone!r}") from exc
         return self
 
     def get_ssh_config(self) -> SSHConfig:
@@ -189,6 +199,18 @@ class HorizontalScalingGroup(BaseModel):
     scale_in_grace_period: int = 600
 
     model_config = {"extra": "allow"}
+
+    @model_validator(mode="after")
+    def validate_ids(self) -> "HorizontalScalingGroup":
+        """Validate container IDs and base_snapshot_name are numeric."""
+        for ctid in self.lxc_containers:
+            if not _CTID_RE.match(ctid):
+                raise ValueError(f"Invalid container ID in horizontal group: {ctid!r}")
+        if self.base_snapshot_name and not _CTID_RE.match(self.base_snapshot_name):
+            raise ValueError(
+                f"Invalid base_snapshot_name: {self.base_snapshot_name!r} (must be numeric)"
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------

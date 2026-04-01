@@ -138,10 +138,17 @@ async def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None
     if _last_backup_settings.get(ctid) == settings:
         return  # nothing changed, skip I/O
     try:
-        os.makedirs(BACKUP_DIR, exist_ok=True)
+        os.makedirs(BACKUP_DIR, exist_ok=True, mode=0o700)
         backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
+        # Symlink-safe: resolve and verify path stays within BACKUP_DIR
+        real_dir = os.path.realpath(BACKUP_DIR)
+        real_file = os.path.realpath(backup_file)
+        if not real_file.startswith(real_dir + os.sep):
+            logger.error("Symlink attack detected on backup path: %s", backup_file)
+            return
         async with _get_container_lock(ctid):
-            with open(backup_file, 'w', encoding='utf-8') as f:
+            fd = os.open(real_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(settings, f)
         _last_backup_settings[ctid] = settings.copy()
         logger.debug("Backup saved for container %s", ctid)
@@ -215,7 +222,8 @@ def _get_json_log_handle():
     if _json_log_file is None or _json_log_file.closed:
         json_path = _get_json_log_path()
         os.makedirs(os.path.dirname(json_path) or '.', exist_ok=True)
-        _json_log_file = open(json_path, 'a', encoding='utf-8', buffering=1)
+        fd = os.open(json_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        _json_log_file = os.fdopen(fd, 'a', encoding='utf-8', buffering=1)
     return _json_log_file
 
 
@@ -236,21 +244,25 @@ async def log_json_event(ctid: str, action: str, resource_change) -> None:
 
 
 def prune_old_backups(max_per_container: int = 5) -> None:
-    """#7: Remove old backup files, keeping only the most recent N per container."""
+    """Remove old backup files, keeping only the most recent N per container."""
     if not os.path.isdir(BACKUP_DIR):
         return
-    # Backups are {ctid}_backup.json — only one per container, but prune stale ones
+    real_dir = os.path.realpath(BACKUP_DIR)
     try:
         backup_files = sorted(
             (os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR)
              if f.endswith('_backup.json')),
             key=lambda p: os.path.getmtime(p),
         )
-        # Keep only the most recent max_per_container * N files total
-        max_total = max_per_container * 100  # generous upper bound
+        max_total = max_per_container * 100
         if len(backup_files) > max_total:
             for old_file in backup_files[:len(backup_files) - max_total]:
-                os.unlink(old_file)
+                # Symlink-safe: verify file is inside BACKUP_DIR
+                real_path = os.path.realpath(old_file)
+                if not real_path.startswith(real_dir + os.sep):
+                    logger.warning("Refusing to delete file outside backup dir: %s", old_file)
+                    continue
+                os.unlink(real_path)
                 logger.debug("Pruned old backup: %s", old_file)
     except OSError as e:
         logger.warning("Failed to prune backups: %s", e)
@@ -387,33 +399,42 @@ async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
 
     cfg = get_app_config()
     if cfg.defaults.use_remote_proxmox:
-        # Remote: must use commands (no local file access)
+        # Remote: read file, build new content in Python, write back via tee.
+        # Never pass user-controlled data through sed or sh -c.
         current = await run_command(["cat", conf_path])
         if current is None:
             logger.error("Cannot read config file %s", conf_path)
             return False
-        for line in current.splitlines():
-            if line.strip() == target_line:
+        lines = current.splitlines(True)
+        found = False
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped == target_line:
                 _applied_pinning[ctid] = cpu_range
                 return True
-        if 'lxc.cgroup2.cpuset.cpus:' in current:
-            result = await run_command(["sed", "-i",
-                f"s|^lxc.cgroup2.cpuset.cpus:.*|{target_line}|", conf_path])
-        else:
-            # Use tee -a instead of sh -c printf to avoid f-string injection
-            proc = await asyncio.create_subprocess_exec(
-                "tee", "-a", conf_path,
-                stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
-            )
-            await proc.communicate(input=(target_line + "\n").encode())
-            result = "" if proc.returncode == 0 else None
-        if result is None:
+            if stripped.startswith('lxc.cgroup2.cpuset.cpus:'):
+                lines[i] = target_line + '\n'
+                found = True
+        if not found:
+            lines.append(target_line + '\n')
+        new_content = ''.join(lines)
+        # Write back atomically via tee (stdin, no shell interpolation)
+        proc = await asyncio.create_subprocess_exec(
+            "tee", conf_path,
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
+        )
+        await proc.communicate(input=new_content.encode())
+        if proc.returncode != 0:
             logger.error("Failed to set CPU pinning for container %s", ctid)
             return False
     else:
         # Local: native Python file I/O — no shell, no injection risk
         try:
-            with open(conf_path, 'r', encoding='utf-8') as f:
+            real_conf = os.path.realpath(conf_path)
+            if not real_conf.startswith('/etc/pve/lxc/'):
+                logger.error("Symlink attack on config path: %s -> %s", conf_path, real_conf)
+                return False
+            with open(real_conf, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             found = False
             for i, line in enumerate(lines):
@@ -425,7 +446,7 @@ async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
                     found = True
             if not found:
                 lines.append(target_line + '\n')
-            with open(conf_path, 'w', encoding='utf-8') as f:
+            with open(real_conf, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
         except OSError as e:
             logger.error("Failed to set CPU pinning for container %s: %s", ctid, e)
