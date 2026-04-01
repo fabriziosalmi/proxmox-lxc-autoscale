@@ -95,7 +95,8 @@ async def collect_container_data() -> Dict[str, Dict[str, Any]]:
             logger.error("Failed to collect data for container %s: %s", ctid, result)
             if isinstance(result, ConnectionError):
                 # #6: Fire-and-forget notification
-                asyncio.create_task(send_notification_async(
+                from scaling_manager import _fire_and_forget
+                _fire_and_forget(send_notification_async(
                     "Resource Collection Error",
                     f"Connection issue collecting data for {ctid}: {result}",
                     priority=8,

@@ -27,6 +27,17 @@ logger = logging.getLogger(__name__)
 # Track last scale-out action per group
 scale_last_action: Dict[str, datetime] = {}
 
+# Hold references to fire-and-forget notification tasks to prevent GC
+# before completion. Completed tasks are pruned periodically.
+_background_tasks: set = set()
+
+
+def _fire_and_forget(coro) -> None:
+    """Schedule a coroutine as a background task with reference tracking."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
 
 def _now_tz() -> datetime:
     """Return timezone-aware current time using configured timezone."""
@@ -91,7 +102,7 @@ async def send_detailed_notification(ctid: str, event_type: str,
     message += f"  - Memory Thresholds: {tier_config['memory_lower_threshold']}% - {tier_config['memory_upper_threshold']}%\n"
     for key, value in details.items():
         message += f"  - {key}: {value}\n"
-    asyncio.create_task(send_notification_async(f"{event_type} - Container {ctid}", message))
+    _fire_and_forget(send_notification_async(f"{event_type} - Container {ctid}", message))
     await log_json_event(ctid, event_type, details)
 
 
@@ -149,7 +160,7 @@ async def scale_memory(ctid: str, mem_usage: float, mem_upper: float,
             available_memory -= increment
             memory_changed = True
             await log_json_event(ctid, "Increase Memory", f"{increment}MB")
-            asyncio.create_task(send_notification_async(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB."))
+            _fire_and_forget(send_notification_async(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB."))
         else:
             logger.warning("Container %s: insufficient memory to increase", ctid)
 
@@ -165,7 +176,7 @@ async def scale_memory(ctid: str, mem_usage: float, mem_upper: float,
             available_memory += decrease
             memory_changed = True
             await log_json_event(ctid, "Decrease Memory", f"{decrease}MB")
-            asyncio.create_task(send_notification_async(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease}MB."))
+            _fire_and_forget(send_notification_async(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease}MB."))
 
     return available_memory, memory_changed
 
@@ -303,7 +314,7 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
                 direction = "Increase" if new_cores_val > current_cores else "Decrease"
                 delta = abs(new_cores_val - current_cores)
                 await log_json_event(ctid, f"{direction} Cores", str(delta))
-                asyncio.create_task(send_notification_async(
+                _fire_and_forget(send_notification_async(
                     f"CPU {direction}d for Container {ctid}",
                     f"CPU cores set to {new_cores_val}.",
                 ))
@@ -311,7 +322,7 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
                 direction = "Increase" if new_memory_val > current_memory else "Decrease"
                 delta = abs(new_memory_val - current_memory)
                 await log_json_event(ctid, f"{direction} Memory", f"{delta}MB")
-                asyncio.create_task(send_notification_async(
+                _fire_and_forget(send_notification_async(
                     f"Memory {direction}d for Container {ctid}",
                     f"Memory set to {new_memory_val}MB.",
                 ))
@@ -416,7 +427,7 @@ async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances.append(new_ctid)
     group_config['lxc_containers'] = set(map(str, current_instances))
     scale_last_action[group_name] = _now_tz()
-    asyncio.create_task(send_notification_async(f"Scale Out: {group_name}", f"New container {new_ctid} started."))
+    _fire_and_forget(send_notification_async(f"Scale Out: {group_name}", f"New container {new_ctid} started."))
     await log_json_event(str(new_ctid), "Scale Out", f"Cloned {base_snapshot} to {new_ctid}.")
 
 
@@ -434,7 +445,7 @@ async def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances.pop()
     group_config['lxc_containers'] = set(map(str, current_instances))
     scale_last_action[group_name] = _now_tz()
-    asyncio.create_task(send_notification_async(f"Scale In: {group_name}", f"Container {remove_ctid} stopped."))
+    _fire_and_forget(send_notification_async(f"Scale In: {group_name}", f"Container {remove_ctid} stopped."))
     await log_json_event(remove_ctid, "Scale In", f"Container {remove_ctid} stopped.")
 
 

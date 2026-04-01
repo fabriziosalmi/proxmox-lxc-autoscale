@@ -52,10 +52,11 @@ def _get_session() -> requests.Session:
     global _http_session
     if _http_session is None:
         _http_session = requests.Session()
-        # Connection pool for keep-alive reuse
         adapter = requests.adapters.HTTPAdapter(pool_connections=2, pool_maxsize=4)
         _http_session.mount("http://", adapter)
         _http_session.mount("https://", adapter)
+        # Ignore proxy env vars to prevent HTTP_PROXY hijacking of notification traffic
+        _http_session.trust_env = False
     return _http_session
 
 

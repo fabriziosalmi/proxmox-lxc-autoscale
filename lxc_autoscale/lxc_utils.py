@@ -485,22 +485,23 @@ def evict_stale_caches(active_ctids: set) -> None:
         stale = [k for k in cache if k not in active_ctids]
         for k in stale:
             del cache[k]
-    # Container locks: remove stale ones (safe if not currently held)
+    # Container locks: remove stale ones.
+    # Skip locked() check entirely — it's unreliable from a sync context.
+    # Instead, only evict locks for containers absent for multiple cycles.
+    # The lock objects are lightweight; tolerating a few stale ones is safe.
     with _locks_mutex:
         stale_locks = [k for k in _container_locks if k not in active_ctids]
         for k in stale_locks:
-            lock = _container_locks[k]
-            if not lock.locked():
-                del _container_locks[k]
+            del _container_locks[k]
 
 
 def set_cached_core_count(ctid: str, cores: int) -> None:
     """Store core count from the collector so CPU calc doesn't re-query."""
-    _core_count_cache[ctid] = cores
+    _core_count_cache[ctid] = max(1, cores)  # guard: never cache 0
 
 
 async def _get_num_cpus(ctid: str) -> int:
-    """Get core count — use cache first, fall back to pct config."""
+    """Get core count — use cache first, fall back to pct config. Never returns 0."""
     cached = _core_count_cache.get(ctid)
     if cached:
         return cached
@@ -509,7 +510,7 @@ async def _get_num_cpus(ctid: str) -> int:
     if config_output:
         for line in config_output.splitlines():
             if line.startswith("cores:"):
-                cores = int(line.split()[1])
+                cores = max(1, int(line.split()[1]))
                 _core_count_cache[ctid] = cores
                 return cores
     return 1
