@@ -100,6 +100,30 @@ TIER_other:
 #     token_name: autoscale
 #     token_value: ${PROXMOX_API_TOKEN}   # Use env var for security
 #     verify_ssl: true
+#
+# --- Boost/Revert scaling mode (v2.0) ---
+# Temporary boost with automatic revert. When a container is saturated
+# for N consecutive polls, boost resources by a factor for a limited
+# duration, then revert to original values automatically.
+# Set per-container via tiers, or globally in DEFAULT.
+#
+#   scaling_mode: boost          # "threshold" (default) or "boost"
+#   boost_factor: 1.5            # primary boost multiplier (+50%)
+#   boost_fallback_factor: 1.25  # fallback if primary exceeds capacity (+25%)
+#   boost_duration: 120          # seconds before auto-revert
+#   saturation_threshold: 0.95   # usage fraction to trigger (0.0-1.0)
+#   consecutive_samples: 3       # polls above threshold before boosting
+#
+# Example tier with boost mode:
+#
+# TIER_databases:
+#   lxc_containers:
+#     - "105"
+#   scaling_mode: boost
+#   boost_factor: 1.5
+#   boost_duration: 300
+#   saturation_threshold: 0.90
+#   consecutive_samples: 2
 
 # --- CPU core pinning for hybrid Intel CPUs (Big.LITTLE) ---
 # Uncomment and adjust for your setup.

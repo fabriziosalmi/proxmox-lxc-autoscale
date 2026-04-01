@@ -89,6 +89,14 @@ class DefaultsConfig(BaseModel):
     memory_scale_factor: float = 1.5
     timeout_extended: int = 60
 
+    # Scaling mode: "threshold" (permanent adjustments) or "boost" (temporary boost + revert)
+    scaling_mode: Literal["threshold", "boost"] = "threshold"
+    boost_factor: float = 1.5
+    boost_fallback_factor: float = 1.25
+    boost_duration: int = 120  # seconds before auto-revert
+    saturation_threshold: float = 0.95  # usage fraction (0.0-1.0) to trigger boost
+    consecutive_samples: int = 3  # polls above threshold before boosting
+
     # Containers to ignore
     ignore_lxc: List[str] = []
 
@@ -168,6 +176,14 @@ class TierConfig(BaseModel):
     min_decrease_chunk: int = 128
     cpu_pinning: Optional[str] = None
     tier_name: str = ""
+
+    # Boost mode (per-tier override)
+    scaling_mode: Literal["threshold", "boost"] = "threshold"
+    boost_factor: float = 1.5
+    boost_fallback_factor: float = 1.25
+    boost_duration: int = 120
+    saturation_threshold: float = 0.95
+    consecutive_samples: int = 3
 
     model_config = {"extra": "allow"}
 

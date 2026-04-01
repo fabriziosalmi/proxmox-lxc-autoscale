@@ -217,8 +217,15 @@ def validate_tier_settings(ctid: str, config: Dict[str, Any]) -> bool:
 # Main vertical scaling (async)
 # ---------------------------------------------------------------------------
 
-async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -> None:
-    """Adjust CPU and memory resources for each container based on usage."""
+async def adjust_resources(containers: Dict[str, Dict[str, Any]],
+                           energy_mode: bool,
+                           boost_mgr=None) -> None:
+    """Adjust CPU and memory resources for each container.
+
+    Supports two scaling modes per container (configured via tier or defaults):
+    - "threshold": permanent adjustments based on upper/lower thresholds (default)
+    - "boost": temporary boost with automatic revert after boost_duration
+    """
     logger.info("Starting resource allocation...")
     total_cores = await get_total_cores()
     total_memory = await get_total_memory()
@@ -239,19 +246,36 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
         if not validate_tier_settings(ctid, config):
             continue
 
-        cpu_upper = config['cpu_upper_threshold']
-        cpu_lower = config['cpu_lower_threshold']
-        mem_upper = config['memory_upper_threshold']
-        mem_lower = config['memory_lower_threshold']
-        min_cores = config['min_cores']
-        max_cores = config['max_cores']
-        min_memory = config['min_memory']
         cpu_usage = usage['cpu']
         mem_usage = usage['mem']
         current_cores = usage['initial_cores']
         current_memory = usage['initial_memory']
+        min_cores = config['min_cores']
+        max_cores = config['max_cores']
+        min_memory = config['min_memory']
+        scaling_mode = config.get('scaling_mode', 'threshold')
 
-        # Compute scaling decisions (no subprocess calls yet)
+        # ── BOOST MODE ──────────────────────────────────────────────
+        if scaling_mode == 'boost' and boost_mgr is not None:
+            await _adjust_boost_mode(
+                ctid, config, boost_mgr,
+                cpu_usage, mem_usage, current_cores, current_memory,
+                available_cores, available_memory,
+            )
+            # CPU pinning still applies in boost mode
+            pinning_cfg = config.get('cpu_pinning')
+            if pinning_cfg:
+                cpu_range = await resolve_cpu_pinning(str(pinning_cfg))
+                if cpu_range:
+                    await apply_cpu_pinning(ctid, cpu_range)
+            continue  # skip threshold logic
+
+        # ── THRESHOLD MODE (existing logic) ─────────────────────────
+        cpu_upper = config['cpu_upper_threshold']
+        cpu_lower = config['cpu_lower_threshold']
+        mem_upper = config['memory_upper_threshold']
+        mem_lower = config['memory_lower_threshold']
+
         new_cores_val = current_cores
         new_memory_val = current_memory
         cores_changed = False
@@ -301,7 +325,7 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
                 available_memory += dec
                 memory_changed = True
 
-        # Batch pct set: one subprocess call for both cores + memory
+        # Batch pct set
         if cores_changed or memory_changed:
             cmd = ["pct", "set", ctid]
             if cores_changed:
@@ -334,14 +358,14 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
             if cpu_range:
                 await apply_cpu_pinning(ctid, cpu_range)
 
-        # Energy mode — single batched pct set
+        # Energy mode
         if energy_mode and is_off_peak():
             energy_cmd = ["pct", "set", ctid]
             if current_cores > min_cores:
                 energy_cmd += ["-cores", str(min_cores)]
             if current_memory > min_memory:
                 energy_cmd += ["-memory", str(min_memory)]
-            if len(energy_cmd) > 3:  # has actual changes
+            if len(energy_cmd) > 3:
                 await run_command(energy_cmd)
                 if current_cores > min_cores:
                     available_cores += (current_cores - min_cores)
@@ -353,6 +377,82 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
                                          f"{current_memory - min_memory}MB")
 
     logger.info("Final resources: %d cores, %d MB memory", available_cores, available_memory)
+
+
+async def _adjust_boost_mode(
+    ctid: str, config: Dict[str, Any], boost_mgr,
+    cpu_usage: float, mem_usage: float,
+    current_cores: int, current_memory: int,
+    available_cores: int, available_memory: int,
+) -> None:
+    """Handle boost/revert scaling for a single container."""
+    from boost import BoostManager
+    sat_threshold = config.get('saturation_threshold', 0.95)
+    factor = config.get('boost_factor', 1.5)
+    fallback = config.get('boost_fallback_factor', 1.25)
+    duration = config.get('boost_duration', 120)
+
+    # 1. Check for expired boosts → revert
+    for resource, rec in boost_mgr.get_expired(ctid):
+        revert_val = boost_mgr.revert(ctid, resource)
+        if revert_val is not None:
+            cmd = ["pct", "set", ctid]
+            if resource == "cpu":
+                cmd += ["-cores", str(int(revert_val))]
+            else:
+                cmd += ["-memory", str(int(revert_val))]
+            await run_command(cmd)
+            await log_json_event(ctid, f"Boost Reverted ({resource})",
+                                 f"Reverted to {int(revert_val)}")
+            _fire_and_forget(send_notification_async(
+                f"Boost Reverted for Container {ctid}",
+                f"{resource} reverted to {int(revert_val)} after {duration}s boost.",
+            ))
+
+    # 2. Detect manual changes during active boosts
+    for resource in ("cpu", "memory"):
+        if boost_mgr.is_boosted(ctid, resource):
+            live = current_cores if resource == "cpu" else current_memory
+            if boost_mgr.detect_manual_change(ctid, resource, live):
+                boost_mgr.adopt_manual_change(ctid, resource, live)
+                await log_json_event(ctid, f"Boost Adopted ({resource})",
+                                     f"Admin changed to {int(live)}, adopted as baseline")
+
+    # 3. If not boosted, check saturation → apply boost
+    for resource, usage_pct, current_val, avail in [
+        ("cpu", cpu_usage, current_cores, available_cores),
+        ("memory", mem_usage, current_memory, available_memory),
+    ]:
+        if boost_mgr.is_boosted(ctid, resource):
+            continue
+        usage_frac = usage_pct / 100.0
+        if boost_mgr.check_saturation(ctid, resource, usage_frac, sat_threshold):
+            is_cpu = (resource == "cpu")
+            boosted_val, factor_used = BoostManager.compute_boost(
+                current_val, factor, fallback, avail, is_cpu=is_cpu,
+            )
+            if boosted_val is not None:
+                boost_mgr.apply_boost(ctid, resource, current_val,
+                                      boosted_val, factor_used, duration)
+                cmd = ["pct", "set", ctid]
+                if resource == "cpu":
+                    cmd += ["-cores", str(int(boosted_val))]
+                else:
+                    cmd += ["-memory", str(int(boosted_val))]
+                await run_command(cmd)
+                await log_json_event(
+                    ctid, f"Boost Applied ({resource})",
+                    f"{int(current_val)} -> {int(boosted_val)} (x{factor_used:.2f}, {duration}s)",
+                )
+                _fire_and_forget(send_notification_async(
+                    f"Boost Applied for Container {ctid}",
+                    f"{resource}: {int(current_val)} -> {int(boosted_val)} "
+                    f"(x{factor_used:.2f}, reverts in {duration}s).",
+                ))
+            else:
+                logger.warning(
+                    "Container %s: %s saturated but no capacity for boost", ctid, resource,
+                )
 
 
 # ---------------------------------------------------------------------------

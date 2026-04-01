@@ -8,6 +8,7 @@ Performance optimizations:
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any, Dict, Optional
 
@@ -140,6 +141,14 @@ def validate_tier_config(ctid: str, tier_config: Dict[str, Any]) -> bool:
 
 async def main_loop(poll_interval: int, energy_mode: bool) -> None:
     """Main async loop — resource allocation and scaling."""
+    # Initialize boost manager for temporary scaling mode
+    from boost import BoostManager
+    from config import BACKUP_DIR
+    boost_mgr = BoostManager(os.path.join(BACKUP_DIR, "boost_state.json"))
+    boost_mgr.load()
+    # Reconcile persisted boosts against live Proxmox state
+    await boost_mgr.reconcile(lxc_utils.run_command)
+
     while True:
         loop_start = time.time()
         logger.info("Starting resource allocation process...")
@@ -151,7 +160,10 @@ async def main_loop(poll_interval: int, energy_mode: bool) -> None:
             for ctid in containers:
                 containers[ctid]["tier"] = LXC_TIER_ASSOCIATIONS.get(ctid)
 
-            await scaling_manager.adjust_resources(containers, energy_mode)
+            # Evict boost state for removed containers
+            boost_mgr.evict_stale(set(containers.keys()))
+
+            await scaling_manager.adjust_resources(containers, energy_mode, boost_mgr)
             await scaling_manager.manage_horizontal_scaling(containers)
 
             elapsed = time.time() - loop_start

@@ -97,6 +97,36 @@ DEFAULT:
 |-----------|-------------|
 | `ignore_lxc` | List of container IDs to exclude from all scaling operations. |
 
+### Scaling mode (v2.0)
+
+LXC AutoScale supports two scaling modes, configurable per-tier or globally:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `scaling_mode` | `threshold` | `threshold` (permanent adjustments) or `boost` (temporary boost with auto-revert). |
+| `boost_factor` | `1.5` | Primary boost multiplier (+50%). |
+| `boost_fallback_factor` | `1.25` | Fallback multiplier if primary exceeds host capacity (+25%). |
+| `boost_duration` | `120` | Seconds before automatic revert to original values. |
+| `saturation_threshold` | `0.95` | Usage fraction (0.0-1.0) that triggers boost. |
+| `consecutive_samples` | `3` | Consecutive polls above threshold before boosting. |
+
+**Threshold mode** (default): resources are adjusted permanently based on upper/lower thresholds. A container that spikes stays scaled until usage drops below the lower threshold.
+
+**Boost mode**: when a container is saturated for N consecutive polls, resources are boosted by a factor for a limited duration, then automatically reverted. If the container is still saturated after revert, the next poll cycle re-evaluates and re-boosts if needed.
+
+```yaml
+TIER_databases:
+  lxc_containers:
+    - "105"
+  scaling_mode: boost
+  boost_factor: 1.5
+  boost_duration: 300
+  saturation_threshold: 0.90
+  consecutive_samples: 2
+```
+
+Boost state is persisted to disk and survives daemon restarts. If an administrator changes a container's resources from the Proxmox UI while a boost is active, the daemon detects the change and adopts the new value as baseline.
+
 ### Backend selection (v2.0)
 
 | Parameter | Default | Description |

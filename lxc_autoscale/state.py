@@ -33,6 +33,7 @@ class ContainerStateCache:
         self.mem_negative: Dict[str, int] = {}
         self.applied_pinning: Dict[str, str] = {}
         self.last_backup: Dict[str, Dict[str, Any]] = {}
+        self.saturation_counts: Dict[str, Dict[str, int]] = {}  # ctid -> {resource -> count}
         self._locks: Dict[str, asyncio.Lock] = {}
         self._locks_mutex = Lock()
 
@@ -96,7 +97,7 @@ class ContainerStateCache:
         for cache in (
             self.cgroup_cpu_paths, self.prev_cpu_readings, self.core_counts,
             self.cgroup_mem_paths, self.cpu_negative, self.mem_negative,
-            self.applied_pinning, self.last_backup,
+            self.applied_pinning, self.last_backup, self.saturation_counts,
         ):
             stale = [k for k in cache if k not in active_ctids]
             for k in stale:
