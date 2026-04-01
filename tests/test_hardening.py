@@ -505,6 +505,7 @@ class TestCgroupMemory:
     def test_cgroup_v2_memory_read(self):
         import lxc_utils
         lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
 
         from unittest.mock import AsyncMock, patch
 
@@ -541,6 +542,7 @@ class TestCgroupMemory:
         """get_memory_usage should use cgroup first, not pct exec."""
         import lxc_utils
         lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
 
         from unittest.mock import AsyncMock, patch, call
 
