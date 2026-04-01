@@ -7,4 +7,11 @@ init-hook='import sys; sys.path.insert(0, "lxc_autoscale")'
 # C0415: import-outside-toplevel — used intentionally for lazy/optional imports
 # W0603: global-statement — used for module-level singletons (ssh pool, config)
 # C0103: invalid-name — module-level variables like _ssh_pool are intentional
-disable=E0401,R0903,C0415,W0603,C0103
+# E0401: import-error — false positives due to flat package structure
+# R0903: too-few-public-methods — legitimate for filter/proxy classes
+# C0415: import-outside-toplevel — used intentionally for lazy/optional imports
+# W0603: global-statement — used for module-level singletons (ssh pool, config)
+# C0103: invalid-name — module-level variables like _ssh_pool are intentional
+# R0801: duplicate-code — structural duplication between backend implementations
+# E1133: not-an-iterable — false positive with Pydantic model_fields
+disable=E0401,R0903,C0415,W0603,C0103,R0801,E1133
