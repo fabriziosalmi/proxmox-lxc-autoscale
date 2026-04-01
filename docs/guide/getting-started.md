@@ -44,21 +44,36 @@ Each polling cycle (default: 300 seconds):
 4. **Pin** — If `cpu_pinning` is configured, the container is pinned to the specified CPU cores.
 5. **Log** — All scaling events are logged (plain text and JSON) and optionally sent as notifications.
 
-## CPU measurement
+## Resource measurement
 
-Starting with v1.2.0, CPU usage is measured via **host-side cgroup accounting** (cgroup v2/v1). This reads the kernel's own CPU time tracking directly from the Proxmox host, without executing commands inside containers.
+CPU and memory usage are both read from **host-side cgroup accounting** (cgroup v2 with v1 fallback). This reads the kernel's own resource tracking directly from the Proxmox host without executing commands inside containers.
 
 Benefits:
 - Accurate measurements matching the Proxmox web UI
 - No dependency on LXCFS
 - Minimal overhead (file reads instead of `pct exec`)
 - Correct results on low-core hosts with many containers
+- First measurement cycle is non-blocking (no 2-second sleep)
 
-If cgroup accounting is unavailable, the daemon falls back to `/proc/stat` (requires LXCFS) and then to load average estimation.
+If cgroup accounting is unavailable, the daemon falls back to `/proc/stat` for CPU (requires LXCFS) and `/proc/meminfo` via `pct exec` for memory.
+
+## Backends
+
+LXC AutoScale supports two backends for communicating with Proxmox:
+
+| Backend | Config value | How it works | Requirements |
+|---------|-------------|--------------|-------------|
+| CLI (default) | `backend: cli` | Executes `pct` commands locally or via SSH | Root access (local) or SSH credentials (remote) |
+| REST API | `backend: api` | Calls the Proxmox REST API via HTTP | `pip install proxmoxer`, API token |
+
+The CLI backend is the default and requires no additional dependencies. The REST API backend avoids shell access entirely and uses scoped API tokens, which is preferable for security-sensitive deployments.
+
+See [Configuration](/guide/configuration) for backend setup details.
 
 ## Next steps
 
 - [Configuration](/guide/configuration) — YAML settings reference
 - [Tiers](/guide/tiers) — per-container scaling rules
 - [CPU Core Pinning](/guide/cpu-pinning) — Intel Big.LITTLE support
+- [Security](/guide/security) — SSH hardening, secret masking, API tokens
 - [Docker](/guide/docker) — run the daemon in a container

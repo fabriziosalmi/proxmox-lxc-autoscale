@@ -1,5 +1,10 @@
 # LXC AutoScale
 
+[![Pylint](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/pylint.yml/badge.svg)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/pylint.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![GitHub release](https://img.shields.io/github/v/release/fabriziosalmi/proxmox-lxc-autoscale)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/releases/latest)
+
 **LXC AutoScale** is an async resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It supports local execution, remote execution via SSH, or the **Proxmox REST API** as backend. Container cloning (horizontal scaling) is also supported as an experimental feature.
 
 - **v2.0** — async architecture, Pydantic config, dual CLI/API backend, security hardening

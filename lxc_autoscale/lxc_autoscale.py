@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import logging
-from typing import Optional
 
 from config import DEFAULTS, LOG_FILE
 from logging_setup import setup_logging

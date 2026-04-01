@@ -35,5 +35,7 @@ jobs:
         if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
     - name: Run Pylint
+      env:
+        PYTHONPATH: ${{ github.workspace }}/lxc_autoscale
       run: |
-        pylint $(git ls-files '*.py') || exit $(($? & 35))
+        pylint $(git ls-files 'lxc_autoscale/*.py' 'lxc_autoscale/**/*.py') || exit $(($? & 35))

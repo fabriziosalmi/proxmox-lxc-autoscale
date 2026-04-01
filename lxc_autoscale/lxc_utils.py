@@ -592,7 +592,11 @@ async def _loadavg_method(ctid: str) -> float:
 async def get_cpu_usage(ctid: str) -> float:
     """Get CPU usage. Returns 0.0 on first cycle (no delta yet)."""
     validate_container_id(ctid)
-    methods = [("cgroup", _cgroup_method), ("proc_stat", _proc_stat_method), ("loadavg", _loadavg_method)]
+    methods = [
+        ("cgroup", _cgroup_method),
+        ("proc_stat", _proc_stat_method),
+        ("loadavg", _loadavg_method),
+    ]
     for name, method in methods:
         try:
             cpu = await method(ctid)
@@ -739,11 +743,18 @@ async def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def prioritize_containers(containers: Dict[str, Dict[str, Any]]) -> List[Tuple[str, Dict[str, Any]]]:
+def prioritize_containers(
+    containers: Dict[str, Dict[str, Any]],
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """Sort containers by resource usage priority."""
     if not containers:
         return []
     try:
-        return sorted(containers.items(), key=lambda item: (item[1]['cpu'], item[1]['mem']), reverse=True)
+        return sorted(
+            containers.items(),
+            key=lambda item: (item[1]['cpu'], item[1]['mem']),
+            reverse=True,
+        )
     except (KeyError, TypeError) as e:
         logger.error("Error prioritizing containers: %s", e)
         return []

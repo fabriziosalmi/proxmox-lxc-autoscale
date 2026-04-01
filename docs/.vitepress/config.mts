@@ -21,7 +21,7 @@ export default defineConfig({
       { text: 'Configuration', link: '/guide/configuration' },
       { text: 'Reference', link: '/reference/tier-snippets' },
       {
-        text: 'v1.2.0',
+        text: 'v2.0.0',
         items: [
           { text: 'Changelog', link: 'https://github.com/fabriziosalmi/proxmox-lxc-autoscale/releases' },
           { text: 'PyPI', link: 'https://github.com/fabriziosalmi/proxmox-lxc-autoscale' },
@@ -45,6 +45,7 @@ export default defineConfig({
           { text: 'CPU Core Pinning', link: '/guide/cpu-pinning' },
           { text: 'Horizontal Scaling', link: '/guide/horizontal-scaling' },
           { text: 'Docker', link: '/guide/docker' },
+          { text: 'Security', link: '/guide/security' },
           { text: 'Notifications', link: '/guide/notifications' },
         ],
       },

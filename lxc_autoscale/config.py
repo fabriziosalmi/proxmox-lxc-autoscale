@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Literal, Optional, Set, Union
 import yaml
 
 try:
-    from pydantic import BaseModel, field_validator, model_validator
+    from pydantic import BaseModel, model_validator
 except ImportError:
     sys.exit(
         "pydantic>=2.0 is required. Install with: pip install 'pydantic>=2.0'"
@@ -384,10 +384,11 @@ def get_config_value(section: str, key: str, default: Any = None) -> Any:
 
 
 def validate_config() -> None:
-    """Validate essential configuration — now handled by Pydantic validators."""
-    # Pydantic already validates on construction; this is kept for
-    # backward compatibility with code that calls it explicitly.
-    pass
+    """Validate essential configuration — now handled by Pydantic validators.
+
+    Kept for backward compatibility with code that calls it explicitly.
+    Pydantic validates all constraints at model construction time.
+    """
 
 
 # Run validation on import (same behavior as before)
