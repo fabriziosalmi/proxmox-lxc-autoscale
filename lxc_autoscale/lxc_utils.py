@@ -19,7 +19,6 @@ import os
 import re
 import time as _time
 from datetime import datetime
-from threading import Lock
 from typing import Any, Dict, List, Optional, Tuple, Union
 from zoneinfo import ZoneInfo
 
@@ -27,19 +26,21 @@ from config import (
     BACKUP_DIR, IGNORE_LXC, LOG_FILE, PROXMOX_HOSTNAME,
     LXC_TIER_ASSOCIATIONS, config, get_config_value, get_app_config,
 )
+from state import get_state_cache
 
 logger = logging.getLogger(__name__)
 
-# Per-container locks — created on demand for concurrent async tasks.
-_container_locks: Dict[str, asyncio.Lock] = {}
-_locks_mutex = Lock()
+# State cache singleton — replaces scattered module-level dicts
+_state = get_state_cache()
+
+# Backward-compat aliases — point to state cache internals
+_container_locks = _state._locks
+_locks_mutex = _state._locks_mutex
 
 
 def _get_container_lock(ctid: str) -> asyncio.Lock:
-    with _locks_mutex:
-        if ctid not in _container_locks:
-            _container_locks[ctid] = asyncio.Lock()
-        return _container_locks[ctid]
+    """Return a per-container async lock via the state cache."""
+    return _state.get_container_lock(ctid)
 
 
 _CTID_RE = re.compile(r'^[0-9]+$')
@@ -130,7 +131,8 @@ async def is_container_running(ctid: str) -> bool:
 # #7: Backup with change detection — skip if settings unchanged
 # ---------------------------------------------------------------------------
 
-_last_backup_settings: Dict[str, Dict[str, Any]] = {}
+# Backward-compat alias — backed by state cache
+_last_backup_settings = _state.last_backup
 
 
 async def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None:
@@ -379,7 +381,7 @@ async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
 # #8: CPU pinning with state cache — only apply on change
 # ---------------------------------------------------------------------------
 
-_applied_pinning: Dict[str, str] = {}  # ctid -> last applied cpu_range
+_applied_pinning = _state.applied_pinning
 
 
 async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
@@ -461,43 +463,26 @@ async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
 # #2 + #3: CPU measurement — zero-sleep, core count passed from collector
 # ---------------------------------------------------------------------------
 
-_cgroup_path_cache: Dict[str, str] = {}
-_prev_cpu_readings: Dict[str, Tuple[float, float]] = {}
-_cgroup_negative_cache: Dict[str, int] = {}  # ctid -> cycles remaining until retry
-_NEGATIVE_CACHE_TTL = 5  # skip cgroup discovery for N poll cycles
+_cgroup_path_cache = _state.cgroup_cpu_paths
+_prev_cpu_readings = _state.prev_cpu_readings
+_cgroup_negative_cache = _state.cpu_negative
+_NEGATIVE_CACHE_TTL = _state.NEGATIVE_CACHE_TTL
 
-# #3: Core count cache — populated by collect_data_for_container
-_core_count_cache: Dict[str, int] = {}
+_core_count_cache = _state.core_counts
 
 
 def evict_stale_caches(active_ctids: set) -> None:
     """Remove cache entries for containers no longer in the active set.
 
-    Call once per poll cycle after get_containers() to prevent unbounded
-    cache growth when containers are deleted or stopped.
+    Delegates to ContainerStateCache.evict_stale() which handles all
+    per-container caches and locks in one pass.
     """
-    for cache in (
-        _cgroup_path_cache, _prev_cpu_readings, _core_count_cache,
-        _cgroup_mem_path_cache, _cgroup_mem_negative_cache,
-        _applied_pinning, _last_backup_settings,
-        _cgroup_negative_cache,
-    ):
-        stale = [k for k in cache if k not in active_ctids]
-        for k in stale:
-            del cache[k]
-    # Container locks: remove stale ones.
-    # Skip locked() check entirely — it's unreliable from a sync context.
-    # Instead, only evict locks for containers absent for multiple cycles.
-    # The lock objects are lightweight; tolerating a few stale ones is safe.
-    with _locks_mutex:
-        stale_locks = [k for k in _container_locks if k not in active_ctids]
-        for k in stale_locks:
-            del _container_locks[k]
+    _state.evict_stale(active_ctids)
 
 
 def set_cached_core_count(ctid: str, cores: int) -> None:
     """Store core count from the collector so CPU calc doesn't re-query."""
-    _core_count_cache[ctid] = max(1, cores)  # guard: never cache 0
+    _state.set_core_count(ctid, cores)
 
 
 async def _get_num_cpus(ctid: str) -> int:
@@ -673,10 +658,8 @@ async def get_cpu_usage(ctid: str) -> float:
 # #4: Memory from cgroup — no pct exec needed
 # ---------------------------------------------------------------------------
 
-_cgroup_mem_path_cache: Dict[str, Tuple[str, str]] = {}  # ctid -> (current_path, stat_path)
-
-
-_cgroup_mem_negative_cache: Dict[str, int] = {}
+_cgroup_mem_path_cache = _state.cgroup_mem_paths
+_cgroup_mem_negative_cache = _state.mem_negative
 
 
 async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:

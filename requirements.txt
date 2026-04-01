@@ -1,10 +1,9 @@
-PyYAML>=5.0
-paramiko>=2.11.0
-requests>=2.20
-flask>=2.0
-flask-socketio>=5.0
-pydantic>=2.0
+PyYAML>=5.0,<7.0
+paramiko>=2.11.0,<5.0
+requests>=2.20,<3.0
+flask>=2.0,<4.0
+flask-socketio>=5.0,<6.0
+pydantic>=2.0,<3.0
 
-# Optional backends
-# proxmoxer>=2.0    # Enable for REST API backend (backend: api)
-# asyncssh>=2.14    # Enable for async SSH operations
+# Optional backends (uncomment as needed)
+# proxmoxer>=2.0,<3.0    # REST API backend (backend: api)
