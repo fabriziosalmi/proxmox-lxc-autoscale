@@ -1,3 +1,6 @@
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.codeflash]
 # All paths are relative to this pyproject.toml's directory.
 module-root = "lxc_autoscale"

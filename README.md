@@ -1,7 +1,8 @@
 # LXC AutoScale
 
-**LXC AutoScale** is a resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It can run locally on the Proxmox host or connect remotely via SSH. Container cloning (horizontal scaling) is also supported as an experimental feature.
+**LXC AutoScale** is an async resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It supports local execution, remote execution via SSH, or the **Proxmox REST API** as backend. Container cloning (horizontal scaling) is also supported as an experimental feature.
 
+- **v2.0** — async architecture, Pydantic config, dual CLI/API backend, security hardening
 - **Tested with Proxmox 8.x** (8.3.3+)
 
 **Quick Start**
@@ -13,20 +14,25 @@
 
 ## Features
 
+- **Async architecture** — fully non-blocking event loop using `asyncio`
+- **Dual backend**: CLI (`pct` commands) or **Proxmox REST API** (`proxmoxer`)
+- **Pydantic configuration** with type validation and `${ENV_VAR}` expansion for secrets
 - Automatic vertical scaling of CPU cores and memory based on usage thresholds
 - Horizontal scaling via container cloning (experimental)
 - Per-container or per-group threshold configuration using tiers
 - **CPU core pinning** for Intel hybrid CPUs (Alder Lake+): pin containers to P-cores or E-cores
+- **Cgroup-based metrics** for both CPU and memory (no `pct exec` needed)
+- **Timezone-aware** off-peak scheduling (configurable, defaults to UTC)
 - Host CPU and memory reservation to prevent over-allocation
 - Container exclusion list (`ignore_lxc`)
 - Energy efficiency mode that reduces resources during off-peak hours
-- Container prioritization via tier configuration
-- Automatic backups of container settings before changes
-- Notifications via email (SMTP), Gotify, and Uptime Kuma
-- JSON metrics log alongside the plain-text log
-- Local execution or remote execution via SSH
-- Auto-configuration script for generating initial YAML config
-- Docker support for running the daemon in a container
+- **SSH connection pool** with configurable host key verification (default: reject)
+- **Secret masking** in log output (passwords, tokens, API keys redacted)
+- Notifications via email (SMTP), Gotify, and Uptime Kuma (async, fire-and-forget)
+- JSON metrics log with rotation (10MB limit)
+- Local execution, remote execution via SSH, or REST API
+- Docker support with optional non-root user for API-only mode
+- **187 tests** with 57% code coverage
 
 > [!NOTE]
 > If you need to autoscale Virtual Machine resources on Proxmox hosts, you will like [this project](https://github.com/fabriziosalmi/proxmox-vm-autoscale).
@@ -132,7 +138,14 @@ No, LXC AutoScale is designed for LXC containers only. For VM autoscaling, see [
 
 ### Can I run this remotely?
 
-Yes. Set `use_remote_proxmox: true` in the configuration and provide SSH credentials (`ssh_user`, `ssh_password` or `ssh_key_path`, `proxmox_host`, `ssh_port`).
+Yes. Two options:
+
+1. **SSH** (default): Set `use_remote_proxmox: true` and provide SSH credentials.
+2. **REST API** (v2.0): Set `backend: api` and configure `proxmox_api` with API tokens. Requires `pip install proxmoxer`.
+
+### Can I use the Proxmox REST API instead of SSH?
+
+Yes (v2.0+). Set `backend: api` in the YAML config and provide API token credentials under `proxmox_api`. This avoids SSH entirely and uses scoped API tokens instead of root shell access. See the [configuration docs](docs/guide/configuration.md) for details.
 
 ### Is it safe to use in production?
 

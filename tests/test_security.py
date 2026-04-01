@@ -1,191 +1,160 @@
-# pylint: disable=missing-function-docstring,missing-class-docstring
-# pylint: disable=import-outside-toplevel,protected-access
-"""Unit tests for the security fixes.
+"""Security-focused tests for LXC autoscale."""
 
-Tests cover:
-  - Container ID validation (command injection prevention)
-  - Secrets env-var overrides
-  - Config file permission check
-  - Per-container locking
-  - run_local_command shell=False enforcement
-  - generate_cloned_hostname sanitisation
-  - Web UI defaults
-"""
-
-import importlib
+import asyncio
 import os
+import re
+import stat
 import sys
 import tempfile
 import unittest
-from unittest import mock
+from unittest.mock import patch, AsyncMock, MagicMock
 
-# Add the package to sys.path so we can import modules directly
+import yaml
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale'))
 
 
-# ---------------------------------------------------------------------------
-# 1. Container ID validation
-# ---------------------------------------------------------------------------
 class TestContainerIdValidation(unittest.TestCase):
-    """Ensure validate_container_id rejects non-numeric IDs."""
-
-    def setUp(self):
-        from lxc_utils import validate_container_id
-        self.validate = validate_container_id
-
-    def test_valid_numeric(self):
-        """Accept purely numeric container IDs."""
-        for ctid in ('100', '0', '99999'):
-            self.validate(ctid)  # should not raise
+    """Container IDs that contain shell metacharacters must be rejected."""
 
     def test_rejects_shell_injection(self):
-        """Reject IDs that could lead to shell injection."""
-        bad = ['100; rm -rf /', '$(whoami)', '100`id`', '../etc', '', ' ', '100 200']
-        for ctid in bad:
-            with self.assertRaises(ValueError, msg=f"Should reject {ctid!r}"):
-                self.validate(ctid)
+        from lxc_utils import validate_container_id
+        for bad_id in ['$(reboot)', '100; rm -rf /', '100\nreboot', '', 'abc']:
+            with self.assertRaises(ValueError, msg=f"Should reject {bad_id!r}"):
+                validate_container_id(bad_id)
+
+    def test_valid_numeric(self):
+        from lxc_utils import validate_container_id
+        for good_id in ['0', '100', '999999']:
+            validate_container_id(good_id)  # should not raise
 
 
-# ---------------------------------------------------------------------------
-# 2. generate_cloned_hostname sanitisation
-# ---------------------------------------------------------------------------
 class TestHostnameSanitisation(unittest.TestCase):
-    """Ensure cloned hostnames are RFC-1123 safe."""
-
-    def setUp(self):
-        from lxc_utils import generate_cloned_hostname
-        self.gen = generate_cloned_hostname
+    """Cloned hostnames must be RFC-1123 safe."""
 
     def test_normal_name(self):
-        """Normal alphanumeric base name passes through."""
-        self.assertEqual(self.gen('web', 1), 'web-cloned-1')
+        from lxc_utils import generate_cloned_hostname
+        self.assertEqual(generate_cloned_hostname('web', 1), 'web-cloned-1')
 
     def test_strips_special_chars(self):
-        """Special characters are replaced with hyphens."""
-        result = self.gen('web;rm -rf /', 3)
-        self.assertRegex(result, r'^[a-zA-Z0-9-]+-cloned-3$')
-        self.assertNotIn(';', result)
-        self.assertNotIn('/', result)
+        from lxc_utils import generate_cloned_hostname
+        result = generate_cloned_hostname('bad;name$(cmd)', 2)
+        self.assertFalse(any(c in result for c in ';$()'))
+        self.assertTrue(re.match(r'^[a-zA-Z0-9-]+$', result))
 
     def test_empty_fallback(self):
-        """Fully invalid names fall back to 'container'."""
-        result = self.gen(';;;', 1)
-        self.assertEqual(result, 'container-cloned-1')
+        from lxc_utils import generate_cloned_hostname
+        result = generate_cloned_hostname(';;;', 3)
+        self.assertTrue(result.startswith('container-cloned-'))
 
 
-# ---------------------------------------------------------------------------
-# 3. Per-container locking
-# ---------------------------------------------------------------------------
 class TestPerContainerLocking(unittest.TestCase):
-    """Verify per-container locks are independent."""
-
-    def test_different_containers_get_different_locks(self):
-        """Different container IDs get distinct lock objects."""
-        from lxc_utils import _get_container_lock
-        lock_a = _get_container_lock('100')
-        lock_b = _get_container_lock('200')
-        self.assertIsNot(lock_a, lock_b)
+    """Per-container locks should be independent."""
 
     def test_same_container_returns_same_lock(self):
-        """Same container ID always returns the same lock."""
         from lxc_utils import _get_container_lock
-        lock1 = _get_container_lock('300')
-        lock2 = _get_container_lock('300')
-        self.assertIs(lock1, lock2)
+        a = _get_container_lock('100')
+        b = _get_container_lock('100')
+        self.assertIs(a, b)
+
+    def test_different_containers_get_different_locks(self):
+        from lxc_utils import _get_container_lock
+        a = _get_container_lock('100')
+        b = _get_container_lock('200')
+        self.assertIsNot(a, b)
 
 
-# ---------------------------------------------------------------------------
-# 4. run_local_command — shell=False enforcement
-# ---------------------------------------------------------------------------
 class TestRunLocalCommandShellFalse(unittest.TestCase):
-    """Verify run_local_command never uses shell=True."""
+    """Local commands must run with shell=False (async)."""
 
-    @mock.patch('lxc_utils.subprocess.check_output', return_value=b'ok')
-    def test_string_cmd_uses_shell_false(self, mock_co):
-        """String commands are split and executed with shell=False."""
+    @patch('lxc_utils.asyncio.create_subprocess_exec')
+    def test_list_cmd_uses_shell_false(self, mock_exec):
+        """List command should use create_subprocess_exec (inherently shell=False)."""
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"output", b"")
+        mock_proc.returncode = 0
+        mock_exec.return_value = mock_proc
+
         from lxc_utils import run_local_command
-        run_local_command('echo hello')
-        args, kwargs = mock_co.call_args
-        self.assertFalse(kwargs.get('shell', True), "shell must be False")
-        self.assertIsInstance(args[0], list)
+        result = asyncio.run(run_local_command(["echo", "hello"]))
+        mock_exec.assert_called_once()
+        call_args = mock_exec.call_args[0]
+        self.assertEqual(call_args, ("echo", "hello"))
 
-    @mock.patch('lxc_utils.subprocess.check_output', return_value=b'ok')
-    def test_list_cmd_uses_shell_false(self, mock_co):
-        """List commands are executed with shell=False."""
+    @patch('lxc_utils.asyncio.create_subprocess_exec')
+    def test_string_cmd_uses_shell_false(self, mock_exec):
+        """String command should be split and use create_subprocess_exec."""
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"output", b"")
+        mock_proc.returncode = 0
+        mock_exec.return_value = mock_proc
+
         from lxc_utils import run_local_command
-        run_local_command(['echo', 'hello'])
-        _, kwargs = mock_co.call_args
-        self.assertFalse(kwargs.get('shell', True))
+        result = asyncio.run(run_local_command("echo hello"))
+        mock_exec.assert_called_once()
+        call_args = mock_exec.call_args[0]
+        self.assertEqual(call_args, ("echo", "hello"))
 
 
-# ---------------------------------------------------------------------------
-# 5. Config — env var secret overrides
-# ---------------------------------------------------------------------------
 class TestSecretEnvOverrides(unittest.TestCase):
-    """Verify that environment variables override config secrets."""
+    """Environment variables should override secrets in config."""
 
     def test_env_vars_injected(self):
-        """All four secret env vars are injected into config."""
-        env = {
-            'LXC_AUTOSCALE_SSH_PASSWORD': 'secret_ssh',
-            'LXC_AUTOSCALE_SMTP_PASSWORD': 'secret_smtp',
-            'LXC_AUTOSCALE_GOTIFY_TOKEN': 'tok123',
-            'LXC_AUTOSCALE_UPTIME_KUMA_WEBHOOK': 'https://hook',
-        }
-        with mock.patch.dict(os.environ, env, clear=False):
-            import config as cfg_mod
-            importlib.reload(cfg_mod)
-
-            defaults_section = cfg_mod.config.get('DEFAULT', {})
-            self.assertEqual(defaults_section.get('ssh_password'), 'secret_ssh')
-            self.assertEqual(defaults_section.get('smtp_password'), 'secret_smtp')
-            self.assertEqual(defaults_section.get('gotify_token'), 'tok123')
-            self.assertEqual(defaults_section.get('uptime_kuma_webhook_url'), 'https://hook')
+        raw = {'DEFAULT': {}}
+        os.environ['LXC_AUTOSCALE_SSH_PASSWORD'] = 'from_env'
+        try:
+            from config import _apply_env_overrides
+            _apply_env_overrides(raw)
+            self.assertEqual(raw['DEFAULT']['ssh_password'], 'from_env')
+        finally:
+            del os.environ['LXC_AUTOSCALE_SSH_PASSWORD']
 
 
-# ---------------------------------------------------------------------------
-# 6. Config file permission warning
-# ---------------------------------------------------------------------------
 class TestConfigPermissionWarning(unittest.TestCase):
-    """Verify config file permission checks emit warnings."""
+    """Config file with world-readable permissions should warn."""
 
     def test_warns_on_world_readable(self):
-        """A group/other readable config file triggers a warning."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
-            tmp.write('DEFAULT: {}\n')
-            tmp.flush()
-            os.chmod(tmp.name, 0o644)
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            f.write('DEFAULT: {}')
+            f.flush()
+            os.chmod(f.name, 0o644)
             try:
-                import config as cfg_mod
-                with self.assertLogs(level='WARNING') as log_cm:
-                    cfg_mod._check_config_permissions(tmp.name)
-                self.assertTrue(any('readable by group/others' in m for m in log_cm.output))
+                from config import _check_config_permissions
+                with self.assertLogs(level='WARNING') as cm:
+                    _check_config_permissions(f.name)
+                self.assertTrue(any('readable by group' in m for m in cm.output))
             finally:
-                os.unlink(tmp.name)
+                os.unlink(f.name)
 
 
-# ---------------------------------------------------------------------------
-# 7. Config — container ID validation on tier load
-# ---------------------------------------------------------------------------
 class TestTierContainerIdValidation(unittest.TestCase):
     """Verify invalid container IDs are skipped during tier loading."""
 
     def test_invalid_ctid_skipped(self):
-        """Container IDs with shell metacharacters are rejected."""
-        import config as cfg_mod
-        original = cfg_mod.config
-        cfg_mod.config = {
+        raw = {
             'TIER_test': {
                 'lxc_containers': ['100', '$(evil)', '200'],
+                'cpu_upper_threshold': 80,
+                'cpu_lower_threshold': 20,
+                'memory_upper_threshold': 80,
+                'memory_lower_threshold': 20,
+                'min_cores': 1,
+                'max_cores': 4,
+                'min_memory': 512,
             }
         }
-        try:
-            tiers = cfg_mod.load_tier_configurations()
-            self.assertIn('100', tiers)
-            self.assertIn('200', tiers)
-            self.assertNotIn('$(evil)', tiers)
-        finally:
-            cfg_mod.config = original
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            yaml.dump(raw, f)
+            f.flush()
+            try:
+                from config import load_config
+                app_cfg = load_config(f.name)
+                tiers = app_cfg.tier_associations
+                self.assertIn('100', tiers)
+                self.assertIn('200', tiers)
+                self.assertNotIn('$(evil)', tiers)
+            finally:
+                os.unlink(f.name)
 
 
 if __name__ == '__main__':

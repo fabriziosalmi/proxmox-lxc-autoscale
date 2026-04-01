@@ -69,7 +69,39 @@ TIER_other:
   memory_min_increment: 128
   min_decrease_chunk: 64
 
-# Example: CPU core pinning for hybrid Intel CPUs (Big.LITTLE)
+# --- Backend selection (v2.0) ---
+# Choose between CLI (default, uses pct commands) or REST API.
+#
+#   backend: cli             # Default — local or SSH-based pct commands
+#   # backend: api           # Use Proxmox REST API (requires proxmoxer)
+#
+# --- Remote SSH execution ---
+# Set use_remote_proxmox: true to run pct commands on a remote host via SSH.
+#
+#   use_remote_proxmox: true
+#   proxmox_host: 192.168.1.1
+#   ssh_user: root
+#   ssh_password: ${SSH_PASSWORD}    # Supports ${ENV_VAR} expansion
+#   # ssh_key_path: /root/.ssh/id_rsa  # Alternative to password
+#   ssh_port: 22
+#   ssh_host_key_policy: reject      # reject (safe) | system | auto (insecure)
+#
+# --- Timezone (v2.0) ---
+# Used for off-peak scheduling. Defaults to UTC.
+#
+#   timezone: Europe/Rome
+#
+# --- Proxmox REST API backend (v2.0) ---
+# Enable with backend: api. Requires: pip install proxmoxer
+#
+#   proxmox_api:
+#     host: 192.168.1.1
+#     user: root@pam
+#     token_name: autoscale
+#     token_value: ${PROXMOX_API_TOKEN}   # Use env var for security
+#     verify_ssl: true
+
+# --- CPU core pinning for hybrid Intel CPUs (Big.LITTLE) ---
 # Uncomment and adjust for your setup.
 #
 # TIER_performance:

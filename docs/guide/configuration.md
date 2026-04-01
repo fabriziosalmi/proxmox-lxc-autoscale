@@ -97,7 +97,14 @@ DEFAULT:
 |-----------|-------------|
 | `ignore_lxc` | List of container IDs to exclude from all scaling operations. |
 
-### Remote execution
+### Backend selection (v2.0)
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `backend` | `cli` | `cli` (pct commands, local or SSH) or `api` (Proxmox REST API via proxmoxer). |
+| `timezone` | `UTC` | IANA timezone for off-peak scheduling (e.g., `Europe/Rome`, `America/New_York`). |
+
+### Remote SSH execution
 
 | Parameter | Description |
 |-----------|-------------|
@@ -107,7 +114,49 @@ DEFAULT:
 | `ssh_password` | SSH password (or use `ssh_key_path` instead). |
 | `ssh_key_path` | Path to SSH private key. |
 | `ssh_port` | SSH port (default: `22`). |
+| `ssh_host_key_policy` | `reject` (default, safe), `system` (warn on unknown), `auto` (deprecated, insecure). |
+
+### Proxmox REST API backend (v2.0)
+
+Set `backend: api` to use the Proxmox REST API instead of CLI commands. Requires `pip install proxmoxer`.
+
+```yaml
+DEFAULT:
+  backend: api
+  proxmox_api:
+    host: 192.168.1.1
+    user: root@pam
+    token_name: autoscale
+    token_value: ${PROXMOX_API_TOKEN}
+    verify_ssl: true
+```
+
+| Parameter | Description |
+|-----------|-------------|
+| `proxmox_api.host` | IP or hostname of the Proxmox host. |
+| `proxmox_api.user` | Proxmox user (e.g., `root@pam`). |
+| `proxmox_api.token_name` | API token name (created in Proxmox UI > Datacenter > API Tokens). |
+| `proxmox_api.token_value` | API token secret value. |
+| `proxmox_api.verify_ssl` | `true` (default) to verify SSL certificates, `false` to skip. |
 
 ::: tip
-Secrets can be overridden via environment variables: `LXC_AUTOSCALE_SSH_PASSWORD`, `LXC_AUTOSCALE_SMTP_PASSWORD`, `LXC_AUTOSCALE_GOTIFY_TOKEN`, `LXC_AUTOSCALE_UPTIME_KUMA_WEBHOOK`.
+Create a dedicated API token with minimal permissions (VM.Audit + VM.Config.CPU + VM.Config.Memory) rather than using root credentials.
 :::
+
+### Environment variable expansion (v2.0)
+
+All string values in the YAML config support `${ENV_VAR}` and `${ENV_VAR:-default}` syntax:
+
+```yaml
+DEFAULT:
+  ssh_password: ${SSH_PASSWORD}
+  proxmox_api:
+    token_value: ${PROXMOX_TOKEN:-not-set}
+```
+
+Additionally, these environment variables override specific config keys directly:
+
+- `LXC_AUTOSCALE_SSH_PASSWORD` → `ssh_password`
+- `LXC_AUTOSCALE_SMTP_PASSWORD` → `smtp_password`
+- `LXC_AUTOSCALE_GOTIFY_TOKEN` → `gotify_token`
+- `LXC_AUTOSCALE_UPTIME_KUMA_WEBHOOK` → `uptime_kuma_webhook_url`

@@ -1,644 +1,401 @@
-"""Manages scaling operations for LXC containers based on resource usage."""
+"""Manages scaling operations for LXC containers based on resource usage (async)."""
 
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Tuple
+from zoneinfo import ZoneInfo
 
-import paramiko
+from config import (
+    CPU_SCALE_DIVISOR, DEFAULTS, HORIZONTAL_SCALING_GROUPS,
+    IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED,
+    LXC_TIER_ASSOCIATIONS, get_app_config,
+)
+from lxc_utils import (
+    apply_cpu_pinning, backup_container_settings,
+    get_containers, get_cpu_usage, get_memory_usage,
+    get_total_cores, get_total_memory, is_container_running,
+    is_ignored, load_backup_settings, log_json_event,
+    resolve_cpu_pinning, rollback_container_settings,
+    run_command, generate_unique_snapshot_name, generate_cloned_hostname,
+    validate_container_id,
+)
+import asyncio
+from notification import send_notification_async
 
-from config import (CPU_SCALE_DIVISOR, DEFAULTS, HORIZONTAL_SCALING_GROUPS,
-                    IGNORE_LXC, MEMORY_SCALE_FACTOR, TIMEOUT_EXTENDED, config, LXC_TIER_ASSOCIATIONS)
-from lxc_utils import (apply_cpu_pinning, backup_container_settings,
-                       get_containers, get_cpu_usage,
-                       get_memory_usage, get_total_cores, get_total_memory,
-                       is_container_running, is_ignored, load_backup_settings,
-                       log_json_event, resolve_cpu_pinning, rollback_container_settings,
-                       run_command, generate_unique_snapshot_name, generate_cloned_hostname,
-                       validate_container_id)
-from notification import send_notification
+logger = logging.getLogger(__name__)
 
-
-# Dictionary to track the last scale-out action for each group
+# Track last scale-out action per group
 scale_last_action: Dict[str, datetime] = {}
 
 
-def calculate_increment(current: float, upper_threshold: float, min_increment: int, max_increment: int) -> int:
-    """Calculate the increment for resource scaling based on current usage and thresholds.
-
-    Args:
-        current: Current usage percentage.
-        upper_threshold: The upper threshold for usage.
-        min_increment: Minimum increment value.
-        max_increment: Maximum increment value.
-
-    Returns:
-        Calculated increment value.
-    """
-    proportional_increment = int((current - upper_threshold) / CPU_SCALE_DIVISOR)
-    logging.debug(f"Calculated increment: {proportional_increment} (current: {current}, upper_threshold: {upper_threshold}, min_increment: {min_increment}, max_increment: {max_increment})")
-    return min(max(min_increment, proportional_increment), max_increment)
+def _now_tz() -> datetime:
+    """Return timezone-aware current time using configured timezone."""
+    cfg = get_app_config()
+    return datetime.now(ZoneInfo(cfg.defaults.timezone))
 
 
-def calculate_decrement(current: float, lower_threshold: float, current_allocated: int, min_decrement: int, min_allocated: int) -> int:
-    """Calculate the decrement for resource scaling based on current usage and thresholds.
+def _current_hour() -> int:
+    """Return current hour in the configured timezone."""
+    return _now_tz().hour
 
-    Args:
-        current: Current usage percentage.
-        lower_threshold: The lower threshold for usage.
-        current_allocated: Currently allocated resources (CPU or memory).
-        min_decrement: Minimum decrement value.
-        min_allocated: Minimum allowed allocated resources.
 
-    Returns:
-         Calculated decrement value.
-    """
-    dynamic_decrement = max(1, int((lower_threshold - current) / CPU_SCALE_DIVISOR))
-    logging.debug(f"Calculated decrement: {dynamic_decrement} (current: {current}, lower_threshold: {lower_threshold}, current_allocated: {current_allocated}, min_decrement: {min_decrement}, min_allocated: {min_allocated})")
-    return max(min(current_allocated - min_allocated, dynamic_decrement), min_decrement)
+# ---------------------------------------------------------------------------
+# Scaling calculations (pure computation, sync)
+# ---------------------------------------------------------------------------
+
+def calculate_increment(current: float, upper_threshold: float,
+                        min_increment: int, max_increment: int) -> int:
+    proportional = int((current - upper_threshold) / CPU_SCALE_DIVISOR)
+    return min(max(min_increment, proportional), max_increment)
+
+
+def calculate_decrement(current: float, lower_threshold: float,
+                        current_allocated: int, min_decrement: int,
+                        min_allocated: int) -> int:
+    dynamic = max(1, int((lower_threshold - current) / CPU_SCALE_DIVISOR))
+    return max(min(current_allocated - min_allocated, dynamic), min_decrement)
 
 
 def get_behaviour_multiplier() -> float:
-    """Determine the behavior multiplier based on the current configuration and historical data.
-
-    Returns:
-         The behavior multiplier with dynamic adjustment based on scaling history.
-    """
-    base_multiplier = 1.0
+    base = 1.0
     if DEFAULTS['behaviour'] == 'conservative':
-        base_multiplier = 0.5
+        base = 0.5
     elif DEFAULTS['behaviour'] == 'aggressive':
-        base_multiplier = 2.0
-
-    # Apply time-based adjustment
-    current_hour = datetime.now().hour
-    if current_hour >= DEFAULTS['off_peak_start'] or current_hour < DEFAULTS['off_peak_end']:
-        base_multiplier *= 0.8  # More conservative during off-peak hours
-
-    logging.debug(f"Behavior multiplier set to {base_multiplier} based on configuration and time")
-    return base_multiplier
+        base = 2.0
+    hour = _current_hour()
+    if hour >= DEFAULTS['off_peak_start'] or hour < DEFAULTS['off_peak_end']:
+        base *= 0.8
+    return base
 
 
-def send_detailed_notification(ctid: str, event_type: str, details: Dict[str, Any]) -> None:
-    """Send detailed notifications with enhanced context.
+def is_off_peak() -> bool:
+    """Determine if the current time is within off-peak hours (timezone-aware)."""
+    hour = _current_hour()
+    start = DEFAULTS['off_peak_start']
+    end = DEFAULTS['off_peak_end']
+    if start < end:
+        return start <= hour < end
+    return hour >= start or hour < end
 
-    Args:
-        ctid: Container ID.
-        event_type: Type of scaling event.
-        details: Dictionary containing event details.
-    """
+
+# ---------------------------------------------------------------------------
+# Notifications (async)
+# ---------------------------------------------------------------------------
+
+async def send_detailed_notification(ctid: str, event_type: str,
+                                     details: Dict[str, Any]) -> None:
     tier_config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
     message = f"Container {ctid} - {event_type}\n"
-    message += f"Current Settings:\n"
+    message += "Current Settings:\n"
     message += f"  - CPU Thresholds: {tier_config['cpu_lower_threshold']}% - {tier_config['cpu_upper_threshold']}%\n"
     message += f"  - Memory Thresholds: {tier_config['memory_lower_threshold']}% - {tier_config['memory_upper_threshold']}%\n"
-
     for key, value in details.items():
         message += f"  - {key}: {value}\n"
+    asyncio.create_task(send_notification_async(f"{event_type} - Container {ctid}", message))
+    await log_json_event(ctid, event_type, details)
 
-    send_notification(f"{event_type} - Container {ctid}", message)
-    log_json_event(ctid, event_type, details)
 
-def calculate_dynamic_thresholds(container_history: List[Dict[str, Any]]) -> Tuple[float, float]:
-    """Calculate dynamic thresholds based on historical usage patterns.
+async def log_scaling_event(ctid: str, event_type: str, details: Dict[str, Any],
+                            error: bool = False) -> None:
+    level = logging.ERROR if error else logging.INFO
+    structured = {
+        'timestamp': _now_tz().isoformat(),
+        'container_id': ctid,
+        'event_type': event_type,
+        'details': details,
+    }
+    logging.log(level, "Scaling event for container %s: %s", ctid, event_type)
+    await log_json_event(ctid, event_type, structured)
+    if error:
+        await send_detailed_notification(ctid, f"Error: {event_type}", details)
 
-    Args:
-        container_history: List of historical usage data points.
 
-    Returns:
-        Tuple containing dynamic lower and upper thresholds.
-    """
+# ---------------------------------------------------------------------------
+# Dynamic thresholds (pure computation)
+# ---------------------------------------------------------------------------
+
+def calculate_dynamic_thresholds(
+    container_history: List[Dict[str, Any]],
+) -> Tuple[float, float]:
     if not container_history:
         return DEFAULTS['cpu_lower_threshold'], DEFAULTS['cpu_upper_threshold']
-
-    usage_values = [point['cpu_usage'] for point in container_history]
-    avg_usage = sum(usage_values) / len(usage_values)
-    std_dev = (sum((x - avg_usage) ** 2 for x in usage_values) / len(usage_values)) ** 0.5
-
-    dynamic_lower = max(DEFAULTS['cpu_lower_threshold'], avg_usage - std_dev)
-    dynamic_upper = min(DEFAULTS['cpu_upper_threshold'], avg_usage + std_dev * 1.5)
-
-    return dynamic_lower, dynamic_upper
+    usage_values = [p['cpu_usage'] for p in container_history]
+    avg = sum(usage_values) / len(usage_values)
+    std_dev = (sum((x - avg) ** 2 for x in usage_values) / len(usage_values)) ** 0.5
+    return (max(DEFAULTS['cpu_lower_threshold'], avg - std_dev),
+            min(DEFAULTS['cpu_upper_threshold'], avg + std_dev * 1.5))
 
 
-def scale_memory(ctid: str, mem_usage: float, mem_upper: float, mem_lower: float, current_memory: int, min_memory: int, available_memory: int, config: Dict[str, Any]) -> Tuple[int, bool]:
-    """Adjust memory for a container based on current usage.
+# ---------------------------------------------------------------------------
+# Memory scaling (async)
+# ---------------------------------------------------------------------------
 
-    Args:
-        ctid: Container ID.
-        mem_usage: Current memory usage.
-        mem_upper: Upper memory threshold.
-        mem_lower: Lower memory threshold.
-        current_memory: Currently allocated memory.
-        min_memory: Minimum memory allowed.
-        available_memory: Available memory.
-        config: Configuration dictionary.
-
-    Returns:
-         Updated available memory and a flag indicating if memory was changed.
-    """
+async def scale_memory(ctid: str, mem_usage: float, mem_upper: float,
+                       mem_lower: float, current_memory: int, min_memory: int,
+                       available_memory: int, config: Dict[str, Any]) -> Tuple[int, bool]:
     memory_changed = False
-
     validate_container_id(ctid)
-
-    behaviour_multiplier = get_behaviour_multiplier()
-
-    logging.info(f"Memory scaling for container {ctid} - Usage: {mem_usage}%, Upper threshold: {mem_upper}%, Lower threshold: {mem_lower}%")
+    multiplier = get_behaviour_multiplier()
 
     if mem_usage > mem_upper:
         increment = max(
-            int(config['memory_min_increment'] * behaviour_multiplier),
+            int(config['memory_min_increment'] * multiplier),
             int((mem_usage - mem_upper) * config['memory_min_increment'] / MEMORY_SCALE_FACTOR),
         )
         if available_memory >= increment:
             new_memory = current_memory + increment
-            logging.info(f"Increasing memory for container {ctid} by {increment}MB (current: {current_memory}MB, new: {new_memory}MB)")
-            run_command(["pct", "set", ctid, "-memory", str(new_memory)])
+            logger.info("Container %s: memory +%dMB (%d -> %d)", ctid, increment, current_memory, new_memory)
+            await run_command(["pct", "set", ctid, "-memory", str(new_memory)])
             available_memory -= increment
             memory_changed = True
-            log_json_event(ctid, "Increase Memory", f"{increment}MB")
-            send_notification(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB.")
+            await log_json_event(ctid, "Increase Memory", f"{increment}MB")
+            asyncio.create_task(send_notification_async(f"Memory Increased for Container {ctid}", f"Memory increased by {increment}MB."))
         else:
-            logging.warning(f"Not enough available memory to increase for container {ctid}")
+            logger.warning("Container %s: insufficient memory to increase", ctid)
 
     elif mem_usage < mem_lower and current_memory > min_memory:
-        decrease_amount = calculate_decrement(
+        decrease = calculate_decrement(
             mem_usage, mem_lower, current_memory,
-            int(config['min_decrease_chunk'] * behaviour_multiplier),
-            min_memory,
+            int(config['min_decrease_chunk'] * multiplier), min_memory,
         )
-        if decrease_amount > 0:
-            new_memory = current_memory - decrease_amount
-            logging.info(f"Decreasing memory for container {ctid} by {decrease_amount}MB (current: {current_memory}MB, new: {new_memory}MB)")
-            run_command(["pct", "set", ctid, "-memory", str(new_memory)])
-            available_memory += decrease_amount
+        if decrease > 0:
+            new_memory = current_memory - decrease
+            logger.info("Container %s: memory -%dMB (%d -> %d)", ctid, decrease, current_memory, new_memory)
+            await run_command(["pct", "set", ctid, "-memory", str(new_memory)])
+            available_memory += decrease
             memory_changed = True
-            log_json_event(ctid, "Decrease Memory", f"{decrease_amount}MB")
-            send_notification(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease_amount}MB.")
+            await log_json_event(ctid, "Decrease Memory", f"{decrease}MB")
+            asyncio.create_task(send_notification_async(f"Memory Decreased for Container {ctid}", f"Memory decreased by {decrease}MB."))
 
     return available_memory, memory_changed
 
 
-def log_scaling_event(ctid: str, event_type: str, details: Dict[str, Any], error: bool = False) -> None:
-    """Log scaling events with structured data for better troubleshooting.
-
-    Args:
-        ctid: Container ID.
-        event_type: Type of scaling event.
-        details: Dictionary containing event details.
-        error: Boolean indicating if this is an error event.
-    """
-    log_level = logging.ERROR if error else logging.INFO
-    structured_log = {
-        'timestamp': datetime.now().isoformat(),
-        'container_id': ctid,
-        'event_type': event_type,
-        'details': details
-    }
-    
-    logging.log(log_level, f"Scaling event for container {ctid}: {event_type}")
-    log_json_event(ctid, event_type, structured_log)
-
-    if error:
-        send_detailed_notification(ctid, f"Error: {event_type}", details)
-
-def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -> None:
-    """Adjust CPU and memory resources for each container based on usage.
-
-    Args:
-        containers: A dictionary of container resource usage data.
-        energy_mode: Flag to indicate if energy-saving adjustments should be made during off-peak hours.
-    """
-    logging.info("Starting resource allocation process...")
-    logging.info(f"Ignoring LXC Containers: {IGNORE_LXC}")
-
-    total_cores = get_total_cores()
-    total_memory = get_total_memory()
-
-    reserved_cores = max(1, int(total_cores * DEFAULTS['reserve_cpu_percent'] / 100))
-    reserved_memory = DEFAULTS['reserve_memory_mb']
-
-    available_cores = total_cores - reserved_cores
-    available_memory = total_memory - reserved_memory
-
-    logging.info(f"Initial resources before adjustments: {available_cores} cores, {available_memory} MB memory")
-
-    # Log current resource usage and tier settings for all running containers
-    for ctid, usage in containers.items():
-        tier_config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
-        tier_label = tier_config.get('tier_name', 'DEFAULT')
-        logging.info(
-            "Container %s [%s]: CPU %.1f%% (thresholds %d%%-%d%%), "
-            "Mem %.1f%% of %dMB (thresholds %d%%-%d%%), "
-            "cores %d (min %d, max %d)",
-            ctid, tier_label,
-            usage['cpu'], tier_config['cpu_lower_threshold'], tier_config['cpu_upper_threshold'],
-            usage['mem'], usage['initial_memory'],
-            tier_config['memory_lower_threshold'], tier_config['memory_upper_threshold'],
-            usage['initial_cores'], tier_config['min_cores'], tier_config['max_cores'],
-        )
-
-    # Proceed with the rest of the logic for adjusting resources
-    for ctid, usage in containers.items():
-        # Validate container ID before any subprocess call
-        try:
-            validate_container_id(ctid)
-        except ValueError:
-            logging.error(f"Invalid container ID {ctid!r}, skipping")
-            continue
-
-        # Skip if container is in ignore list
-        if is_ignored(ctid):
-            logging.info(f"Skipping ignored container {ctid}")
-            continue
-
-        # Retrieve the tier configuration for the container
-        config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
-        logging.info(f"Applying tier configuration for container {ctid}: {config}")
-
-        # Validate tier settings
-        if not validate_tier_settings(ctid, config):
-            logging.error(f"Invalid tier settings for container {ctid}. Skipping resource adjustment.")
-            continue
-
-        cpu_upper = config.get('cpu_upper_threshold')
-        cpu_lower = config.get('cpu_lower_threshold')
-        mem_upper = config.get('memory_upper_threshold')
-        mem_lower = config.get('memory_lower_threshold')
-        min_cores = config.get('min_cores')
-        max_cores = config.get('max_cores')
-        min_memory = config.get('min_memory')
-
-        if not all([cpu_upper, cpu_lower, mem_upper, mem_lower, min_cores, max_cores, min_memory]):
-            missing_keys = []
-            if cpu_upper is None:
-                missing_keys.append('cpu_upper_threshold')
-            if cpu_lower is None:
-                missing_keys.append('cpu_lower_threshold')
-            if mem_upper is None:
-                missing_keys.append('memory_upper_threshold')
-            if mem_lower is None:
-                missing_keys.append('memory_lower_threshold')
-            if min_cores is None:
-                missing_keys.append('min_cores')
-            if max_cores is None:
-                missing_keys.append('max_cores')
-            if min_memory is None:
-                missing_keys.append('min_memory')
-            logging.error(f"Missing configuration values for container {ctid}: {', '.join(missing_keys)}. Skipping resource adjustment.")
-            continue
-
-        cpu_usage = usage['cpu']
-        mem_usage = usage['mem']
-
-        current_cores = usage["initial_cores"]
-        current_memory = usage["initial_memory"]
-
-        cores_changed = False
-        memory_changed = False
-
-        behaviour_multiplier = get_behaviour_multiplier()
-
-        logging.info(f"Container {ctid} - CPU usage: {cpu_usage}%, Memory usage: {mem_usage}MB")
-
-        # Adjust CPU cores if needed
-        if cpu_usage > cpu_upper:
-            increment = calculate_increment(cpu_usage, cpu_upper, config['core_min_increment'], config['core_max_increment'])
-            new_cores = current_cores + increment
-
-            if new_cores > max_cores:
-                logging.info(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold but already at max cores ({current_cores}/{max_cores})")
-            elif available_cores < increment:
-                logging.warning(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold, need {increment} cores but only {available_cores} available on host")
-            else:
-                logging.info(f"Container {ctid} - CPU {cpu_usage:.1f}% above threshold, scaling {current_cores} -> {new_cores} cores")
-                run_command(["pct", "set", ctid, "-cores", str(new_cores)])
-                available_cores -= increment
-                cores_changed = True
-                log_json_event(ctid, "Increase Cores", f"{increment}")
-                send_notification(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}.")
-
-        elif cpu_usage < cpu_lower and current_cores > min_cores:
-            decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)
-            new_cores = max(min_cores, current_cores - decrement)
-
-            logging.info(f"Container {ctid} - CPU usage below lower threshold. Decrement: {decrement}, New cores: {new_cores}")
-
-            if new_cores >= min_cores:
-                run_command(["pct", "set", ctid, "-cores", str(new_cores)])
-                available_cores += (current_cores - new_cores)
-                cores_changed = True
-                log_json_event(ctid, "Decrease Cores", f"{decrement}")
-                send_notification(f"CPU Decreased for Container {ctid}", f"CPU cores decreased to {new_cores}.")
-            else:
-                logging.warning(f"Container {ctid} - Cannot decrease cores below min_cores.")
-
-        # Adjust memory if needed
-        available_memory, memory_changed = scale_memory(
-            ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memory, available_memory, config
-        )
-
-        # Apply CPU core pinning if configured in tier
-        pinning_cfg = config.get('cpu_pinning')
-        if pinning_cfg:
-            cpu_range = resolve_cpu_pinning(str(pinning_cfg))
-            if cpu_range:
-                apply_cpu_pinning(ctid, cpu_range)
-
-        # Apply energy efficiency mode if enabled
-        if energy_mode and is_off_peak():
-            if current_cores > min_cores:
-                logging.info(f"Reducing cores for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(["pct", "set", ctid, "-cores", str(min_cores)])
-                available_cores += (current_cores - min_cores)
-                log_json_event(ctid, "Reduce Cores (Off-Peak)", f"{current_cores - min_cores}")
-                send_notification(f"CPU Reduced for Container {ctid}", f"CPU cores reduced to {min_cores} for energy efficiency.")
-            if current_memory > min_memory:
-                logging.info(f"Reducing memory for energy efficiency during off-peak hours for container {ctid}...")
-                run_command(["pct", "set", ctid, "-memory", str(min_memory)])
-                available_memory += (current_memory - min_memory)
-                log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
-                send_notification(f"Memory Reduced for Container {ctid}", f"Memory reduced to {min_memory}MB for energy efficiency.")
-
-    logging.info(f"Final resources after adjustments: {available_cores} cores, {available_memory} MB memory")
-
+# ---------------------------------------------------------------------------
+# Tier validation (pure computation)
+# ---------------------------------------------------------------------------
 
 def validate_tier_settings(ctid: str, config: Dict[str, Any]) -> bool:
-    """Validate tier settings for a container.
-
-    Args:
-        ctid: Container ID.
-        config: Tier configuration dictionary.
-
-    Returns:
-        bool: True if settings are valid, False otherwise.
-    """
     required_fields = {
-        'cpu_upper_threshold': (0, 100),
-        'cpu_lower_threshold': (0, 100),
-        'memory_upper_threshold': (0, 100),
-        'memory_lower_threshold': (0, 100),
-        'min_cores': (1, None),
-        'max_cores': (1, None),
-        'min_memory': (128, None)
+        'cpu_upper_threshold': (0, 100), 'cpu_lower_threshold': (0, 100),
+        'memory_upper_threshold': (0, 100), 'memory_lower_threshold': (0, 100),
+        'min_cores': (1, None), 'max_cores': (1, None), 'min_memory': (128, None),
     }
-
     for field, (min_val, max_val) in required_fields.items():
         value = config.get(field)
         if value is None:
-            logging.error(f"Missing required field '{field}' in tier config for container {ctid}")
+            logger.error("Missing field '%s' for container %s", field, ctid)
             return False
-        
         try:
             value = float(value)
             if min_val is not None and value < min_val:
-                logging.error(f"Field '{field}' value {value} is below minimum {min_val} for container {ctid}")
                 return False
             if max_val is not None and value > max_val:
-                logging.error(f"Field '{field}' value {value} exceeds maximum {max_val} for container {ctid}")
                 return False
         except (ValueError, TypeError):
-            logging.error(f"Invalid value type for field '{field}' in container {ctid}")
             return False
-
-    # Validate logical relationships
     if config['cpu_lower_threshold'] >= config['cpu_upper_threshold']:
-        logging.error(f"CPU lower threshold must be less than upper threshold for container {ctid}")
         return False
-
     if config['memory_lower_threshold'] >= config['memory_upper_threshold']:
-        logging.error(f"Memory lower threshold must be less than upper threshold for container {ctid}")
         return False
-
     if config['min_cores'] > config['max_cores']:
-        logging.error(f"Minimum cores must be less than or equal to maximum cores for container {ctid}")
         return False
-
     return True
 
 
-def manage_horizontal_scaling(containers: Dict[str, Dict[str, Any]]) -> None:
-    for group_name, group_config in HORIZONTAL_SCALING_GROUPS.items():
+# ---------------------------------------------------------------------------
+# Main vertical scaling (async)
+# ---------------------------------------------------------------------------
+
+async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: bool) -> None:
+    """Adjust CPU and memory resources for each container based on usage."""
+    logger.info("Starting resource allocation...")
+    total_cores = await get_total_cores()
+    total_memory = await get_total_memory()
+    reserved_cores = max(1, int(total_cores * DEFAULTS['reserve_cpu_percent'] / 100))
+    available_cores = total_cores - reserved_cores
+    available_memory = total_memory - DEFAULTS['reserve_memory_mb']
+
+    for ctid, usage in containers.items():
         try:
-            current_time = datetime.now()
-            last_action_time = scale_last_action.get(group_name, current_time - timedelta(hours=1))
+            validate_container_id(ctid)
+        except ValueError:
+            continue
 
-            group_lxc = [
-                ctid for ctid in group_config['lxc_containers']
-                if ctid in containers and not is_ignored(ctid)
-            ]
+        if is_ignored(ctid):
+            continue
 
-            if not group_lxc:
-                log_scaling_event(group_name, 'horizontal_scaling_skip', {
-                    'reason': 'No active containers in group'
-                })
-                continue
+        config = LXC_TIER_ASSOCIATIONS.get(str(ctid), DEFAULTS)
+        if not validate_tier_settings(ctid, config):
+            continue
 
-            metrics = calculate_group_metrics(group_lxc, containers)
-            log_scaling_event(group_name, 'group_metrics', metrics)
+        cpu_upper = config['cpu_upper_threshold']
+        cpu_lower = config['cpu_lower_threshold']
+        mem_upper = config['memory_upper_threshold']
+        mem_lower = config['memory_lower_threshold']
+        min_cores = config['min_cores']
+        max_cores = config['max_cores']
+        min_memory = config['min_memory']
+        cpu_usage = usage['cpu']
+        mem_usage = usage['mem']
+        current_cores = usage['initial_cores']
+        current_memory = usage['initial_memory']
 
-            if should_scale_out(metrics, group_config, current_time, last_action_time):
-                scale_out(group_name, group_config)
-                scale_last_action[group_name] = current_time
-            elif should_scale_in(metrics, group_config, current_time, last_action_time):
-                scale_in(group_name, group_config)
-                scale_last_action[group_name] = current_time
+        # CPU scaling
+        if cpu_usage > cpu_upper:
+            increment = calculate_increment(cpu_usage, cpu_upper, config['core_min_increment'], config['core_max_increment'])
+            new_cores = current_cores + increment
+            if new_cores <= max_cores and available_cores >= increment:
+                logger.info("Container %s: CPU %.1f%%, scaling %d -> %d cores", ctid, cpu_usage, current_cores, new_cores)
+                await run_command(["pct", "set", ctid, "-cores", str(new_cores)])
+                available_cores -= increment
+                await log_json_event(ctid, "Increase Cores", str(increment))
+                asyncio.create_task(send_notification_async(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}."))
+        elif cpu_usage < cpu_lower and current_cores > min_cores:
+            decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)
+            new_cores = max(min_cores, current_cores - decrement)
+            if new_cores >= min_cores:
+                await run_command(["pct", "set", ctid, "-cores", str(new_cores)])
+                available_cores += (current_cores - new_cores)
+                await log_json_event(ctid, "Decrease Cores", str(decrement))
 
-        except Exception as e:
-            log_scaling_event(group_name, 'horizontal_scaling_error', {
-                'error': str(e),
-                'group_config': group_config
-            }, error=True)
-            logging.exception(f"Error in horizontal scaling for group {group_name}")
+        # Memory scaling
+        available_memory, _ = await scale_memory(
+            ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memory, available_memory, config
+        )
 
-def calculate_group_metrics(group_lxc: List[str], containers: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
+        # CPU pinning
+        pinning_cfg = config.get('cpu_pinning')
+        if pinning_cfg:
+            cpu_range = await resolve_cpu_pinning(str(pinning_cfg))
+            if cpu_range:
+                await apply_cpu_pinning(ctid, cpu_range)
+
+        # Energy mode
+        if energy_mode and is_off_peak():
+            if current_cores > min_cores:
+                await run_command(["pct", "set", ctid, "-cores", str(min_cores)])
+                available_cores += (current_cores - min_cores)
+                await log_json_event(ctid, "Reduce Cores (Off-Peak)", str(current_cores - min_cores))
+            if current_memory > min_memory:
+                await run_command(["pct", "set", ctid, "-memory", str(min_memory)])
+                available_memory += (current_memory - min_memory)
+                await log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
+
+    logger.info("Final resources: %d cores, %d MB memory", available_cores, available_memory)
+
+
+# ---------------------------------------------------------------------------
+# Horizontal scaling (async)
+# ---------------------------------------------------------------------------
+
+def calculate_group_metrics(group_lxc: List[str],
+                            containers: Dict[str, Dict[str, Any]]) -> Dict[str, float]:
     total_cpu = sum(containers[ctid]['cpu'] for ctid in group_lxc)
     total_mem = sum(containers[ctid]['mem'] for ctid in group_lxc)
-    num_containers = len(group_lxc)
-    
-    return {
-        'avg_cpu_usage': total_cpu / num_containers,
-        'avg_mem_usage': total_mem / num_containers,
-        'total_containers': num_containers
-    }
+    n = len(group_lxc)
+    return {'avg_cpu_usage': total_cpu / n, 'avg_mem_usage': total_mem / n, 'total_containers': n}
 
-def should_scale_out(metrics: Dict[str, float], group_config: Dict[str, Any], current_time: datetime, last_action_time: datetime) -> bool:
+
+def should_scale_out(metrics, group_config, current_time, last_action_time) -> bool:
     if current_time - last_action_time < timedelta(seconds=group_config.get('scale_out_grace_period', 300)):
         return False
-        
     return (metrics['avg_cpu_usage'] > group_config['horiz_cpu_upper_threshold'] or
             metrics['avg_mem_usage'] > group_config['horiz_memory_upper_threshold'])
 
-def should_scale_in(metrics: Dict[str, float], group_config: Dict[str, Any], current_time: datetime, last_action_time: datetime) -> bool:
+
+def should_scale_in(metrics, group_config, current_time, last_action_time) -> bool:
     if current_time - last_action_time < timedelta(seconds=group_config.get('scale_in_grace_period', 600)):
         return False
-        
     return (metrics['avg_cpu_usage'] < group_config['horiz_cpu_lower_threshold'] and
             metrics['avg_mem_usage'] < group_config['horiz_memory_lower_threshold'] and
             metrics['total_containers'] > group_config.get('min_containers', 1))
 
 
-def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
-    """Scale out a horizontal scaling group by cloning a new container.
-
-    Args:
-        group_name: The name of the scaling group.
-        group_config: Configuration details for the scaling group.
-    """
+async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances = sorted(map(int, group_config['lxc_containers']))
     starting_clone_id = group_config['starting_clone_id']
-    max_instances = group_config['max_instances']
-
-    # Check if the maximum number of instances has been reached
-    if len(current_instances) >= max_instances:
-        logging.info(f"Max instances reached for {group_name}. No scale out performed.")
+    if len(current_instances) >= group_config['max_instances']:
+        logger.info("Max instances reached for %s", group_name)
         return
 
-    # Determine the next available clone ID
     new_ctid = starting_clone_id + len(
         [ctid for ctid in current_instances if int(ctid) >= starting_clone_id]
     )
     base_snapshot = group_config['base_snapshot_name']
-
-    # Validate both IDs before any subprocess call
     try:
         validate_container_id(str(new_ctid))
         validate_container_id(str(base_snapshot))
     except ValueError as e:
-        logging.error(f"Invalid container/snapshot ID for scale_out in {group_name}: {e}")
+        logger.error("Invalid ID for scale_out in %s: %s", group_name, e)
         return
 
-    # Create a unique snapshot name
-    unique_snapshot_name = generate_unique_snapshot_name("snap")
+    unique_snap = generate_unique_snapshot_name("snap")
+    if not await run_command(["pct", "snapshot", str(base_snapshot), unique_snap,
+                              "--description", "Auto snapshot for scaling"]):
+        logger.error("Failed to create snapshot %s", unique_snap)
+        return
 
-    logging.info(f"Creating snapshot {unique_snapshot_name} of container {base_snapshot}...")
+    clone_hostname = generate_cloned_hostname(base_snapshot, len(current_instances) + 1)
+    if not await run_command(["pct", "clone", str(base_snapshot), str(new_ctid),
+                              "--snapname", unique_snap, "--hostname", clone_hostname],
+                             timeout=TIMEOUT_EXTENDED):
+        logger.error("Failed to clone %s", base_snapshot)
+        return
 
-    # Create the snapshot
-    snapshot_cmd = ["pct", "snapshot", str(base_snapshot), unique_snapshot_name,
-                    "--description", "Auto snapshot for scaling"]
-    if run_command(snapshot_cmd):
-        logging.info(f"Snapshot {unique_snapshot_name} created successfully.")
+    net_type = group_config.get('clone_network_type', 'dhcp')
+    if net_type == "dhcp":
+        await run_command(["pct", "set", str(new_ctid), "-net0", "name=eth0,bridge=vmbr0,ip=dhcp"])
+    elif net_type == "static":
+        available_ips = [ip for ip in group_config.get('static_ip_range', [])
+                         if ip not in current_instances]
+        if available_ips:
+            await run_command(["pct", "set", str(new_ctid), "-net0",
+                               f"name=eth0,bridge=vmbr0,ip={available_ips[0]}/24"])
 
-        logging.info(f"Cloning container {base_snapshot} to create {new_ctid} using snapshot {unique_snapshot_name}...")
-
-        # Clone the container using the snapshot, with an extended timeout
-        clone_hostname = generate_cloned_hostname(base_snapshot, len(current_instances) + 1)
-        clone_cmd = ["pct", "clone", str(base_snapshot), str(new_ctid),
-                     "--snapname", unique_snapshot_name, "--hostname", clone_hostname]
-        if run_command(clone_cmd, timeout=TIMEOUT_EXTENDED):  # Extended timeout to 300 seconds
-            # Network setup based on group configuration
-            if group_config['clone_network_type'] == "dhcp":
-                run_command(["pct", "set", str(new_ctid), "-net0", "name=eth0,bridge=vmbr0,ip=dhcp"])
-            elif group_config['clone_network_type'] == "static":
-                static_ip_range = group_config.get('static_ip_range', [])
-                if static_ip_range:
-                    available_ips = [
-                        ip for ip in static_ip_range if ip not in current_instances
-                    ]
-                    if available_ips:
-                        ip_address = available_ips[0]
-                        run_command(
-                            ["pct", "set", str(new_ctid), "-net0",
-                             f"name=eth0,bridge=vmbr0,ip={ip_address}/24"]
-                        )
-                    else:
-                        logging.warning(
-                            "No available IPs in the specified range for static IP assignment."
-                        )
-
-            # Start the new container
-            run_command(["pct", "start", str(new_ctid)])
-            current_instances.append(new_ctid)
-
-            # Update the configuration and tracking
-            group_config['lxc_containers'] = set(map(str, current_instances))
-            scale_last_action[group_name] = datetime.now()
-
-            logging.info(f"Container {new_ctid} started successfully as part of {group_name}.")
-            send_notification(f"Scale Out: {group_name}", f"New container {new_ctid} with hostname {clone_hostname} started.")
-
-            # Log the scale-out event to JSON
-            log_json_event(
-                new_ctid,
-                "Scale Out",
-                f"Container {base_snapshot} cloned to {new_ctid}. {new_ctid} started.",
-            )
-        else:
-            logging.error(
-                f"Failed to clone container {base_snapshot} using snapshot {unique_snapshot_name}."
-            )
-    else:
-        logging.error(
-            f"Failed to create snapshot {unique_snapshot_name} of container {base_snapshot}."
-        )
+    await run_command(["pct", "start", str(new_ctid)])
+    current_instances.append(new_ctid)
+    group_config['lxc_containers'] = set(map(str, current_instances))
+    scale_last_action[group_name] = _now_tz()
+    asyncio.create_task(send_notification_async(f"Scale Out: {group_name}", f"New container {new_ctid} started."))
+    await log_json_event(str(new_ctid), "Scale Out", f"Cloned {base_snapshot} to {new_ctid}.")
 
 
-def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
-    """Scale in a horizontal scaling group by stopping the last cloned container.
-
-    Args:
-        group_name: The name of the scaling group.
-        group_config: Configuration details for the scaling group.
-    """
+async def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances = sorted(map(int, group_config['lxc_containers']))
-    min_containers = group_config.get('min_containers', 1)
-
-    if len(current_instances) <= min_containers:
-        logging.info(f"Already at minimum containers ({min_containers}) for {group_name}. No scale in performed.")
+    if len(current_instances) <= group_config.get('min_containers', 1):
         return
-
-    # Remove the last (highest-ID) container
     remove_ctid = str(current_instances[-1])
     try:
         validate_container_id(remove_ctid)
     except ValueError as e:
-        logging.error(f"Invalid container ID for scale_in in {group_name}: {e}")
+        logger.error("Invalid ID for scale_in in %s: %s", group_name, e)
         return
-
-    logging.info(f"Scaling in {group_name}: stopping container {remove_ctid}")
-    run_command(["pct", "stop", remove_ctid])
+    await run_command(["pct", "stop", remove_ctid])
     current_instances.pop()
     group_config['lxc_containers'] = set(map(str, current_instances))
-    scale_last_action[group_name] = datetime.now()
-
-    logging.info(f"Container {remove_ctid} stopped for scale-in of {group_name}.")
-    send_notification(f"Scale In: {group_name}", f"Container {remove_ctid} stopped.")
-    log_json_event(remove_ctid, "Scale In", f"Container {remove_ctid} stopped in group {group_name}.")
+    scale_last_action[group_name] = _now_tz()
+    asyncio.create_task(send_notification_async(f"Scale In: {group_name}", f"Container {remove_ctid} stopped."))
+    await log_json_event(remove_ctid, "Scale In", f"Container {remove_ctid} stopped.")
 
 
-def is_off_peak() -> bool:
-    """Determine if the current time is within off-peak hours.
-
-    Returns:
-         True if it is off-peak, otherwise False.
-    """
-    current_hour = datetime.now().hour
-    start = DEFAULTS['off_peak_start']
-    end = DEFAULTS['off_peak_end']
-    logging.debug(f"Current hour: {current_hour}, Off-peak hours: {start} - {end}")
-    if start < end:
-        return start <= current_hour < end
-    else:
-        return current_hour >= start or current_hour < end
-
-
-def collect_performance_metrics(containers: Dict[str, Dict[str, Any]]) -> None:
-    """Collect and log performance metrics for analysis.
-
-    Args:
-        containers: Dictionary containing container resource usage data.
-    """
-    for ctid, usage in containers.items():
-        if is_ignored(ctid):
-            continue
-
-        metrics = {
-            'timestamp': datetime.now().isoformat(),
-            'container_id': ctid,
-            'cpu_usage': round(usage['cpu'], 2),
-            'memory_usage': round(usage['mem'], 2),
-            'total_memory': usage['initial_memory'],
-            'cpu_cores': usage['initial_cores'],
-            'memory_utilization': round((usage['mem'] / usage['initial_memory']) * 100, 2)
-        }
-
-        log_json_event(ctid, 'performance_metrics', metrics)
+async def manage_horizontal_scaling(containers: Dict[str, Dict[str, Any]]) -> None:
+    for group_name, group_config in HORIZONTAL_SCALING_GROUPS.items():
+        try:
+            current_time = _now_tz()
+            last_action = scale_last_action.get(group_name, current_time - timedelta(hours=1))
+            group_lxc = [ctid for ctid in group_config['lxc_containers']
+                         if ctid in containers and not is_ignored(ctid)]
+            if not group_lxc:
+                await log_scaling_event(group_name, 'horizontal_scaling_skip',
+                                        {'reason': 'No active containers'})
+                continue
+            metrics = calculate_group_metrics(group_lxc, containers)
+            await log_scaling_event(group_name, 'group_metrics', metrics)
+            if should_scale_out(metrics, group_config, current_time, last_action):
+                await scale_out(group_name, group_config)
+            elif should_scale_in(metrics, group_config, current_time, last_action):
+                await scale_in(group_name, group_config)
+        except (ValueError, KeyError, OSError) as e:
+            await log_scaling_event(group_name, 'horizontal_scaling_error',
+                                    {'error': str(e)}, error=True)
+            logger.exception("Error in horizontal scaling for group %s", group_name)
