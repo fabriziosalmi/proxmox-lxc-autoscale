@@ -240,28 +240,81 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
         current_cores = usage['initial_cores']
         current_memory = usage['initial_memory']
 
-        # CPU scaling
-        if cpu_usage > cpu_upper:
-            increment = calculate_increment(cpu_usage, cpu_upper, config['core_min_increment'], config['core_max_increment'])
-            new_cores = current_cores + increment
-            if new_cores <= max_cores and available_cores >= increment:
-                logger.info("Container %s: CPU %.1f%%, scaling %d -> %d cores", ctid, cpu_usage, current_cores, new_cores)
-                await run_command(["pct", "set", ctid, "-cores", str(new_cores)])
-                available_cores -= increment
-                await log_json_event(ctid, "Increase Cores", str(increment))
-                asyncio.create_task(send_notification_async(f"CPU Increased for Container {ctid}", f"CPU cores increased to {new_cores}."))
-        elif cpu_usage < cpu_lower and current_cores > min_cores:
-            decrement = calculate_decrement(cpu_usage, cpu_lower, current_cores, config['core_min_increment'], min_cores)
-            new_cores = max(min_cores, current_cores - decrement)
-            if new_cores >= min_cores:
-                await run_command(["pct", "set", ctid, "-cores", str(new_cores)])
-                available_cores += (current_cores - new_cores)
-                await log_json_event(ctid, "Decrease Cores", str(decrement))
+        # Compute scaling decisions (no subprocess calls yet)
+        new_cores_val = current_cores
+        new_memory_val = current_memory
+        cores_changed = False
+        memory_changed = False
 
-        # Memory scaling
-        available_memory, _ = await scale_memory(
-            ctid, mem_usage, mem_upper, mem_lower, current_memory, min_memory, available_memory, config
-        )
+        # CPU decision
+        if cpu_usage > cpu_upper:
+            increment = calculate_increment(
+                cpu_usage, cpu_upper,
+                config['core_min_increment'], config['core_max_increment'],
+            )
+            candidate = current_cores + increment
+            if candidate <= max_cores and available_cores >= increment:
+                new_cores_val = candidate
+                available_cores -= increment
+                cores_changed = True
+        elif cpu_usage < cpu_lower and current_cores > min_cores:
+            decrement = calculate_decrement(
+                cpu_usage, cpu_lower, current_cores,
+                config['core_min_increment'], min_cores,
+            )
+            candidate = max(min_cores, current_cores - decrement)
+            if candidate >= min_cores and candidate != current_cores:
+                available_cores += (current_cores - candidate)
+                new_cores_val = candidate
+                cores_changed = True
+
+        # Memory decision
+        multiplier = get_behaviour_multiplier()
+        if mem_usage > mem_upper:
+            inc = max(
+                int(config['memory_min_increment'] * multiplier),
+                int((mem_usage - mem_upper) * config['memory_min_increment']
+                    / MEMORY_SCALE_FACTOR),
+            )
+            if available_memory >= inc:
+                new_memory_val = current_memory + inc
+                available_memory -= inc
+                memory_changed = True
+        elif mem_usage < mem_lower and current_memory > min_memory:
+            dec = calculate_decrement(
+                mem_usage, mem_lower, current_memory,
+                int(config['min_decrease_chunk'] * multiplier), min_memory,
+            )
+            if dec > 0:
+                new_memory_val = current_memory - dec
+                available_memory += dec
+                memory_changed = True
+
+        # Batch pct set: one subprocess call for both cores + memory
+        if cores_changed or memory_changed:
+            cmd = ["pct", "set", ctid]
+            if cores_changed:
+                cmd += ["-cores", str(new_cores_val)]
+            if memory_changed:
+                cmd += ["-memory", str(new_memory_val)]
+            await run_command(cmd)
+
+            if cores_changed:
+                direction = "Increase" if new_cores_val > current_cores else "Decrease"
+                delta = abs(new_cores_val - current_cores)
+                await log_json_event(ctid, f"{direction} Cores", str(delta))
+                asyncio.create_task(send_notification_async(
+                    f"CPU {direction}d for Container {ctid}",
+                    f"CPU cores set to {new_cores_val}.",
+                ))
+            if memory_changed:
+                direction = "Increase" if new_memory_val > current_memory else "Decrease"
+                delta = abs(new_memory_val - current_memory)
+                await log_json_event(ctid, f"{direction} Memory", f"{delta}MB")
+                asyncio.create_task(send_notification_async(
+                    f"Memory {direction}d for Container {ctid}",
+                    f"Memory set to {new_memory_val}MB.",
+                ))
 
         # CPU pinning
         pinning_cfg = config.get('cpu_pinning')
@@ -270,16 +323,23 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]], energy_mode: b
             if cpu_range:
                 await apply_cpu_pinning(ctid, cpu_range)
 
-        # Energy mode
+        # Energy mode — single batched pct set
         if energy_mode and is_off_peak():
+            energy_cmd = ["pct", "set", ctid]
             if current_cores > min_cores:
-                await run_command(["pct", "set", ctid, "-cores", str(min_cores)])
-                available_cores += (current_cores - min_cores)
-                await log_json_event(ctid, "Reduce Cores (Off-Peak)", str(current_cores - min_cores))
+                energy_cmd += ["-cores", str(min_cores)]
             if current_memory > min_memory:
-                await run_command(["pct", "set", ctid, "-memory", str(min_memory)])
-                available_memory += (current_memory - min_memory)
-                await log_json_event(ctid, "Reduce Memory (Off-Peak)", f"{current_memory - min_memory}MB")
+                energy_cmd += ["-memory", str(min_memory)]
+            if len(energy_cmd) > 3:  # has actual changes
+                await run_command(energy_cmd)
+                if current_cores > min_cores:
+                    available_cores += (current_cores - min_cores)
+                    await log_json_event(ctid, "Reduce Cores (Off-Peak)",
+                                         str(current_cores - min_cores))
+                if current_memory > min_memory:
+                    available_memory += (current_memory - min_memory)
+                    await log_json_event(ctid, "Reduce Memory (Off-Peak)",
+                                         f"{current_memory - min_memory}MB")
 
     logger.info("Final resources: %d cores, %d MB memory", available_cores, available_memory)
 

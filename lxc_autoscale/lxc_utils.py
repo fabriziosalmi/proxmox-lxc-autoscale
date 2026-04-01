@@ -240,7 +240,7 @@ async def log_json_event(ctid: str, action: str, resource_change) -> None:
     async with _json_log_lock:
         fh = _get_json_log_handle()
         fh.write(json.dumps(log_data) + '\n')
-    logger.info("Logged event for container %s: %s", ctid, action)
+        fh.flush()
 
 
 def prune_old_backups(max_per_container: int = 5) -> None:
@@ -463,9 +463,35 @@ async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
 
 _cgroup_path_cache: Dict[str, str] = {}
 _prev_cpu_readings: Dict[str, Tuple[float, float]] = {}
+_cgroup_negative_cache: Dict[str, int] = {}  # ctid -> cycles remaining until retry
+_NEGATIVE_CACHE_TTL = 5  # skip cgroup discovery for N poll cycles
 
 # #3: Core count cache — populated by collect_data_for_container
 _core_count_cache: Dict[str, int] = {}
+
+
+def evict_stale_caches(active_ctids: set) -> None:
+    """Remove cache entries for containers no longer in the active set.
+
+    Call once per poll cycle after get_containers() to prevent unbounded
+    cache growth when containers are deleted or stopped.
+    """
+    for cache in (
+        _cgroup_path_cache, _prev_cpu_readings, _core_count_cache,
+        _cgroup_mem_path_cache, _cgroup_mem_negative_cache,
+        _applied_pinning, _last_backup_settings,
+        _cgroup_negative_cache,
+    ):
+        stale = [k for k in cache if k not in active_ctids]
+        for k in stale:
+            del cache[k]
+    # Container locks: remove stale ones (safe if not currently held)
+    with _locks_mutex:
+        stale_locks = [k for k in _container_locks if k not in active_ctids]
+        for k in stale_locks:
+            lock = _container_locks[k]
+            if not lock.locked():
+                del _container_locks[k]
 
 
 def set_cached_core_count(ctid: str, cores: int) -> None:
@@ -491,6 +517,12 @@ async def _get_num_cpus(ctid: str) -> int:
 
 async def _read_cgroup_cpu_usec(ctid: str) -> Optional[float]:
     validate_container_id(ctid)
+    # Negative cache: skip discovery if recently failed
+    neg = _cgroup_negative_cache.get(ctid, 0)
+    if neg > 0:
+        _cgroup_negative_cache[ctid] = neg - 1
+        return None
+    # Positive cache: use known working path
     cached = _cgroup_path_cache.get(ctid)
     if cached:
         val = await _parse_cgroup_file(cached)
@@ -511,6 +543,8 @@ async def _read_cgroup_cpu_usec(ctid: str) -> Optional[float]:
     if val is not None:
         _cgroup_path_cache[ctid] = v1_path
         return val
+    # All paths failed — negative cache to avoid retrying every cycle
+    _cgroup_negative_cache[ctid] = _NEGATIVE_CACHE_TTL
     return None
 
 
@@ -641,9 +675,16 @@ async def get_cpu_usage(ctid: str) -> float:
 _cgroup_mem_path_cache: Dict[str, Tuple[str, str]] = {}  # ctid -> (current_path, stat_path)
 
 
+_cgroup_mem_negative_cache: Dict[str, int] = {}
+
+
 async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
     """Read memory usage from host-side cgroup. Returns (used_bytes, total_bytes)."""
     validate_container_id(ctid)
+    neg = _cgroup_mem_negative_cache.get(ctid, 0)
+    if neg > 0:
+        _cgroup_mem_negative_cache[ctid] = neg - 1
+        return None
 
     cached = _cgroup_mem_path_cache.get(ctid)
     if cached:
@@ -677,6 +718,7 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
         _cgroup_mem_path_cache[ctid] = (v1_usage, v1_limit)
         return used, limit
 
+    _cgroup_mem_negative_cache[ctid] = _NEGATIVE_CACHE_TTL
     return None
 
 

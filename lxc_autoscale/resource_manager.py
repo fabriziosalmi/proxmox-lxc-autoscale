@@ -75,10 +75,22 @@ async def collect_container_data() -> Dict[str, Dict[str, Any]]:
     ctids = await lxc_utils.get_containers()
     ctids = [c for c in ctids if c not in IGNORE_LXC]
 
-    tasks = [collect_data_for_container(ctid) for ctid in ctids]
+    # Evict caches for containers no longer present
+    lxc_utils.evict_stale_caches(set(ctids))
+
+    # Pre-validate tiers before expensive data collection
+    valid_ctids = []
+    for ctid in ctids:
+        tier = LXC_TIER_ASSOCIATIONS.get(ctid)
+        if tier and not validate_tier_config(ctid, tier):
+            logger.error("Invalid tier for container %s, skipping collection", ctid)
+            continue
+        valid_ctids.append(ctid)
+
+    tasks = [collect_data_for_container(ctid) for ctid in valid_ctids]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    for ctid, result in zip(ctids, results):
+    for ctid, result in zip(valid_ctids, results):
         if isinstance(result, Exception):
             logger.error("Failed to collect data for container %s: %s", ctid, result)
             if isinstance(result, ConnectionError):
@@ -134,12 +146,9 @@ async def main_loop(poll_interval: int, energy_mode: bool) -> None:
         try:
             containers = await collect_container_data()
 
-            for ctid in list(containers.keys()):
-                tier = LXC_TIER_ASSOCIATIONS.get(ctid)
-                containers[ctid]["tier"] = tier
-                if tier and not validate_tier_config(ctid, tier):
-                    logger.error("Invalid tier for container %s, skipping", ctid)
-                    del containers[ctid]
+            # Tier assignment (validation already done pre-collection)
+            for ctid in containers:
+                containers[ctid]["tier"] = LXC_TIER_ASSOCIATIONS.get(ctid)
 
             await scaling_manager.adjust_resources(containers, energy_mode)
             await scaling_manager.manage_horizontal_scaling(containers)
