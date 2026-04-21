@@ -629,11 +629,34 @@ async def _loadavg_method(ctid: str) -> float:
     num_cpus = await _get_num_cpus(ctid)
     return round(min((loadavg / num_cpus) * 100, 100.0), 2)
 
+async def pvesh_stat_method(ctid: str) -> float:
+    """Calculate CPU usage using pvesh cluster resources (non‑blocking)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "pvesh", "get", "/cluster/resources", "--output-format", "json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"pvesh failed: {stderr.decode()}")
+
+        data = json.loads(stdout)
+        full_id = f"lxc/{ctid}"
+        target = next((item for item in data if item.get('id') == full_id), None)
+
+        if target and 'cpu' in target:
+            return round(float(target['cpu']) * 100, 2)
+        return 0.0
+
+    except Exception as e:
+        raise RuntimeError(f"pvesh resource method failed: {e}") from e
 
 async def get_cpu_usage(ctid: str) -> float:
     """Get CPU usage. Returns 0.0 on first cycle (no delta yet)."""
     validate_container_id(ctid)
     methods = [
+        ("pvesh", _pvesh_stat_method)
         ("cgroup", _cgroup_method),
         ("proc_stat", _proc_stat_method),
         ("loadavg", _loadavg_method),
