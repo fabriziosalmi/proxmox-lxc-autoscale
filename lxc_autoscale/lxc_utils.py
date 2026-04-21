@@ -656,7 +656,7 @@ async def get_cpu_usage(ctid: str) -> float:
     """Get CPU usage. Returns 0.0 on first cycle (no delta yet)."""
     validate_container_id(ctid)
     methods = [
-        ("pvesh", _pvesh_stat_method)
+        ("pvesh", pvesh_stat_method),
         ("cgroup", _cgroup_method),
         ("proc_stat", _proc_stat_method),
         ("loadavg", _loadavg_method),

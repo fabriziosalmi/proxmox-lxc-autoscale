@@ -285,6 +285,14 @@ class TestCgroupCPU:
         assert await lxc_utils._parse_cgroup_v2("/fake/cpu.stat") is None
 
 
+class TestGetCpuUsage:
+    @patch.object(lxc_utils, 'pvesh_stat_method', new_callable=AsyncMock, return_value=12.5)
+    async def test_prefers_pvesh_method_when_available(self, mock_pvesh):
+        result = await lxc_utils.get_cpu_usage("100")
+        assert result == 12.5
+        mock_pvesh.assert_awaited_once_with("100")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Name generation
 # ═══════════════════════════════════════════════════════════════════════════
