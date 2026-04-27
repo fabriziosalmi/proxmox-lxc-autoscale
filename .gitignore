@@ -1,9 +1,31 @@
-.DS_Store
-lxc_autoscale/.env
-*.pyc
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# IDEs and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and config
 *.log
 *.lock
+lxc_autoscale/.env
+.env
+config.local.yaml
+
+# Documentation
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
