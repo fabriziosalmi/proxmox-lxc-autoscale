@@ -6,10 +6,12 @@ Optional component. Hardened with:
 - Debug mode removed (never enable Flask debugger in production)
 - Log size limit (last 1000 lines max)
 - Symlink-safe file reads
+- Input sanitization to prevent log injection via control characters
 """
 
 import json
 import os
+import re
 
 from flask import Flask, jsonify, render_template
 
@@ -20,6 +22,9 @@ _JSON_LOG = '/var/log/lxc_autoscale.json'
 _TEXT_LOG = '/var/log/lxc_autoscale.log'
 _MAX_LOG_LINES = 1000
 
+# Regex to strip non-printable control characters (except newline/tab)
+_CONTROL_CHARS_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
+
 
 def _safe_path(path: str, allowed_dir: str = '/var/log') -> str:
     """Resolve symlinks and verify the path stays within allowed_dir."""
@@ -27,6 +32,11 @@ def _safe_path(path: str, allowed_dir: str = '/var/log') -> str:
     if not real.startswith(os.path.realpath(allowed_dir) + os.sep):
         raise ValueError(f"Path escapes allowed directory: {path}")
     return real
+
+
+def _sanitize_log_line(line: str) -> str:
+    """Remove non-printable control characters to prevent log injection."""
+    return _CONTROL_CHARS_RE.sub('', line)
 
 
 @app.route('/')
@@ -49,7 +59,13 @@ def get_scaling_log():
                 if not line:
                     continue
                 try:
-                    events.append(json.loads(line))
+                    event = json.loads(line)
+                    # Sanitize string fields in the event to prevent injection
+                    if isinstance(event, dict):
+                        for key, value in event.items():
+                            if isinstance(value, str):
+                                event[key] = _sanitize_log_line(value)
+                    events.append(event)
                 except (json.JSONDecodeError, ValueError):
                     continue  # skip malformed lines
         # Return only the last N events to prevent memory issues
@@ -67,8 +83,8 @@ def get_full_log():
             return jsonify({"log": ""})
         with open(path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-        # Limit output to prevent serving multi-MB responses
-        tail = lines[-_MAX_LOG_LINES:]
+        # Limit output and sanitize each line to prevent log injection
+        tail = [_sanitize_log_line(line) for line in lines[-_MAX_LOG_LINES:]]
         return jsonify({"log": "".join(tail)})
     except (OSError, ValueError) as exc:
         return jsonify({"error": str(exc)}), 500
