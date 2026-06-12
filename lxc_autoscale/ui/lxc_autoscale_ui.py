@@ -27,10 +27,29 @@ _CONTROL_CHARS_RE = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 
 def _safe_path(path: str, allowed_dir: str = '/var/log') -> str:
-    """Resolve symlinks and verify the path stays within allowed_dir."""
+    """Resolve symlinks and verify the path stays within allowed_dir.
+    
+    Explicitly rejects:
+    - Relative paths (e.g., '../etc/passwd')
+    - Paths containing null bytes
+    - Paths resolving outside allowed_dir
+    """
+    # Reject null bytes in path (prevents null-byte truncation attacks)
+    if '\x00' in path:
+        raise ValueError(f"Path contains null byte: {repr(path)}")
+    
+    # Reject relative paths explicitly
+    if not os.path.isabs(path):
+        raise ValueError(f"Path must be absolute: {path}")
+    
+    # Resolve symlinks and get canonical path
     real = os.path.realpath(path)
-    if not real.startswith(os.path.realpath(allowed_dir) + os.sep):
+    
+    # Ensure resolved path is within allowed_dir
+    allowed_real = os.path.realpath(allowed_dir)
+    if not real.startswith(allowed_real + os.sep) and real != allowed_real:
         raise ValueError(f"Path escapes allowed directory: {path}")
+    
     return real
 
 
