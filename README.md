@@ -16,7 +16,7 @@
 
 | Method    | Instructions |
 |-----------|--------------|
-| Docker    | [Docker](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md#docker) |
+| Docker    | [Docker](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/guide/docker.md) |
 | No Docker | [Install script](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/README.md#quick-start) |
 
 ## Features
@@ -114,7 +114,7 @@ Accepted values: `p-cores`, `e-cores`, `all`, or an explicit range like `0-11` o
 
 ## Configuration
 
-LXC AutoScale is configured via a YAML file at `/etc/lxc_autoscale/lxc_autoscale.yaml`. For detailed configuration options, see the **[documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/README.md)**.
+LXC AutoScale is configured via a YAML file at `/etc/lxc_autoscale/lxc_autoscale.yaml`. For detailed configuration options, see the **[documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/guide/configuration.md)**.
 
 > [!TIP]
 > If you need LXC AutoScale configuration for all your LXC containers, you can automatically generate it by running this command:
@@ -125,7 +125,7 @@ LXC AutoScale is configured via a YAML file at `/etc/lxc_autoscale/lxc_autoscale
 ### Additional Resources
 
 - [LXC AutoScale UI - Simple web UI to check scaling actions and logs](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/tree/main/lxc_autoscale/ui)
-- [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/lxc_autoscale/examples/README.md)
+- [LXC AutoScale - TIER snippets for 40 self-hosted apps](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/reference/tier-snippets.md)
 
 > [!TIP]
 > LXC AutoScale ML has been moved to a separate [repository](https://github.com/fabriziosalmi/proxmox-lxc-autoscale-ml).
@@ -167,7 +167,7 @@ The default polling interval is 300 seconds (5 minutes). Adjust with the `poll_i
 
 Yes. Add container IDs to the `ignore_lxc` list in the configuration file.
 
-For more detailed questions and answers, see the [Q&A documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/q%26a/README.md).
+For more detailed questions and answers, see the [Q&A documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/reference/faq.md).
 
 ## Contributing
 
