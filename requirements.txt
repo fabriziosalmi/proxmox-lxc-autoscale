@@ -1,5 +1,5 @@
 PyYAML>=5.0,<7.0
-paramiko>=2.11.0,<5.0
+paramiko>=5.0.0,<6.0
 requests>=2.20,<3.0
 flask>=2.0,<4.0
 flask-socketio>=5.0,<6.0
