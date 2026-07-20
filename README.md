@@ -169,6 +169,10 @@ Yes. Add container IDs to the `ignore_lxc` list in the configuration file.
 
 For more detailed questions and answers, see the [Q&A documentation](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/blob/main/docs/reference/faq.md).
 
+## Commercial support & consulting
+
+Running this on your Proxmox fleet? I offer paid support, custom development, and consulting - infrastructure automation, hardening, and monitoring & detection. Reach out: **fabrizio.salmi@gmail.com**.
+
 ## Contributing
 
 Contributions are welcome. To get involved:
