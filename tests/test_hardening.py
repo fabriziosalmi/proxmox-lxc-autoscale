@@ -566,6 +566,115 @@ class TestCgroupMemory:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# #51: Page cache must not count as used memory
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestPageCacheExclusion:
+    """Reclaimable file cache is subtracted so usage matches the Proxmox UI."""
+
+    @staticmethod
+    def _mock_cmd(files):
+        async def mock_cmd(cmd, timeout=30):
+            path = cmd[-1] if isinstance(cmd, list) else cmd
+            for suffix, content in files.items():
+                if str(path).endswith(suffix):
+                    return content
+            return None
+        return mock_cmd
+
+    def _read(self, ctid, files):
+        import lxc_utils
+        from unittest.mock import patch
+        lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
+        with patch.object(lxc_utils, 'run_command', side_effect=self._mock_cmd(files)):
+            return asyncio.run(lxc_utils._read_cgroup_memory(ctid))
+
+    def test_v2_subtracts_file_cache(self):
+        # 10.9GB counted, of which 10.6GB is page cache (the issue #51 numbers).
+        used, total = self._read("100", {
+            "memory.current": "10909847552",
+            "memory.max": "17179869184",
+            "memory.stat": "anon 279248896\nfile 10630598656\nslab 12345\n",
+        })
+        assert used == 10909847552 - 10630598656
+        assert total == 17179869184
+
+    def test_v1_subtracts_total_cache(self):
+        used, _ = self._read("101", {
+            "memory.usage_in_bytes": "524288000",
+            "memory.limit_in_bytes": "1073741824",
+            "memory.stat": "cache 104857600\ntotal_cache 209715200\nrss 314572800\n",
+        })
+        assert used == 524288000 - 209715200
+
+    def test_unreadable_stat_keeps_raw_counter(self):
+        used, _ = self._read("102", {
+            "memory.current": "524288000",
+            "memory.max": "1073741824",
+        })
+        assert used == 524288000
+
+    def test_cache_larger_than_usage_clamps_to_zero(self):
+        used, _ = self._read("103", {
+            "memory.current": "1000",
+            "memory.max": "1073741824",
+            "memory.stat": "file 5000\n",
+        })
+        assert used == 0
+
+    def test_cached_paths_still_subtract_cache(self):
+        import lxc_utils
+        files = {
+            "memory.current": "524288000",
+            "memory.max": "1073741824",
+            "memory.stat": "file 24288000\n",
+        }
+        first = self._read("104", files)
+        assert lxc_utils._cgroup_mem_path_cache.get("104") is not None
+        # Second read goes through the cached-path branch, not rediscovery.
+        from unittest.mock import patch
+        with patch.object(lxc_utils, 'run_command', side_effect=self._mock_cmd(files)):
+            second = asyncio.run(lxc_utils._read_cgroup_memory("104"))
+        assert second == first == (524288000 - 24288000, 1073741824)
+
+    def test_opt_out_counts_cache_as_used(self):
+        import lxc_utils
+        from unittest.mock import patch
+        lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
+        files = {
+            "memory.current": "524288000",
+            "memory.max": "1073741824",
+            "memory.stat": "file 424288000\n",
+        }
+        with patch.object(lxc_utils, '_exclude_page_cache', return_value=False), \
+             patch.object(lxc_utils, 'run_command', side_effect=self._mock_cmd(files)):
+            used, _ = asyncio.run(lxc_utils._read_cgroup_memory("105"))
+        assert used == 524288000
+
+    def test_procfs_fallback_uses_memfree_when_opted_out(self):
+        import lxc_utils
+        from unittest.mock import patch
+        meminfo = "MemTotal:       1000000 kB\nMemFree:         100000 kB\nMemAvailable:    800000 kB\n"
+
+        async def mock_cmd(cmd, timeout=30):
+            if "meminfo" in ' '.join(cmd):
+                return meminfo
+            return None
+
+        async def no_cgroup(_ctid):
+            return None
+
+        with patch.object(lxc_utils, '_read_cgroup_memory', side_effect=no_cgroup), \
+             patch.object(lxc_utils, 'run_command', side_effect=mock_cmd):
+            with patch.object(lxc_utils, '_exclude_page_cache', return_value=True):
+                assert asyncio.run(lxc_utils.get_memory_usage("106")) == 20.0
+            with patch.object(lxc_utils, '_exclude_page_cache', return_value=False):
+                assert asyncio.run(lxc_utils.get_memory_usage("106")) == 90.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Integration: validate_tier_settings
 # ═══════════════════════════════════════════════════════════════════════════
 

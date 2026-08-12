@@ -11,6 +11,7 @@ All defaults can be overridden in the `DEFAULT` section of the configuration fil
 | `cpu_lower_threshold` | `20` | CPU % triggering scale-down. |
 | `memory_upper_threshold` | `80` | Memory % triggering scale-up. |
 | `memory_lower_threshold` | `20` | Memory % triggering scale-down. |
+| `memory_exclude_cache` | `true` | Exclude reclaimable page cache from memory usage, matching the Proxmox UI. Set `false` to count file cache as used. |
 | `min_cores` | `1` | Minimum CPU cores per container. |
 | `max_cores` | `4` | Maximum CPU cores per container. |
 | `min_memory` | `512` | Minimum memory (MB) per container. |

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **Page cache no longer counts as used memory** ([#51](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/51)): raw cgroup counters (`memory.current` / `memory.usage_in_bytes`) include reclaimable file cache, so containers doing any I/O reported near-100% usage and were never scaled down, and were sometimes scaled up right after a manual downscale. Usage now subtracts the page cache (`memory.stat` `file` on cgroup v2, `total_cache` on v1), matching the figure shown in the Proxmox UI. Set `memory_exclude_cache: false` to restore the old accounting.
+
 ## [2.0.0] - 2026-04-01
 
 ### Architecture

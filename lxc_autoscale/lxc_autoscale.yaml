@@ -21,6 +21,10 @@ DEFAULT:
   memory_upper_threshold: 70
   # Default Memory lower threshold (%)
   memory_lower_threshold: 20
+  # Exclude reclaimable page cache from memory usage, matching the Proxmox UI.
+  # Set to false to count file cache as used memory (containers doing heavy I/O
+  # will then look permanently full and never scale down).
+  memory_exclude_cache: true
   # Default minimum number of CPU cores
   min_cores: 1
   # Default maximum number of CPU cores

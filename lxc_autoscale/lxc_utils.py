@@ -684,9 +684,24 @@ async def get_cpu_usage(ctid: str) -> float:
 _cgroup_mem_path_cache = _state.cgroup_mem_paths
 _cgroup_mem_negative_cache = _state.mem_negative
 
+# Key holding reclaimable page cache in memory.stat, per cgroup version.
+_V2_CACHE_KEY = "file"
+_V1_CACHE_KEY = "total_cache"
+
+
+def _exclude_page_cache() -> bool:
+    """Whether reclaimable page cache counts as used memory (see issue #51)."""
+    return bool(get_config_value('DEFAULT', 'memory_exclude_cache', True))
+
 
 async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
-    """Read memory usage from host-side cgroup. Returns (used_bytes, total_bytes)."""
+    """Read memory usage from host-side cgroup. Returns (used_bytes, total_bytes).
+
+    Page cache is subtracted from the raw counter by default so the reported
+    usage matches the Proxmox UI: cgroup's memory.current / usage_in_bytes
+    counts reclaimable file cache, which would otherwise pin containers near
+    100% forever and block downscaling.
+    """
     validate_container_id(ctid)
     neg = _cgroup_mem_negative_cache.get(ctid, 0)
     if neg > 0:
@@ -695,11 +710,11 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
 
     cached = _cgroup_mem_path_cache.get(ctid)
     if cached:
-        current_path, stat_path = cached
-        used = await _read_mem_file(current_path)
-        limit = await _read_mem_limit(stat_path)
+        usage_p, limit_p, stat_p, cache_key = cached
+        used = await _read_mem_file(usage_p)
+        limit = await _read_mem_limit(limit_p)
         if used is not None and limit is not None:
-            return used, limit
+            return await _apply_cache_exclusion(used, stat_p, cache_key), limit
         del _cgroup_mem_path_cache[ctid]
 
     # cgroup v2 candidates
@@ -709,24 +724,56 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
     ]
     for base in v2_bases:
         current_p = f"{base}/memory.current"
-        stat_p = f"{base}/memory.max"
+        max_p = f"{base}/memory.max"
+        stat_p = f"{base}/memory.stat"
         used = await _read_mem_file(current_p)
-        limit = await _read_mem_file(stat_p)
+        limit = await _read_mem_file(max_p)
         if used is not None and limit is not None and limit > 0:
-            _cgroup_mem_path_cache[ctid] = (current_p, stat_p)
-            return used, limit
+            _cgroup_mem_path_cache[ctid] = (current_p, max_p, stat_p, _V2_CACHE_KEY)
+            return await _apply_cache_exclusion(used, stat_p, _V2_CACHE_KEY), limit
 
     # cgroup v1 fallback
-    v1_usage = f"/sys/fs/cgroup/memory/lxc/{ctid}/memory.usage_in_bytes"
-    v1_limit = f"/sys/fs/cgroup/memory/lxc/{ctid}/memory.limit_in_bytes"
+    v1_base = f"/sys/fs/cgroup/memory/lxc/{ctid}"
+    v1_usage = f"{v1_base}/memory.usage_in_bytes"
+    v1_limit = f"{v1_base}/memory.limit_in_bytes"
+    v1_stat = f"{v1_base}/memory.stat"
     used = await _read_mem_file(v1_usage)
     limit = await _read_mem_file(v1_limit)
     if used is not None and limit is not None and limit > 0:
-        _cgroup_mem_path_cache[ctid] = (v1_usage, v1_limit)
-        return used, limit
+        _cgroup_mem_path_cache[ctid] = (v1_usage, v1_limit, v1_stat, _V1_CACHE_KEY)
+        return await _apply_cache_exclusion(used, v1_stat, _V1_CACHE_KEY), limit
 
     _cgroup_mem_negative_cache[ctid] = _NEGATIVE_CACHE_TTL
     return None
+
+
+async def _apply_cache_exclusion(used: int, stat_path: str, cache_key: str) -> int:
+    """Subtract reclaimable page cache from a raw cgroup memory counter."""
+    if not _exclude_page_cache():
+        return used
+    stats = await _read_mem_stat(stat_path)
+    cache = stats.get(cache_key)
+    if cache is None:
+        # memory.stat unreadable: keep the raw counter rather than guessing.
+        return used
+    return max(used - cache, 0)
+
+
+async def _read_mem_stat(path: str) -> Dict[str, int]:
+    """Parse a cgroup memory.stat file into a {key: bytes} mapping."""
+    output = await run_command(["cat", path])
+    if not output:
+        return {}
+    stats: Dict[str, int] = {}
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            stats[parts[0]] = int(parts[1])
+        except ValueError:
+            continue
+    return stats
 
 
 async def _read_mem_file(path: str) -> Optional[int]:
@@ -767,13 +814,18 @@ async def get_memory_usage(ctid: str) -> float:
         try:
             total = 0
             mem_available = None
+            mem_free = None
             for line in meminfo_output.splitlines():
                 if line.startswith("MemTotal:"):
                     total = int(line.split()[1])
                 elif line.startswith("MemAvailable:"):
                     mem_available = int(line.split()[1])
-            if total and mem_available is not None:
-                pct = ((total - mem_available) * 100) / total
+                elif line.startswith("MemFree:"):
+                    mem_free = int(line.split()[1])
+            # MemAvailable already excludes reclaimable cache; MemFree does not.
+            unused = mem_available if _exclude_page_cache() else mem_free
+            if total and unused is not None:
+                pct = ((total - unused) * 100) / total
                 logger.info("Memory usage for %s (procfs): %.2f%%", ctid, pct)
                 return pct
         except (ValueError, IndexError):
