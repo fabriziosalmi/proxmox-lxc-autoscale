@@ -73,6 +73,11 @@ class DefaultsConfig(BaseModel):
     memory_upper_threshold: float = 80
     memory_lower_threshold: float = 20
 
+    # Memory accounting: exclude reclaimable page cache from "used" memory so
+    # the reported usage matches the Proxmox UI (issue #51). Set to false to
+    # count page cache as used, the pre-1.x behaviour.
+    memory_exclude_cache: bool = True
+
     # Limits
     min_cores: int = 1
     max_cores: int = 4

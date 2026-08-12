@@ -28,7 +28,8 @@ class ContainerStateCache:
         self.cgroup_cpu_paths: Dict[str, str] = {}
         self.prev_cpu_readings: Dict[str, Tuple[float, float]] = {}
         self.core_counts: Dict[str, int] = {}
-        self.cgroup_mem_paths: Dict[str, Tuple[str, str]] = {}
+        # ctid -> (usage_path, limit_path, stat_path, page_cache_stat_key)
+        self.cgroup_mem_paths: Dict[str, Tuple[str, str, str, str]] = {}
         self.cpu_negative: Dict[str, int] = {}
         self.mem_negative: Dict[str, int] = {}
         self.applied_pinning: Dict[str, str] = {}
