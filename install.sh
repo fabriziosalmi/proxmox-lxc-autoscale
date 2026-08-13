@@ -3,6 +3,34 @@
 # Log file
 LOGFILE="lxc_autoscale_installer.log"
 
+# Source of the files to install. Override REF to install from a tag or branch.
+REF="${LXC_AUTOSCALE_REF:-main}"
+RAW_BASE="https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/${REF}/lxc_autoscale"
+INSTALL_DIR="/usr/local/bin/lxc_autoscale"
+
+# Every Python module the daemon imports at runtime, relative to lxc_autoscale/.
+# Keep in sync with the package: a missing module makes the daemon fail on
+# import at startup.
+PACKAGE_FILES=(
+    "__init__.py"
+    "config.py"
+    "errors.py"
+    "state.py"
+    "logging_setup.py"
+    "lock_manager.py"
+    "ssh.py"
+    "lxc_utils.py"
+    "boost.py"
+    "notification.py"
+    "scaling_manager.py"
+    "resource_manager.py"
+    "lxc_autoscale.py"
+    "backends/__init__.py"
+    "backends/base.py"
+    "backends/cli.py"
+    "backends/api.py"
+)
+
 # Define text styles and emojis
 BOLD=$(tput bold)
 RESET=$(tput sgr0)
@@ -130,6 +158,32 @@ remove_service_files() {
     done
 }
 
+# Function to download a single file, aborting the installation on failure.
+# --fail is what keeps a 404 page from being written into a .py file.
+download() {
+    local url="$1"
+    local dest="$2"
+    if ! curl --fail -sSL -o "$dest" "$url"; then
+        log "ERROR" "${CROSSMARK} Failed to download $url"
+        exit 1
+    fi
+}
+
+# Function to install the Python dependencies the daemon needs
+install_dependencies() {
+    apt install git python3-flask python3-requests python3-paramiko python3-yaml python3-pydantic -y
+
+    # Debian 12 ships pydantic 1.x, which the config models do not support.
+    if ! python3 -c 'import sys, pydantic; sys.exit(0 if pydantic.VERSION.startswith("2") else 1)' 2>/dev/null; then
+        log "WARNING" "pydantic 2 not available from apt, installing it with pip"
+        if ! pip3 install --break-system-packages 'pydantic>=2.0,<3.0' 2>/dev/null \
+            && ! pip3 install 'pydantic>=2.0,<3.0'; then
+            log "ERROR" "${CROSSMARK} Failed to install pydantic 2. The daemon will not start."
+            exit 1
+        fi
+    fi
+}
+
 # Function to install LXC AutoScale
 install_lxc_autoscale() {
     log "INFO" "Installing LXC AutoScale..."
@@ -145,33 +199,32 @@ install_lxc_autoscale() {
     systemctl daemon-reload
 
     # Install needed packages
-    apt install git python3-flask python3-requests python3-paramiko -y
-    
+    install_dependencies
+
     # Create necessary directories
     mkdir -p /etc/lxc_autoscale
-    mkdir -p /usr/local/bin/lxc_autoscale
-
-    # Create an empty __init__.py file to treat the directory as a Python package
-    touch /usr/local/bin/lxc_autoscale/__init__.py
+    mkdir -p "${INSTALL_DIR}/backends"
 
     # Download and install the configuration file
-    curl -sSL -o /etc/lxc_autoscale/lxc_autoscale.yaml https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.yaml
+    download "${RAW_BASE}/lxc_autoscale.yaml" /etc/lxc_autoscale/lxc_autoscale.yaml
 
-    # Download and install all Python files in the lxc_autoscale directory
-    curl -sSL -o /usr/local/bin/lxc_autoscale/config.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/config.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/logging_setup.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/logging_setup.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/lock_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lock_manager.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/lxc_utils.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_utils.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/notification.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/notification.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/resource_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/resource_manager.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/scaling_manager.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/scaling_manager.py
-    curl -sSL -o /usr/local/bin/lxc_autoscale/lxc_autoscale.py https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.py
+    # Download and install every Python module of the package
+    for file in "${PACKAGE_FILES[@]}"; do
+        download "${RAW_BASE}/${file}" "${INSTALL_DIR}/${file}"
+    done
+
+    # A downloaded file that is not valid Python means the source moved or the
+    # download was silently replaced. Catch it here, not at the first poll.
+    if ! python3 -m py_compile "${INSTALL_DIR}"/*.py "${INSTALL_DIR}"/backends/*.py; then
+        log "ERROR" "${CROSSMARK} Downloaded files are not valid Python. Aborting."
+        exit 1
+    fi
 
     # Download and install the systemd service file
-    curl -sSL -o /etc/systemd/system/lxc_autoscale.service https://raw.githubusercontent.com/fabriziosalmi/proxmox-lxc-autoscale/main/lxc_autoscale/lxc_autoscale.service
+    download "${RAW_BASE}/lxc_autoscale.service" /etc/systemd/system/lxc_autoscale.service
 
     # Make the main script executable
-    chmod +x /usr/local/bin/lxc_autoscale/lxc_autoscale.py
+    chmod +x "${INSTALL_DIR}/lxc_autoscale.py"
 
     # Reload systemd to recognize the new service
     systemctl daemon-reload

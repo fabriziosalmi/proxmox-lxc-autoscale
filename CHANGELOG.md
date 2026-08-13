@@ -1,9 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [2.0.2] - 2026-08-13
 
 ### Fixed
 - **Page cache no longer counts as used memory** ([#51](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/51)): raw cgroup counters (`memory.current` / `memory.usage_in_bytes`) include reclaimable file cache, so containers doing any I/O reported near-100% usage and were never scaled down, and were sometimes scaled up right after a manual downscale. Usage now subtracts the page cache (`memory.stat` `file` on cgroup v2, `total_cache` on v1), matching the figure shown in the Proxmox UI. Set `memory_exclude_cache: false` to restore the old accounting.
+- **Installer no longer produces a broken installation**: `install.sh` downloaded 9 of the 13 modules of the package. `state.py`, `ssh.py`, `errors.py`, `boost.py` and the whole `backends/` package were missing, so a fresh install failed at startup on `from state import get_state_cache`. All modules are installed now, downloads use `curl --fail` so an HTTP error aborts the install instead of writing an error page into a `.py` file, and the result is checked with `py_compile` before the service is started.
+- **Installer dependencies**: `python3-yaml` and `python3-pydantic` were never installed, and Debian 12 ships pydantic 1.x, which the config models reject. Both are installed now, with a pip fallback when the distribution does not provide pydantic 2.
+- **Version string**: `__version__` was left at `2.0.0` through the 2.0.1 release.
+
+### Changed
+- `install.sh` honours `LXC_AUTOSCALE_REF` to install from a specific tag or branch instead of `main`.
+
+### CI
+- Removed the Codeflash workflow and its `pyproject.toml` configuration. It was unused and failed on every pull request touching `lxc_autoscale/`.
 
 ## [2.0.0] - 2026-04-01
 
