@@ -31,7 +31,7 @@ HORIZONTAL_SCALING_GROUP_1:
 ## How it works
 
 1. **Metrics** — Average CPU and memory usage are calculated across all containers in the group.
-2. **Scale out** — If averages exceed the upper thresholds, a new container is cloned from the base snapshot.
+2. **Scale out** — If averages exceed the upper thresholds, a new container is cloned from the base snapshot. With `clone_network_type: static` the address is chosen before the clone, by reading the addresses actually configured on the existing members and taking the first free entry of `static_ip_range`. If every address is taken, the scale-out is skipped and logged, and no clone is created.
 3. **Scale in** — If averages drop below the lower thresholds and the group has more than `min_containers`, the last clone is stopped.
 4. **Grace periods** — Scale-out and scale-in actions are throttled by configurable grace periods.
 
@@ -44,7 +44,7 @@ HORIZONTAL_SCALING_GROUP_1:
 | `max_instances` | Maximum number of containers (clones stop here). |
 | `starting_clone_id` | First container ID for new clones. |
 | `clone_network_type` | `"dhcp"` or `"static"`. |
-| `static_ip_range` | List of IPs for static assignment. Leave `[]` for DHCP. |
+| `static_ip_range` | List of IPs for static assignment. Leave `[]` for DHCP. An entry may carry its own prefix (`10.0.0.5/16`); bare addresses default to `/24`. |
 | `horiz_cpu_upper_threshold` | Group avg CPU % to trigger scale-out. |
 | `horiz_memory_upper_threshold` | Group avg memory % to trigger scale-out. |
 | `horiz_cpu_lower_threshold` | Group avg CPU % to trigger scale-in. |

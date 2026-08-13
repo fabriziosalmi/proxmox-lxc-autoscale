@@ -330,3 +330,45 @@ class TestPrioritize:
 
     def test_empty_returns_empty(self):
         assert lxc_utils.prioritize_containers({}) == []
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #70: reading the address actually configured on a container
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestGetContainerIPv4:
+    def _read(self, config_output):
+        with patch.object(lxc_utils, 'run_command', new_callable=AsyncMock,
+                          return_value=config_output):
+            return asyncio.run(lxc_utils.get_container_ipv4("100"))
+
+    def test_static_address_with_prefix(self):
+        assert self._read(
+            "cores: 2\nnet0: name=eth0,bridge=vmbr0,ip=10.0.0.50/24,gw=10.0.0.1\n"
+        ) == "10.0.0.50"
+
+    def test_static_address_without_prefix(self):
+        assert self._read("net0: name=eth0,bridge=vmbr0,ip=192.168.1.7\n") == "192.168.1.7"
+
+    def test_dhcp_returns_none(self):
+        assert self._read("net0: name=eth0,bridge=vmbr0,ip=dhcp\n") is None
+
+    def test_manual_returns_none(self):
+        assert self._read("net0: name=eth0,bridge=vmbr0,ip=manual\n") is None
+
+    def test_no_net0_returns_none(self):
+        assert self._read("cores: 2\nmemory: 512\n") is None
+
+    def test_unreadable_config_returns_none(self):
+        assert self._read(None) is None
+
+    def test_ignores_addresses_on_other_interfaces(self):
+        # Only net0 is managed by horizontal scaling.
+        assert self._read(
+            "net1: name=eth1,bridge=vmbr1,ip=172.16.0.9/24\n"
+            "net0: name=eth0,bridge=vmbr0,ip=dhcp\n"
+        ) is None
+
+    def test_rejects_invalid_ctid(self):
+        with pytest.raises(ValueError):
+            asyncio.run(lxc_utils.get_container_ipv4("100; rm -rf /"))

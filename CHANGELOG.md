@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Horizontal scaling handed the same static IP to every clone** ([#70](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/70)): the filter that was meant to skip addresses already in use compared IP strings against the list of integer container ids, so it never excluded anything and every clone received `static_ip_range[0]`. Addresses in use are now read from the live `net0` of each group member. The address is also chosen before the clone rather than after, so an exhausted range skips the scale-out instead of leaving behind a clone that could not be configured. Entries in `static_ip_range` may now carry their own prefix; bare addresses keep the documented `/24` default.
+
 ### Security
 - **Documentation toolchain**: cleared all 8 open Dependabot alerts in `docs/`. postcss moved to 8.5.26 and vite to 6.4.3 through `overrides`, which also pulls esbuild out of the vulnerable range. All three advisories concern the local dev server, not the static site that is deployed, but there is no reason to keep them. VitePress stays on 1.6.4, the current stable release; forcing vite 8 or esbuild 0.28 breaks the build.
 
