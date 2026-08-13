@@ -1,4 +1,6 @@
 requests>=2.20,<3.0
 PyYAML>=5.0,<7.0
-paramiko>=2.11.0,<5.0
+# paramiko 5 removed SHA-1 signatures and SHA-1 key exchange. Modern Proxmox
+# hosts are unaffected; pin to <5.0 if you connect to a legacy SSH server.
+paramiko>=2.11.0,<6.0
 pydantic>=2.0,<3.0
