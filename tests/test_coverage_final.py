@@ -294,6 +294,79 @@ class TestHorizontalScalingNetwork:
         calls = " ".join(str(c) for c in m_cmd.call_args_list)
         assert "10.0.0.50" in calls
 
+    @patch('scaling_manager.log_json_event', new_callable=AsyncMock)
+    async def test_scale_out_skips_ip_already_in_use(self, m_log):
+        """#70: the address of a live member must not be handed out again."""
+        import scaling_manager as sm
+
+        async def fake_ip(ctid):
+            return '10.0.0.50' if str(ctid) == '100' else None
+
+        with patch('scaling_manager.get_container_ipv4', side_effect=fake_ip), \
+             patch('scaling_manager.run_command', new_callable=AsyncMock,
+                   return_value="OK") as m_cmd:
+            group_config = {
+                'lxc_containers': {'100'},
+                'starting_clone_id': 200,
+                'max_instances': 5,
+                'base_snapshot_name': '100',
+                'clone_network_type': 'static',
+                'static_ip_range': ['10.0.0.50', '10.0.0.51'],
+            }
+            await sm.scale_out("test_grp", group_config)
+
+        calls = " ".join(str(c) for c in m_cmd.call_args_list)
+        assert "10.0.0.51/24" in calls
+        assert "ip=10.0.0.50" not in calls
+
+    @patch('scaling_manager.log_scaling_event', new_callable=AsyncMock)
+    @patch('scaling_manager.log_json_event', new_callable=AsyncMock)
+    async def test_scale_out_aborts_when_range_exhausted(self, m_log, m_event):
+        """#70: no clone at all when every address is taken."""
+        import scaling_manager as sm
+
+        async def fake_ip(ctid):
+            return {'100': '10.0.0.50', '101': '10.0.0.51'}.get(str(ctid))
+
+        with patch('scaling_manager.get_container_ipv4', side_effect=fake_ip), \
+             patch('scaling_manager.run_command', new_callable=AsyncMock,
+                   return_value="OK") as m_cmd:
+            group_config = {
+                'lxc_containers': {'100', '101'},
+                'starting_clone_id': 200,
+                'max_instances': 5,
+                'base_snapshot_name': '100',
+                'clone_network_type': 'static',
+                'static_ip_range': ['10.0.0.50', '10.0.0.51'],
+            }
+            await sm.scale_out("test_grp", group_config)
+
+        # Nothing was created: no snapshot, no clone, no orphan left behind.
+        assert m_cmd.call_count == 0
+
+    @patch('scaling_manager.log_json_event', new_callable=AsyncMock)
+    async def test_scale_out_honours_explicit_prefix(self, m_log):
+        """An entry carrying its own prefix is used verbatim."""
+        import scaling_manager as sm
+
+        async def fake_ip(ctid):
+            return None
+
+        with patch('scaling_manager.get_container_ipv4', side_effect=fake_ip), \
+             patch('scaling_manager.run_command', new_callable=AsyncMock,
+                   return_value="OK") as m_cmd:
+            group_config = {
+                'lxc_containers': {'100'},
+                'starting_clone_id': 200,
+                'max_instances': 5,
+                'base_snapshot_name': '100',
+                'clone_network_type': 'static',
+                'static_ip_range': ['10.0.0.50/16'],
+            }
+            await sm.scale_out("test_grp", group_config)
+
+        assert "10.0.0.50/16" in " ".join(str(c) for c in m_cmd.call_args_list)
+
     @patch('scaling_manager.run_command', new_callable=AsyncMock, return_value="OK")
     @patch('scaling_manager.log_json_event', new_callable=AsyncMock)
     async def test_scale_out_snapshot_fail(self, m_log, m_cmd):

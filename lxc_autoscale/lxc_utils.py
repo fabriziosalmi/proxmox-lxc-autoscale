@@ -887,6 +887,28 @@ def get_container_config(ctid: str) -> Dict[str, Any]:
     return LXC_TIER_ASSOCIATIONS.get(ctid, DEFAULTS)
 
 
+# Matches the address in a net0 line: "name=eth0,bridge=vmbr0,ip=10.0.0.5/24".
+# "ip=dhcp" and "ip=manual" do not match, which is what we want.
+_NET_IPV4_RE = re.compile(r'\bip=(\d{1,3}(?:\.\d{1,3}){3})(?:/\d{1,2})?')
+
+
+async def get_container_ipv4(ctid: str) -> Optional[str]:
+    """Return the static IPv4 configured on net0, without prefix.
+
+    Returns None when the container uses DHCP, has no net0, or cannot be read.
+    """
+    validate_container_id(ctid)
+    output = await run_command(["pct", "config", ctid])
+    if not output:
+        return None
+    for line in output.splitlines():
+        if line.startswith("net0:"):
+            match = _NET_IPV4_RE.search(line)
+            if match:
+                return match.group(1)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Name generation (pure, sync)
 # ---------------------------------------------------------------------------

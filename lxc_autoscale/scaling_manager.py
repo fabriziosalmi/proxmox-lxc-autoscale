@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 from config import (
@@ -12,7 +12,7 @@ from config import (
 )
 from lxc_utils import (
     apply_cpu_pinning, backup_container_settings,
-    get_containers, get_cpu_usage, get_memory_usage,
+    get_container_ipv4, get_containers, get_cpu_usage, get_memory_usage,
     get_total_cores, get_total_memory, is_container_running,
     is_ignored, load_backup_settings, log_json_event,
     resolve_cpu_pinning, rollback_container_settings,
@@ -482,6 +482,36 @@ def should_scale_in(metrics, group_config, current_time, last_action_time) -> bo
             metrics['total_containers'] > group_config.get('min_containers', 1))
 
 
+async def _select_static_ip(group_config: Dict[str, Any],
+                            members: List[int]) -> Optional[str]:
+    """Return the first address of static_ip_range not already in use.
+
+    Addresses in use are read from the live net0 of every group member, not
+    inferred from the container ids. Entries may carry a prefix
+    ("10.0.0.5/24"); bare addresses keep the documented /24 default. Returns
+    None when the range is empty or exhausted.
+    """
+    ip_range = group_config.get('static_ip_range', [])
+    if not ip_range:
+        return None
+
+    in_use = set()
+    for ctid in members:
+        try:
+            address = await get_container_ipv4(str(ctid))
+        except ValueError:
+            continue
+        if address:
+            in_use.add(address)
+
+    for entry in ip_range:
+        address = str(entry).split('/')[0]
+        if address in in_use:
+            continue
+        return str(entry) if '/' in str(entry) else f"{address}/24"
+    return None
+
+
 async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances = sorted(map(int, group_config['lxc_containers']))
     starting_clone_id = group_config['starting_clone_id']
@@ -500,6 +530,23 @@ async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
         logger.error("Invalid ID for scale_out in %s: %s", group_name, e)
         return
 
+    # Pick the address before cloning: if the range is exhausted there is no
+    # point creating a clone we would then have to leave misconfigured.
+    net_type = group_config.get('clone_network_type', 'dhcp')
+    static_ip = None
+    if net_type == "static":
+        static_ip = await _select_static_ip(group_config, current_instances)
+        if static_ip is None:
+            logger.error(
+                "No free address in static_ip_range for group %s, skipping scale out",
+                group_name,
+            )
+            await log_scaling_event(
+                group_name, 'scale_out_skipped',
+                {'reason': 'static_ip_range exhausted'}, error=True,
+            )
+            return
+
     unique_snap = generate_unique_snapshot_name("snap")
     if not await run_command(["pct", "snapshot", str(base_snapshot), unique_snap,
                               "--description", "Auto snapshot for scaling"]):
@@ -513,15 +560,11 @@ async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
         logger.error("Failed to clone %s", base_snapshot)
         return
 
-    net_type = group_config.get('clone_network_type', 'dhcp')
     if net_type == "dhcp":
         await run_command(["pct", "set", str(new_ctid), "-net0", "name=eth0,bridge=vmbr0,ip=dhcp"])
     elif net_type == "static":
-        available_ips = [ip for ip in group_config.get('static_ip_range', [])
-                         if ip not in current_instances]
-        if available_ips:
-            await run_command(["pct", "set", str(new_ctid), "-net0",
-                               f"name=eth0,bridge=vmbr0,ip={available_ips[0]}/24"])
+        await run_command(["pct", "set", str(new_ctid), "-net0",
+                           f"name=eth0,bridge=vmbr0,ip={static_ip}"])
 
     await run_command(["pct", "start", str(new_ctid)])
     current_instances.append(new_ctid)
