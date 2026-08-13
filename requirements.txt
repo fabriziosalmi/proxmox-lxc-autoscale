@@ -1,9 +1,10 @@
-PyYAML>=5.0,<7.0
-paramiko>=2.11.0,<5.0
-requests>=2.20,<3.0
+# Runtime dependencies of the daemon live in lxc_autoscale/requirements.txt,
+# which is also what the Docker image installs. Keep them in one place.
+-r lxc_autoscale/requirements.txt
+
+# Web UI only (lxc_autoscale/ui), not needed by the daemon
 flask>=2.0,<4.0
 flask-socketio>=5.0,<6.0
-pydantic>=2.0,<3.0
 
 # Optional backends (uncomment as needed)
 # proxmoxer>=2.0,<3.0    # REST API backend (backend: api)

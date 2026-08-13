@@ -18,6 +18,10 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Requirements are declared as ranges on purpose: an install always gets
+    # the newest compatible release. Only widen a range when a new version
+    # falls outside it, instead of raising the lower bound every week.
+    versioning-strategy: widen
     groups:
       pip:
         patterns:

@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+- **Documentation toolchain**: cleared all 8 open Dependabot alerts in `docs/`. postcss moved to 8.5.26 and vite to 6.4.3 through `overrides`, which also pulls esbuild out of the vulnerable range. All three advisories concern the local dev server, not the static site that is deployed, but there is no reason to keep them. VitePress stays on 1.6.4, the current stable release; forcing vite 8 or esbuild 0.28 breaks the build.
+
+### Changed
+- **paramiko range widened** to `>=2.11.0,<6.0`. Version 5.0 removes SHA-1 RSA signatures and SHA-1 key exchange; modern Proxmox hosts are unaffected, and the lower bound is unchanged so anyone talking to a legacy SSH server can still pin `<5.0`. The full test suite passes against paramiko 5.0.0, and every paramiko symbol used in `ssh.py` was verified to still exist.
+- **Requirements consolidated**: the daemon dependencies are declared once in `lxc_autoscale/requirements.txt`, which is also what the Docker image installs. The root `requirements.txt` includes it and adds only the web UI extras. This is what was generating two Dependabot pull requests for every dependency.
+- **Docker base image** moved from `python:3.12-slim` to `python:3.14-slim`.
+- Dependabot uses `versioning-strategy: widen` for pip, so it stops proposing a higher lower bound every week for ranges that are permissive on purpose.
+
+### CI
+- New `Docker` workflow builds the image and checks that the daemon imports inside it. The image was never built in CI, so a broken Dockerfile or a base image without wheels for our dependencies would only have surfaced at run time.
+- GitHub Actions updated: checkout v7, setup-python v7, setup-node v7, cache v6, configure-pages v6, upload-pages-artifact v5, deploy-pages v5.
+- The VitePress workflow keys its npm cache on `package-lock.json` instead of `package.json`.
+
 ## [2.0.2] - 2026-08-13
 
 ### Fixed

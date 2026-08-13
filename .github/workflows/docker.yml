@@ -1,0 +1,35 @@
+name: Docker
+
+# The image is never built anywhere else in CI, so a broken Dockerfile or a
+# base image without wheels for our dependencies would only surface at run time.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'lxc_autoscale/Dockerfile'
+      - 'lxc_autoscale/requirements.txt'
+      - 'lxc_autoscale/entrypoint.sh'
+  pull_request:
+    paths:
+      - 'lxc_autoscale/Dockerfile'
+      - 'lxc_autoscale/requirements.txt'
+      - 'lxc_autoscale/entrypoint.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -t lxc-autoscale:ci lxc_autoscale
+
+      - name: Check the daemon imports inside the image
+        run: |
+          docker run --rm --entrypoint python3 lxc-autoscale:ci \
+            -c "import sys; sys.path.insert(0, '/app'); import lxc_autoscale; print('import OK')"
