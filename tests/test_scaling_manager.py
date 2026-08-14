@@ -117,6 +117,29 @@ class TestScaleInDecision:
             now, now - timedelta(seconds=1000)
         ) is False
 
+    def test_min_instances_stops_the_scale_in(self):
+        """#71: the documented key must actually hold the floor."""
+        now = datetime.now()
+        assert should_scale_in(
+            {'avg_cpu_usage': 5, 'avg_mem_usage': 5, 'total_containers': 2},
+            {'horiz_cpu_lower_threshold': 20, 'horiz_memory_lower_threshold': 20,
+             'scale_in_grace_period': 600, 'min_instances': 2},
+            now, now - timedelta(seconds=1000)
+        ) is False
+
+
+class TestGroupMinInstances:
+    """#71: resolution of min_instances and its deprecated alias."""
+
+    def test_prefers_min_instances(self):
+        assert scaling_manager.group_min_instances({'min_instances': 3, 'min_containers': 9}) == 3
+
+    def test_falls_back_to_alias(self):
+        assert scaling_manager.group_min_instances({'min_containers': 4}) == 4
+
+    def test_defaults_to_one(self):
+        assert scaling_manager.group_min_instances({}) == 1
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Async scaling functions

@@ -210,7 +210,11 @@ class HorizontalScalingGroup(BaseModel):
     horiz_cpu_lower_threshold: float = 20
     horiz_memory_upper_threshold: float = 80
     horiz_memory_lower_threshold: float = 20
-    min_containers: int = 1
+    # min_instances is canonical: it matches max_instances and the documentation.
+    # min_containers is the name the code originally read and is kept as a
+    # deprecated alias. Both end up holding the same resolved value.
+    min_instances: Optional[int] = None
+    min_containers: Optional[int] = None
     max_instances: int = 5
     starting_clone_id: int = 200
     base_snapshot_name: str = ""
@@ -231,6 +235,37 @@ class HorizontalScalingGroup(BaseModel):
             raise ValueError(
                 f"Invalid base_snapshot_name: {self.base_snapshot_name!r} (must be numeric)"
             )
+        return self
+
+    @model_validator(mode="after")
+    def resolve_min_instances(self) -> "HorizontalScalingGroup":
+        """Reconcile min_instances with its deprecated alias min_containers."""
+        if (self.min_instances is not None and self.min_containers is not None
+                and self.min_instances != self.min_containers):
+            raise ValueError(
+                f"min_instances ({self.min_instances}) and min_containers "
+                f"({self.min_containers}) disagree. Keep only min_instances."
+            )
+        if self.min_instances is None and self.min_containers is not None:
+            logging.warning(
+                "min_containers is deprecated, use min_instances instead "
+                "(currently %d)", self.min_containers,
+            )
+        resolved = self.min_instances
+        if resolved is None:
+            resolved = self.min_containers
+        if resolved is None:
+            resolved = 1
+        if resolved < 1:
+            raise ValueError(f"min_instances must be >= 1, got {resolved}")
+        if resolved > self.max_instances:
+            raise ValueError(
+                f"min_instances ({resolved}) must be <= max_instances "
+                f"({self.max_instances})"
+            )
+        # Keep both names holding the resolved value so any reader agrees.
+        self.min_instances = resolved
+        self.min_containers = resolved
         return self
 
 
@@ -344,7 +379,15 @@ def load_config(path: str = CONFIG_FILE) -> "AppConfig":
             lxc = group_raw.get("lxc_containers")
             if isinstance(lxc, list):
                 group_raw["lxc_containers"] = set(map(str, lxc))
-                horiz_groups[section] = HorizontalScalingGroup(**group_raw)
+            # The model allows extra keys for backward compatibility, which
+            # means a typo would otherwise be accepted and ignored in silence.
+            unknown = set(group_raw) - set(HorizontalScalingGroup.model_fields)
+            if unknown:
+                logging.warning(
+                    "%s: unknown key(s) %s, ignored. Check for a typo.",
+                    section, ", ".join(sorted(unknown)),
+                )
+            horiz_groups[section] = HorizontalScalingGroup(**group_raw)
 
     return AppConfig(
         defaults=defaults,

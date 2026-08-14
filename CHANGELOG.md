@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **`min_instances` was documented but silently ignored** ([#71](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/71)): the guide documented `min_instances` and used it in its example, while the code read `min_containers` and the model accepted unknown keys, so a group configured per the documentation had a floor of 1 instead of the value set. `min_instances` is now canonical, matching `max_instances`; `min_containers` keeps working as a deprecated alias and logs a warning; the two disagreeing is a config error rather than a coin flip. `min_instances` is also validated against `max_instances`. Unknown keys in a horizontal group are now reported at load instead of being swallowed, which is how the original mismatch stayed invisible.
 - **Horizontal scaling handed the same static IP to every clone** ([#70](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/70)): the filter that was meant to skip addresses already in use compared IP strings against the list of integer container ids, so it never excluded anything and every clone received `static_ip_range[0]`. Addresses in use are now read from the live `net0` of each group member. The address is also chosen before the clone rather than after, so an exhausted range skips the scale-out instead of leaving behind a clone that could not be configured. Entries in `static_ip_range` may now carry their own prefix; bare addresses keep the documented `/24` default.
 
 ### Security

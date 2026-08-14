@@ -474,12 +474,24 @@ def should_scale_out(metrics, group_config, current_time, last_action_time) -> b
             metrics['avg_mem_usage'] > group_config['horiz_memory_upper_threshold'])
 
 
+def group_min_instances(group_config: Dict[str, Any]) -> int:
+    """Minimum group size, accepting the deprecated min_containers alias.
+
+    Config loading resolves the two names, but group dicts also reach this
+    module from tests and from callers that build them by hand.
+    """
+    value = group_config.get('min_instances')
+    if value is None:
+        value = group_config.get('min_containers')
+    return 1 if value is None else int(value)
+
+
 def should_scale_in(metrics, group_config, current_time, last_action_time) -> bool:
     if current_time - last_action_time < timedelta(seconds=group_config.get('scale_in_grace_period', 600)):
         return False
     return (metrics['avg_cpu_usage'] < group_config['horiz_cpu_lower_threshold'] and
             metrics['avg_mem_usage'] < group_config['horiz_memory_lower_threshold'] and
-            metrics['total_containers'] > group_config.get('min_containers', 1))
+            metrics['total_containers'] > group_min_instances(group_config))
 
 
 async def _select_static_ip(group_config: Dict[str, Any],
@@ -576,7 +588,7 @@ async def scale_out(group_name: str, group_config: Dict[str, Any]) -> None:
 
 async def scale_in(group_name: str, group_config: Dict[str, Any]) -> None:
     current_instances = sorted(map(int, group_config['lxc_containers']))
-    if len(current_instances) <= group_config.get('min_containers', 1):
+    if len(current_instances) <= group_min_instances(group_config):
         return
     remove_ctid = str(current_instances[-1])
     try:

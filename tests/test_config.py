@@ -10,7 +10,9 @@ import yaml
 # Add lxc_autoscale to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale'))
 
-from config import DefaultsConfig, TierConfig, SSHConfig, load_config
+from config import (
+    DefaultsConfig, HorizontalScalingGroup, TierConfig, SSHConfig, load_config,
+)
 
 
 class TestDefaultsConfig:
@@ -183,3 +185,75 @@ class TestLoadConfig:
         assert isinstance(DEFAULTS, dict)
         assert isinstance(IGNORE_LXC, set)
         assert isinstance(LOG_FILE, str)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #71: min_instances was documented but silently ignored
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestHorizontalGroupMinInstances:
+    def test_min_instances_is_honoured(self):
+        group = HorizontalScalingGroup(min_instances=3)
+        assert group.min_instances == 3
+        assert group.min_containers == 3  # alias kept in sync
+
+    def test_deprecated_alias_still_works(self, caplog):
+        group = HorizontalScalingGroup(min_containers=2)
+        assert group.min_instances == 2
+        assert "min_containers is deprecated" in caplog.text
+
+    def test_default_is_one(self):
+        group = HorizontalScalingGroup()
+        assert group.min_instances == 1
+
+    def test_conflicting_values_are_rejected(self):
+        with pytest.raises(ValueError, match="disagree"):
+            HorizontalScalingGroup(min_instances=2, min_containers=4)
+
+    def test_matching_values_are_accepted(self):
+        assert HorizontalScalingGroup(min_instances=2, min_containers=2).min_instances == 2
+
+    def test_min_above_max_is_rejected(self):
+        with pytest.raises(ValueError, match="must be <= max_instances"):
+            HorizontalScalingGroup(min_instances=9, max_instances=5)
+
+    def test_zero_is_rejected(self):
+        with pytest.raises(ValueError, match="must be >= 1"):
+            HorizontalScalingGroup(min_instances=0)
+
+    def test_documented_example_loads_with_the_documented_meaning(self, caplog):
+        """The example in docs/guide/horizontal-scaling.md must mean what it says."""
+        raw = {
+            "HORIZONTAL_SCALING_GROUP_1": {
+                "base_snapshot_name": "101",
+                "min_instances": 2,
+                "max_instances": 5,
+                "starting_clone_id": 99000,
+                "lxc_containers": ["101"],
+            }
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(raw, f)
+            path = f.name
+        try:
+            app_cfg = load_config(path)
+            group = app_cfg.horizontal_scaling_groups["HORIZONTAL_SCALING_GROUP_1"]
+            assert group.min_instances == 2
+        finally:
+            os.unlink(path)
+
+    def test_unknown_key_is_reported(self, caplog):
+        raw = {
+            "HORIZONTAL_SCALING_GROUP_1": {
+                "lxc_containers": ["101"],
+                "min_instancess": 2,  # typo
+            }
+        }
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(raw, f)
+            path = f.name
+        try:
+            load_config(path)
+            assert "min_instancess" in caplog.text
+        finally:
+            os.unlink(path)
