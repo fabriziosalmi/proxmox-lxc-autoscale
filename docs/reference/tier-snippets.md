@@ -191,5 +191,5 @@ TIER_LIGHTWEIGHT_APP:
 ## Customization tips
 
 - Adjust `cpu_upper_threshold` lower (e.g. 70) for faster scale-up response on latency-sensitive apps.
-- On hybrid Intel CPUs, add `cpu_pinning: p-cores` to heavy tiers and `cpu_pinning: e-cores` to lightweight ones. See [CPU Core Pinning](/guide/cpu-pinning).
+- Use `cpu_pinning` to keep tiers off each other's cache: `l3:0` / `l3:1` for one CCD each on AMD, `numa:0` / `numa:1` on multi-socket hosts, or `p-cores` / `e-cores` on hybrid Intel. See [CPU Core Pinning](/guide/cpu-pinning).
 - Group multiple containers of the same type into a single tier by adding all their IDs to `lxc_containers`.

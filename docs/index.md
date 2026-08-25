@@ -42,7 +42,7 @@ It runs as a systemd service on the Proxmox host, remotely via SSH, or using the
 - Automatic vertical scaling of CPU cores and memory
 - Per-container or per-group configuration via YAML tiers
 - CPU and memory measured from host-side cgroup (no `pct exec` needed)
-- CPU core pinning for Intel Big.LITTLE architectures (12th gen+)
+- CPU core pinning by L3 cache domain (CCD/CCX) or NUMA node on any CPU, and by P/E core on hybrid Intel (12th gen+)
 - Horizontal scaling via container cloning (experimental)
 - Timezone-aware off-peak energy mode
 - SSH connection pool with host key verification (default: reject)

@@ -2,7 +2,7 @@
 
 ## What is LXC AutoScale?
 
-A resource management daemon for Proxmox hosts. It monitors LXC container CPU and memory usage and adjusts allocations based on configured thresholds. It supports vertical scaling, horizontal scaling (experimental), tier-based configuration, CPU core pinning for hybrid Intel CPUs, and dual CLI/API backend.
+A resource management daemon for Proxmox hosts. It monitors LXC container CPU and memory usage and adjusts allocations based on configured thresholds. It supports vertical scaling, horizontal scaling (experimental), tier-based configuration, CPU core pinning by L3 domain, NUMA node, or Intel P/E core, and dual CLI/API backend.
 
 ## Who should use it?
 
