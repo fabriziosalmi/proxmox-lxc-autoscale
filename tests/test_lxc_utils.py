@@ -210,7 +210,8 @@ class TestHostResources:
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Real probe output, AMD Ryzen AI MAX+ 395 (2 CCDs, 1 NUMA node, no core_type).
-AMD_PROBE = """nproc:32
+AMD_PROBE = """online:0-31
+nproc:32
 l3:0-7,16-23:32768K
 l3:0-7,16-23:32768K
 l3:8-15,24-31:32768K
@@ -218,14 +219,15 @@ numa:node0:0-31"""
 
 # Intel i5-13500 shape: 6 P-cores + HT (0-11), 8 E-cores (12-19).
 INTEL_HYBRID_PROBE = "\n".join(
-    ["nproc:20"]
+    ["online:0-19", "nproc:20"]
     + [f"core_type:cpu{i}:Core" for i in range(12)]
     + [f"core_type:cpu{i}:Atom" for i in range(12, 20)]
     + ["l3:0-19:24576K", "numa:node0:0-19"]
 )
 
 # Dual-socket EPYC: 2 NUMA nodes, 4 L3 domains, no core_type.
-EPYC_PROBE = """nproc:32
+EPYC_PROBE = """online:0-31
+nproc:32
 l3:0-7:32768K
 l3:8-15:32768K
 l3:16-23:32768K
@@ -319,6 +321,42 @@ class TestCpuTopology:
             groups = await lxc_utils.detect_cpu_topology()
         assert groups == {}
 
+    async def test_probe_failure_is_not_cached(self):
+        """A single SSH timeout must not disable pinning for the daemon's life."""
+        results = [None, AMD_PROBE]
+
+        async def run(cmd, **kw):
+            return results.pop(0)
+
+        with patch.object(lxc_utils, 'run_command', side_effect=run):
+            assert await lxc_utils.detect_cpu_topology() == {}
+            assert 'l3:0' in await lxc_utils.detect_cpu_topology()
+
+    async def test_cpuless_numa_node_is_not_offered(self):
+        """A CXL or persistent-memory node has an empty cpulist and cannot be pinned to."""
+        probe = "online:0-15\nnuma:node0:0-15\nnuma:node1:"
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(probe)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert 'numa:1' not in groups
+        assert groups['numa:0'] == list(range(16))
+
+    async def test_all_uses_online_cpus_not_the_affinity_mask(self):
+        """nproc reports the daemon's own affinity, which CPUAffinity= or a cpuset narrows."""
+        probe = "online:0-31\nnproc:2"
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(probe)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['all'] == list(range(32))
+
+    async def test_all_falls_back_to_nproc_without_online(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe("nproc:8")):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['all'] == list(range(8))
+
+    async def test_online_cpus_may_be_sparse(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe("online:0-3,8-11")):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['all'] == [0, 1, 2, 3, 8, 9, 10, 11]
+
     async def test_result_is_cached(self):
         calls = []
 
@@ -385,6 +423,12 @@ class TestResolvePinning:
 
     async def test_invalid_value(self):
         assert await self._resolve(AMD_PROBE, "invalid!") is None
+
+    async def test_cpuless_numa_node_errors_rather_than_resolving_empty(self, caplog):
+        """An empty range is falsy at the call site, so it would be dropped in silence."""
+        probe = "online:0-15\nnuma:node0:0-15\nnuma:node1:"
+        assert await self._resolve(probe, "numa:1") is None
+        assert "Invalid cpu_pinning value" in caplog.text
 
 
 # ═══════════════════════════════════════════════════════════════════════════

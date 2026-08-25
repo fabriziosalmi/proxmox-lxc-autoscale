@@ -40,7 +40,7 @@ TIER_background:
 | `numa:0`, `numa:1`, … | Any CPU | One NUMA node, numbered by its kernel node id. Multi-socket hosts and EPYC in NPS2/NPS4 expose more than one. |
 | `p-cores` | Hybrid Intel only | Performance cores. |
 | `e-cores` | Hybrid Intel only | Efficiency cores. |
-| `all` | Any CPU | Every online CPU. No effective restriction. |
+| `all` | Any CPU | Every online CPU, from `/sys/devices/system/cpu/online`. No effective restriction. |
 | `0-11` | Any CPU | Explicit CPU range. |
 | `0,2,4,6-8` | Any CPU | Explicit CPU list with ranges. |
 
@@ -52,7 +52,7 @@ At first use the daemon runs a single probe on the host (over SSH when `use_remo
 
 - `/sys/devices/system/cpu/cpu*/topology/core_type` classifies each CPU as `Core` or `Atom`. This attribute is populated only for CPUs the kernel marks as hybrid, which today means Intel 12th gen and newer. It is absent on every AMD host, so `p-cores` and `e-cores` are not offered there.
 - `/sys/devices/system/cpu/cpu*/cache/index3/shared_cpu_list` groups CPUs by the L3 they share. This is generic sysfs and is present on both vendors.
-- `/sys/devices/system/node/node*/cpulist` gives the NUMA nodes.
+- `/sys/devices/system/node/node*/cpulist` gives the NUMA nodes. A node with no CPUs of its own, such as a CXL or persistent-memory node, is not offered as a group.
 
 The result is logged once, and it is the fastest way to see what a given node offers:
 
@@ -66,7 +66,11 @@ On a hybrid Intel node the same line reads:
 CPU topology: 20 CPUs, hybrid P/E cores: 0-11 / 12-19; L3 domains: l3:0=0-19 (24576K); NUMA: numa:0=0-19
 ```
 
-If a tier asks for `p-cores` or `e-cores` on a host that reports no hybrid cores, the daemon logs a warning naming the groups that host does have and leaves the container unpinned. It does not silently pin the container to every core.
+If a tier asks for `p-cores` or `e-cores` on a host that reports no hybrid cores, the daemon logs a warning naming the groups that host does have and does not write a pin. It does not silently pin the container to every core.
+
+::: warning
+Not writing a pin is not the same as removing one. If the container config already carries an `lxc.cgroup2.cpuset.cpus` line, from an earlier release or a previous `cpu_pinning` value, that line stays in force. Change `cpu_pinning` to a value the host can resolve, or delete the line from `/etc/pve/lxc/<ctid>.conf` yourself.
+:::
 
 ::: tip Picking the right CCD on an X3D part
 On a Ryzen X3D chip only one CCD carries the extra V-Cache, and the two CCDs report different L3 sizes. The startup line above prints the size of each domain, so the larger one is the V-Cache CCD.

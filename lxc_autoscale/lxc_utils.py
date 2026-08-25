@@ -364,6 +364,7 @@ _cached_topology: Optional[Dict[str, List[int]]] = None
 # and the trailing `exit 0` matters: a glob that matches nothing makes the loop
 # exit non-zero, which run_command would report as a failure on every AMD host.
 _TOPOLOGY_PROBE = (
+    'printf "online:%s\\n" "$(cat /sys/devices/system/cpu/online 2>/dev/null)"; '
     'printf "nproc:%s\\n" "$(nproc)"; '
     'for f in /sys/devices/system/cpu/cpu[0-9]*/topology/core_type; do '
     '[ -f "$f" ] || continue; printf "core_type:%s:%s\\n" '
@@ -425,11 +426,13 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
 
     output = await run_command(["sh", "-c", _TOPOLOGY_PROBE])
     if not output:
-        logger.error("CPU topology probe returned nothing; cpu_pinning keywords unavailable")
-        _cached_topology = {}
-        return _cached_topology
+        # Deliberately not cached. Under use_remote_proxmox the probe is an SSH
+        # call, and caching one timeout would disable pinning for the whole run.
+        logger.error("CPU topology probe returned nothing; retrying next cycle")
+        return {}
 
     num_cpus = 0
+    online: List[int] = []
     p_cores: List[int] = []
     e_cores: List[int] = []
     l3_sizes: Dict[str, str] = {}
@@ -437,7 +440,9 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
 
     for line in output.strip().splitlines():
         kind, _, rest = line.partition(':')
-        if kind == 'nproc':
+        if kind == 'online':
+            online = _range_to_cpus(rest)
+        elif kind == 'nproc':
             num_cpus = int(rest) if rest.isdigit() else 0
         elif kind == 'core_type':
             cpu_name, _, core_type = rest.partition(':')
@@ -449,27 +454,34 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
             target.append(cpu_id)
         elif kind == 'l3':
             cpulist, _, size = rest.rpartition(':')
-            l3_sizes.setdefault(cpulist, size)
+            if _range_to_cpus(cpulist):
+                l3_sizes.setdefault(cpulist, size)
         elif kind == 'numa':
             node_name, _, cpulist = rest.partition(':')
-            numa_nodes[node_name.removeprefix('node')] = cpulist
+            # A CPU-less NUMA node (CXL, persistent memory) is not pinnable.
+            if _range_to_cpus(cpulist):
+                numa_nodes[node_name.removeprefix('node')] = cpulist
 
+    # nproc reports the daemon's own affinity mask, so it undercounts (and
+    # misnumbers) whenever the unit sets CPUAffinity= or runs in a cpuset.
+    if not online:
+        online = list(range(num_cpus))
     groups: Dict[str, List[int]] = {}
-    if num_cpus:
-        groups['all'] = list(range(num_cpus))
+    if online:
+        groups['all'] = online
     if p_cores and e_cores:
         groups['p-cores'] = sorted(p_cores)
         groups['e-cores'] = sorted(e_cores)
 
-    l3_ordered = sorted(l3_sizes, key=lambda cpulist: (_range_to_cpus(cpulist) or [1 << 30])[0])
+    l3_ordered = sorted(l3_sizes, key=lambda cpulist: _range_to_cpus(cpulist)[0])
     for index, cpulist in enumerate(l3_ordered):
         groups[f'l3:{index}'] = _range_to_cpus(cpulist)
     for node_id, cpulist in numa_nodes.items():
         groups[f'numa:{node_id}'] = _range_to_cpus(cpulist)
 
     logger.info(
-        "CPU topology: %d CPUs, hybrid P/E cores: %s; L3 domains: %s; NUMA: %s",
-        num_cpus,
+        "CPU topology: %d CPUs online, hybrid P/E cores: %s; L3 domains: %s; NUMA: %s",
+        len(online),
         _cpus_to_range(groups['p-cores']) + " / " + _cpus_to_range(groups['e-cores'])
         if 'p-cores' in groups else "none",
         ", ".join(f"l3:{i}={cpulist} ({l3_sizes[cpulist]})"
@@ -488,7 +500,8 @@ async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
     if val in ('p-cores', 'e-cores'):
         logger.warning(
             "cpu_pinning: %s requires a CPU that reports hybrid P/E cores and this host "
-            "does not (AMD hosts do not expose topology/core_type). Skipping pinning. "
+            "does not (AMD hosts do not expose topology/core_type). Not pinning; any "
+            "cpuset already in the container config is left as it is. "
             "Use one of %s, or an explicit range.",
             val, ", ".join(groups) or "none",
         )
