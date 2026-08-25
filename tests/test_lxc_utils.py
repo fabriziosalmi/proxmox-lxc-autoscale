@@ -209,7 +209,38 @@ class TestHostResources:
 # CPU topology
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestCpuTopology:
+# Real probe output, AMD Ryzen AI MAX+ 395 (2 CCDs, 1 NUMA node, no core_type).
+AMD_PROBE = """nproc:32
+l3:0-7,16-23:32768K
+l3:0-7,16-23:32768K
+l3:8-15,24-31:32768K
+numa:node0:0-31"""
+
+# Intel i5-13500 shape: 6 P-cores + HT (0-11), 8 E-cores (12-19).
+INTEL_HYBRID_PROBE = "\n".join(
+    ["nproc:20"]
+    + [f"core_type:cpu{i}:Core" for i in range(12)]
+    + [f"core_type:cpu{i}:Atom" for i in range(12, 20)]
+    + ["l3:0-19:24576K", "numa:node0:0-19"]
+)
+
+# Dual-socket EPYC: 2 NUMA nodes, 4 L3 domains, no core_type.
+EPYC_PROBE = """nproc:32
+l3:0-7:32768K
+l3:8-15:32768K
+l3:16-23:32768K
+l3:24-31:32768K
+numa:node0:0-15
+numa:node1:16-31"""
+
+
+def _probe(text):
+    async def run(cmd, **kw):
+        return text
+    return run
+
+
+class TestRangeParsing:
     def test_cpus_to_range_contiguous(self):
         assert lxc_utils._cpus_to_range([0, 1, 2, 3]) == "0-3"
 
@@ -222,23 +253,83 @@ class TestCpuTopology:
     def test_cpus_to_range_empty(self):
         assert lxc_utils._cpus_to_range([]) == ""
 
-    @patch.object(lxc_utils, 'run_command', new_callable=AsyncMock)
-    async def test_detect_non_hybrid(self, mock_cmd):
+    def test_range_to_cpus_mixed(self):
+        assert lxc_utils._range_to_cpus("0-3,8,10-11") == [0, 1, 2, 3, 8, 10, 11]
+
+    def test_range_to_cpus_single(self):
+        assert lxc_utils._range_to_cpus("5") == [5]
+
+    def test_range_to_cpus_junk(self):
+        assert lxc_utils._range_to_cpus("not-a-range") == []
+
+    @pytest.mark.parametrize("cpus", [[0], [0, 1, 2, 3], [0, 1, 4, 5, 6], [2, 9, 10]])
+    def test_round_trip(self, cpus):
+        assert lxc_utils._range_to_cpus(lxc_utils._cpus_to_range(cpus)) == cpus
+
+
+class TestCpuTopology:
+    def setup_method(self):
         lxc_utils._cached_topology = None
-        mock_cmd.side_effect = lambda cmd, **kw: asyncio.coroutine(
-            lambda: "8" if cmd == ["nproc"] else ""
-        )()
 
-        async def mock(cmd, **kw):
-            if cmd == ["nproc"]:
-                return "8"
-            return ""
+    def teardown_method(self):
+        lxc_utils._cached_topology = None
 
-        with patch.object(lxc_utils, 'run_command', side_effect=mock):
-            topo = await lxc_utils.detect_cpu_topology()
-            assert len(topo['all']) == 8
-            assert topo['hybrid'] is False
-            lxc_utils._cached_topology = None  # cleanup
+    async def test_amd_has_no_pe_groups(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(AMD_PROBE)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert 'p-cores' not in groups
+        assert 'e-cores' not in groups
+        assert groups['all'] == list(range(32))
+
+    async def test_amd_l3_domains_are_ccds(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(AMD_PROBE)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert lxc_utils._cpus_to_range(groups['l3:0']) == "0-7,16-23"
+        assert lxc_utils._cpus_to_range(groups['l3:1']) == "8-15,24-31"
+
+    async def test_amd_numa_group(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(AMD_PROBE)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['numa:0'] == list(range(32))
+
+    async def test_l3_groups_ordered_by_lowest_cpu(self):
+        shuffled = "nproc:32\nl3:8-15,24-31:32768K\nl3:0-7,16-23:32768K"
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(shuffled)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['l3:0'][0] == 0
+        assert groups['l3:1'][0] == 8
+
+    async def test_intel_hybrid_still_detected(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(INTEL_HYBRID_PROBE)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert lxc_utils._cpus_to_range(groups['p-cores']) == "0-11"
+        assert lxc_utils._cpus_to_range(groups['e-cores']) == "12-19"
+
+    async def test_epyc_numa_nodes_keep_their_ids(self):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(EPYC_PROBE)):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups['numa:0'] == list(range(16))
+        assert groups['numa:1'] == list(range(16, 32))
+        assert lxc_utils._cpus_to_range(groups['l3:3']) == "24-31"
+
+    async def test_probe_failure_yields_no_groups(self):
+        async def run(cmd, **kw):
+            return None
+        with patch.object(lxc_utils, 'run_command', side_effect=run):
+            groups = await lxc_utils.detect_cpu_topology()
+        assert groups == {}
+
+    async def test_result_is_cached(self):
+        calls = []
+
+        async def run(cmd, **kw):
+            calls.append(cmd)
+            return AMD_PROBE
+
+        with patch.object(lxc_utils, 'run_command', side_effect=run):
+            await lxc_utils.detect_cpu_topology()
+            await lxc_utils.detect_cpu_topology()
+        assert len(calls) == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -246,20 +337,54 @@ class TestCpuTopology:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestResolvePinning:
-    @patch.object(lxc_utils, 'detect_cpu_topology', new_callable=AsyncMock)
-    async def test_explicit_range(self, mock_topo):
-        mock_topo.return_value = {'p_cores': [0, 1], 'e_cores': [2, 3], 'all': [0, 1, 2, 3], 'hybrid': True}
-        assert await lxc_utils.resolve_cpu_pinning("0-3") == "0-3"
+    def setup_method(self):
+        lxc_utils._cached_topology = None
 
-    @patch.object(lxc_utils, 'detect_cpu_topology', new_callable=AsyncMock)
-    async def test_p_cores(self, mock_topo):
-        mock_topo.return_value = {'p_cores': [0, 1, 2, 3], 'e_cores': [4, 5], 'all': list(range(6)), 'hybrid': True}
-        assert await lxc_utils.resolve_cpu_pinning("p-cores") == "0-3"
+    def teardown_method(self):
+        lxc_utils._cached_topology = None
 
-    @patch.object(lxc_utils, 'detect_cpu_topology', new_callable=AsyncMock)
-    async def test_invalid_value(self, mock_topo):
-        mock_topo.return_value = {'p_cores': [], 'e_cores': [], 'all': [], 'hybrid': False}
-        assert await lxc_utils.resolve_cpu_pinning("invalid!") is None
+    async def _resolve(self, probe, value):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(probe)):
+            return await lxc_utils.resolve_cpu_pinning(value)
+
+    async def test_explicit_range(self):
+        assert await self._resolve(AMD_PROBE, "0-3") == "0-3"
+
+    async def test_explicit_list(self):
+        assert await self._resolve(AMD_PROBE, "0,2,4-6") == "0,2,4-6"
+
+    async def test_all(self):
+        assert await self._resolve(AMD_PROBE, "all") == "0-31"
+
+    async def test_p_cores_on_intel_hybrid(self):
+        assert await self._resolve(INTEL_HYBRID_PROBE, "p-cores") == "0-11"
+
+    async def test_e_cores_on_intel_hybrid(self):
+        assert await self._resolve(INTEL_HYBRID_PROBE, "e-cores") == "12-19"
+
+    async def test_p_cores_on_amd_skips_instead_of_pinning_everything(self, caplog):
+        assert await self._resolve(AMD_PROBE, "p-cores") is None
+        assert "hybrid" in caplog.text.lower()
+
+    async def test_e_cores_on_amd_warns(self, caplog):
+        assert await self._resolve(AMD_PROBE, "e-cores") is None
+        assert "l3:" in caplog.text
+
+    async def test_l3_group_on_amd(self):
+        assert await self._resolve(AMD_PROBE, "l3:1") == "8-15,24-31"
+
+    async def test_numa_group_on_epyc(self):
+        assert await self._resolve(EPYC_PROBE, "numa:1") == "16-31"
+
+    async def test_case_insensitive(self):
+        assert await self._resolve(EPYC_PROBE, "  NUMA:1  ") == "16-31"
+
+    async def test_out_of_range_group(self, caplog):
+        assert await self._resolve(AMD_PROBE, "l3:9") is None
+        assert "l3:0" in caplog.text
+
+    async def test_invalid_value(self):
+        assert await self._resolve(AMD_PROBE, "invalid!") is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
