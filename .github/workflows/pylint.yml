@@ -1,5 +1,14 @@
 name: Pylint
-on: [push]
+# push covers the maintainer's own branches; pull_request is what makes the
+# suite run for a contribution from a fork, which "on: [push]" never did.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
