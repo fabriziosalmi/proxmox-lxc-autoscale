@@ -1,0 +1,13 @@
+# Test dependencies. The suite is 423 tests over 21 files and nothing in CI ran
+# any of them, because pytest was never installed: the only Python workflow
+# installed pylint and requirements.txt, and this file did not exist.
+#
+# pylint.yml already installs it when present, so a lint run now imports the
+# same packages a test run does.
+pytest>=8.0
+pytest-asyncio>=0.23
+
+# tests/test_coverage_boost.py exercises the REST backend. proxmoxer is an
+# optional runtime dependency, commented out in requirements.txt, but a test
+# that covers the backend needs it present.
+proxmoxer>=2.0,<3.0

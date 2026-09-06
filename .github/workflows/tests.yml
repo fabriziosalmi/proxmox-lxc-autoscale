@@ -1,0 +1,64 @@
+name: Tests
+
+# The repository has carried a test suite for some time and CI never ran it.
+# pylint.yml is the only other Python workflow and it runs pylint alone, so a
+# change that broke a test reached main with every check green. That includes
+# the tests covering CPU pinning, a feature that writes to the configuration of
+# running containers.
+#
+# The matrix is 3.10 through 3.14, which is not what pylint.yml declared.
+# 3.9 is gone because the daemon does not run there: `asyncio.Lock()` binds
+# `get_event_loop()` at construction before 3.10, and lxc_utils builds one at
+# module scope, so it binds a loop that `asyncio.run()` then replaces. 3.13 and
+# 3.14 are new because lxc_autoscale/Dockerfile ships `python:3.14-slim`, so
+# the version that actually runs in production was the one version nobody
+# tested. pylint.yml now declares the same range.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      # Every version is run even when one fails: "it breaks on 3.10" and "it
+      # breaks everywhere" are different problems and the matrix should say
+      # which one it is.
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-dev.txt
+
+    - name: Run the test suite
+      env:
+        PYTHONPATH: ${{ github.workspace }}/lxc_autoscale
+      run: pytest tests/ -q
