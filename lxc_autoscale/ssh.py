@@ -71,6 +71,53 @@ class AsyncSSHPool:
             cmd = shlex.join(cmd)
         return await asyncio.to_thread(self._run_sync, cmd, timeout)
 
+    async def run_command_with_input(
+        self, cmd: Union[str, List[str]], data: str, timeout: int = 30,
+    ) -> bool:
+        """
+        Execute a command on the remote host, feeding it `data` on stdin.
+
+        Writing a file remotely needs the content to reach the far side without
+        going through the shell: a here-document or an echo would interpolate
+        it. This sends it down the channel's stdin instead, so nothing in the
+        payload is ever parsed as a command.
+
+        Args:
+            cmd: The command to run.
+            data: What to write to its standard input.
+            timeout: Seconds to wait.
+
+        Returns:
+            True when the command exited zero.
+        """
+        if isinstance(cmd, list):
+            cmd = shlex.join(cmd)
+        return await asyncio.to_thread(self._run_sync_with_input, cmd, data, timeout)
+
+    def _run_sync_with_input(self, cmd: str, data: str, timeout: int) -> bool:
+        """Synchronous stdin-fed SSH execution (called in a thread)."""
+        logger.debug("SSH command with input: %s (%d bytes)", cmd, len(data))
+        client = self._acquire()
+        try:
+            stdin, stdout, stderr = client.exec_command(cmd, timeout=timeout)
+            stdin.write(data)
+            stdin.flush()
+            stdin.channel.shutdown_write()
+            err = stderr.read().decode("utf-8").strip()
+            exit_code = stdout.channel.recv_exit_status()
+            self._release(client)
+            if exit_code != 0:
+                logger.error("SSH command failed (rc=%d): %s — %s", exit_code, cmd, err)
+                return False
+            return True
+        except paramiko.SSHException as e:
+            logger.error("SSH execution failed: %s", e)
+            self._discard(client)
+        except OSError as e:
+            logger.error("SSH connection error: %s", e)
+            self._discard(client)
+        return False
+
     def _run_sync(self, cmd: str, timeout: int) -> Optional[str]:
         """Synchronous SSH command execution (called in a thread)."""
         logger.debug("SSH command: %s", cmd)

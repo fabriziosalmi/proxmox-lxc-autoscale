@@ -62,6 +62,61 @@ async def run_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional
     return await run_local_command(cmd, timeout)
 
 
+async def run_command_with_input(
+    cmd: Union[str, List[str]], data: str, timeout: int = 30,
+) -> bool:
+    """
+    Run a command where the container config is running, feeding it `data`.
+
+    Mirrors run_command: local when the daemon runs on the node, over SSH when
+    use_remote_proxmox is set. The remote branch of apply_cpu_pinning used to
+    build its content correctly and then hand it to a local subprocess, so the
+    node it was talking to never received the write.
+
+    Args:
+        cmd: The command to run.
+        data: What to write to its standard input.
+        timeout: Seconds to wait.
+
+    Returns:
+        True when the command exited zero.
+    """
+    cfg = get_app_config()
+    if cfg.defaults.use_remote_proxmox:
+        from ssh import AsyncSSHPool
+        global _ssh_pool
+        if _ssh_pool is None:
+            _ssh_pool = AsyncSSHPool(cfg.defaults.get_ssh_config())
+        return await _ssh_pool.run_command_with_input(cmd, data, timeout)
+    return await run_local_command_with_input(cmd, data, timeout)
+
+
+async def run_local_command_with_input(
+    cmd: Union[str, List[str]], data: str, timeout: int = 30,
+) -> bool:
+    """Run a local command, feeding it `data` on stdin."""
+    if isinstance(cmd, str):
+        import shlex
+        cmd = shlex.split(cmd)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(proc.communicate(input=data.encode()), timeout=timeout)
+        if proc.returncode == 0:
+            return True
+        logger.error("Command failed (rc=%d): %s — %s",
+                     proc.returncode, cmd, stderr.decode('utf-8').strip())
+    except asyncio.TimeoutError:
+        logger.error("Command timed out after %ds: %s", timeout, cmd)
+        proc.kill()
+        await proc.wait()
+    except OSError as e:
+        logger.error("OS error executing %s: %s", cmd, e)
+    return False
+
+
 async def run_local_command(cmd: Union[str, List[str]], timeout: int = 30) -> Optional[str]:
     if isinstance(cmd, str):
         import shlex
@@ -384,6 +439,105 @@ async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
 _applied_pinning = _state.applied_pinning
 
 
+_CPUSET_KEY = "lxc.cgroup2.cpuset.cpus:"
+
+# A pct container config holds the live configuration first, then one
+# `[snapshotname]` section per snapshot, each a full copy of the config at the
+# time it was taken (pct(1), "Snapshots"). Only the part before the first
+# section header applies to the running container.
+_SECTION_HEADER_RE = re.compile(r"^\[")
+
+
+def _split_live_section(content: str) -> Tuple[List[str], List[str]]:
+    """
+    Splits a container config into its live lines and everything after them.
+
+    Args:
+        content: The whole config file.
+
+    Returns:
+        (live_lines, rest_lines), where rest_lines starts at the first
+        `[snapshot]` header and is returned untouched.
+    """
+    lines = content.splitlines(True)
+    for index, line in enumerate(lines):
+        if _SECTION_HEADER_RE.match(line):
+            return lines[:index], lines[index:]
+    return lines, []
+
+
+def _set_cpuset_line(content: str, cpu_range: str) -> Tuple[str, bool]:
+    """
+    Sets the cpuset key in the live section of a container config.
+
+    Writing to the file as if it were flat put the pin inside the last snapshot
+    section, where it has no effect on the running container, and a cpuset line
+    found in a snapshot was taken as proof the live section already had one.
+
+    Args:
+        content: The whole config file.
+        cpu_range: The value for `lxc.cgroup2.cpuset.cpus`.
+
+    Returns:
+        (new_content, changed). `changed` is False when the live section
+        already carries exactly this pin, so the caller can skip the write.
+    """
+    target = f"{_CPUSET_KEY} {cpu_range}"
+    live, rest = _split_live_section(content)
+
+    for index, line in enumerate(live):
+        stripped = line.strip()
+        if stripped == target:
+            return content, False
+        if stripped.startswith(_CPUSET_KEY):
+            live[index] = target + "\n"
+            return "".join(live) + "".join(rest), True
+
+    # Append at the end of the live section, not at the end of the file.
+    if live and not live[-1].endswith("\n"):
+        live[-1] += "\n"
+    live.append(target + "\n")
+    return "".join(live) + "".join(rest), True
+
+
+def _container_conf_path(ctid: str) -> str:
+    """The documented path of a container config, before symlink resolution."""
+    return f"/etc/pve/lxc/{ctid}.conf"
+
+
+def _is_expected_conf_path(real_path: str, ctid: str) -> bool:
+    """
+    Checks that a resolved config path is one pmxcfs is expected to produce.
+
+    `/etc/pve/lxc` is documented as a symbolic link to
+    `nodes/<LOCAL_HOST_NAME>/lxc/` (pmxcfs, "Symbolic links"), so on every node
+    the realpath of a container config is under `/etc/pve/nodes/<node>/lxc/`.
+    Requiring the resolved path to still start with `/etc/pve/lxc/` therefore
+    rejected the only path that exists, and every local write was refused as a
+    symlink attack.
+
+    Args:
+        real_path: The path after `os.path.realpath`.
+        ctid: The container ID the path is supposed to belong to.
+
+    Returns:
+        True when the path is `/etc/pve/lxc/<ctid>.conf` or
+        `/etc/pve/nodes/<node>/lxc/<ctid>.conf`.
+    """
+    expected_name = f"{ctid}.conf"
+    if os.path.basename(real_path) != expected_name:
+        return False
+    parent = os.path.dirname(real_path)
+    if parent == "/etc/pve/lxc":
+        return True
+    prefix, _, node_dir = parent.rpartition("/lxc")
+    if node_dir or not prefix.startswith("/etc/pve/nodes/"):
+        return False
+    # /etc/pve/nodes/<node>/lxc — exactly one path element for the node name.
+    node = prefix[len("/etc/pve/nodes/"):]
+    return bool(node) and "/" not in node
+
+
 async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
     """Apply CPU core pinning only if it differs from last applied state."""
     validate_container_id(ctid)
@@ -396,60 +550,55 @@ async def apply_cpu_pinning(ctid: str, cpu_range: str) -> bool:
         logger.debug("Container %s: pinning unchanged (%s), skipping", ctid, cpu_range)
         return True
 
-    conf_path = f"/etc/pve/lxc/{ctid}.conf"
-    target_line = f"lxc.cgroup2.cpuset.cpus: {cpu_range}"
+    conf_path = _container_conf_path(ctid)
 
     cfg = get_app_config()
     if cfg.defaults.use_remote_proxmox:
-        # Remote: read file, build new content in Python, write back via tee.
-        # Never pass user-controlled data through sed or sh -c.
+        # Remote: read the file, rewrite it in Python, write it back through
+        # tee's stdin. Never pass user-controlled data through sed or sh -c.
         current = await run_command(["cat", conf_path])
         if current is None:
             logger.error("Cannot read config file %s", conf_path)
             return False
-        lines = current.splitlines(True)
-        found = False
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped == target_line:
-                _applied_pinning[ctid] = cpu_range
-                return True
-            if stripped.startswith('lxc.cgroup2.cpuset.cpus:'):
-                lines[i] = target_line + '\n'
-                found = True
-        if not found:
-            lines.append(target_line + '\n')
-        new_content = ''.join(lines)
-        # Write back atomically via tee (stdin, no shell interpolation)
-        proc = await asyncio.create_subprocess_exec(
-            "tee", conf_path,
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.DEVNULL,
-        )
-        await proc.communicate(input=new_content.encode())
-        if proc.returncode != 0:
+
+        # run_command strips its output, so the trailing newline of the file is
+        # gone by the time it arrives here. Appending to it without restoring
+        # one produced `swap: 512lxc.cgroup2.cpuset.cpus: 0-3`, corrupting the
+        # last key of the live section.
+        if current and not current.endswith("\n"):
+            current += "\n"
+
+        new_content, changed = _set_cpuset_line(current, cpu_range)
+        if not changed:
+            _applied_pinning[ctid] = cpu_range
+            return True
+
+        # The write has to happen on the node that holds the container. The
+        # previous version built the content correctly and then handed it to a
+        # local `tee`, so the remote config was never touched, and on a daemon
+        # host that happens to have /etc/pve/lxc the remote container's config
+        # was written into the local node's directory.
+        if not await run_command_with_input(["tee", conf_path], new_content):
             logger.error("Failed to set CPU pinning for container %s", ctid)
             return False
     else:
         # Local: native Python file I/O — no shell, no injection risk
         try:
             real_conf = os.path.realpath(conf_path)
-            if not real_conf.startswith('/etc/pve/lxc/'):
-                logger.error("Symlink attack on config path: %s -> %s", conf_path, real_conf)
+            if not _is_expected_conf_path(real_conf, ctid):
+                logger.error("Unexpected config path for container %s: %s -> %s",
+                             ctid, conf_path, real_conf)
                 return False
             with open(real_conf, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            found = False
-            for i, line in enumerate(lines):
-                if line.strip() == target_line:
-                    _applied_pinning[ctid] = cpu_range
-                    return True
-                if line.startswith('lxc.cgroup2.cpuset.cpus:'):
-                    lines[i] = target_line + '\n'
-                    found = True
-            if not found:
-                lines.append(target_line + '\n')
+                current = f.read()
+
+            new_content, changed = _set_cpuset_line(current, cpu_range)
+            if not changed:
+                _applied_pinning[ctid] = cpu_range
+                return True
+
             with open(real_conf, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
+                f.write(new_content)
         except OSError as e:
             logger.error("Failed to set CPU pinning for container %s: %s", ctid, e)
             return False
