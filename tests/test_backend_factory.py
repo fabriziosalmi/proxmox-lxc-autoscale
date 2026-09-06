@@ -21,15 +21,34 @@ class TestCreateBackend:
         assert isinstance(backend, CLIBackend)
 
     def test_api_backend_requires_proxmoxer(self):
+        """
+        backend: api without proxmoxer installed must say so, not fail later.
+
+        This used to simulate the missing package with
+        `patch.dict('sys.modules', {'proxmoxer': None})`, inside a try/except
+        that swallowed three exception types and asserted nothing, so the test
+        passed whatever happened, including on a success.
+
+        It also broke a different test. `patch.dict` restores a dict by clearing
+        it and writing the snapshot back, so every module first imported inside
+        the block is dropped from `sys.modules` on exit while the parent package
+        keeps its attribute pointing at the old object. `backends.api` is
+        imported inside the block, and afterwards
+        `patch('backends.api.ProxmoxAPI')` and `import backends.api` no longer
+        resolve to the same module: the patch lands on one, the code under test
+        reads the other. `TestRESTBackend` then ran against the real proxmoxer
+        and opened an HTTPS connection to the address in its own fixture,
+        waiting five seconds for it to time out.
+
+        Setting the name the module actually reads is enough, and it leaves
+        `sys.modules` alone.
+        """
         cfg = MagicMock()
         cfg.defaults.backend = "api"
         cfg.defaults.proxmox_api.host = "192.168.1.1"
-        # If proxmoxer is not installed, should raise
-        with patch.dict('sys.modules', {'proxmoxer': None}):
-            try:
+        with patch('backends.api.ProxmoxAPI', None):
+            with pytest.raises(RuntimeError, match="proxmoxer is required"):
                 create_backend(cfg)
-            except (RuntimeError, ImportError, TypeError):
-                pass  # expected if proxmoxer unavailable
 
 
 class TestCLIBackendEdgeCases:
