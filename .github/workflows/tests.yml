@@ -5,6 +5,14 @@ name: Tests
 # change that broke a test reached main with every check green. That includes
 # the tests covering CPU pinning, a feature that writes to the configuration of
 # running containers.
+#
+# The matrix is 3.10 through 3.14, which is not what pylint.yml declared.
+# 3.9 is gone because the daemon does not run there: `asyncio.Lock()` binds
+# `get_event_loop()` at construction before 3.10, and lxc_utils builds one at
+# module scope, so it binds a loop that `asyncio.run()` then replaces. 3.13 and
+# 3.14 are new because lxc_autoscale/Dockerfile ships `python:3.14-slim`, so
+# the version that actually runs in production was the one version nobody
+# tested. pylint.yml now declares the same range.
 on:
   push:
     branches: ["main"]
@@ -21,12 +29,12 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     strategy:
-      # Every version is run even when one fails: "it breaks on 3.9" and "it
+      # Every version is run even when one fails: "it breaks on 3.10" and "it
       # breaks everywhere" are different problems and the matrix should say
       # which one it is.
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v7
