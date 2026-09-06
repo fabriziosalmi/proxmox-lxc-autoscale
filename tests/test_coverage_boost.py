@@ -172,25 +172,34 @@ class TestMemoryFallback:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestCpuPinningRemote:
-    @patch('lxc_utils.asyncio.create_subprocess_exec')
+    @patch('lxc_utils.run_command_with_input', new_callable=AsyncMock, return_value=True)
     @patch('lxc_utils.run_command', new_callable=AsyncMock)
-    async def test_remote_append_via_tee(self, m_cmd, m_exec):
+    async def test_remote_append_via_tee(self, m_cmd, m_write):
+        """
+        The write has to go through the channel that reaches the node.
+
+        This previously mocked asyncio.create_subprocess_exec and passed, which
+        is what hid the defect: the remote branch built the right content and
+        then handed it to a *local* subprocess, so the node was never written.
+        """
         import lxc_utils
         lxc_utils._applied_pinning.clear()
         cfg_mock = MagicMock()
         cfg_mock.defaults.use_remote_proxmox = True
 
-        m_cmd.return_value = "arch: amd64\nmemory: 2048\n"  # no existing pinning
-
-        mock_proc = AsyncMock()
-        mock_proc.communicate.return_value = (b"", b"")
-        mock_proc.returncode = 0
-        m_exec.return_value = mock_proc
+        m_cmd.return_value = "arch: amd64\nmemory: 2048"  # run_command strips
 
         with patch('lxc_utils.get_app_config', return_value=cfg_mock):
             result = await lxc_utils.apply_cpu_pinning("100", "0-3")
             assert result is True
             assert lxc_utils._applied_pinning["100"] == "0-3"
+
+        m_write.assert_awaited_once()
+        cmd, written = m_write.await_args.args[0], m_write.await_args.args[1]
+        assert cmd == ["tee", "/etc/pve/lxc/100.conf"]
+        # The newline run_command stripped has to come back, or the appended
+        # line fuses onto the last key: `memory: 2048lxc.cgroup2...`.
+        assert written == "arch: amd64\nmemory: 2048\nlxc.cgroup2.cpuset.cpus: 0-3\n"
 
     @patch('lxc_utils.run_command', new_callable=AsyncMock)
     async def test_remote_already_set(self, m_cmd):
