@@ -219,3 +219,69 @@ class TestRemoteWrite:
              patch("lxc_utils.run_command_with_input", new_callable=AsyncMock) as write:
             assert await lxc_utils.apply_cpu_pinning("100", "0-3") is True
         write.assert_not_awaited()
+
+
+class TestRemoteStdinChannel:
+    """
+    AsyncSSHPool._run_sync_with_input.
+
+    `tee` echoes its input to stdout. If stdout is not drained, a config large
+    enough to fill the SSH channel window blocks the remote command, which then
+    never exits, so recv_exit_status waits for it forever. Reading stderr first
+    does not help: it returns at EOF, and EOF arrives when the command exits.
+    """
+
+    def _pool_with_mock_client(self, client):
+        from ssh import AsyncSSHPool
+        pool = AsyncSSHPool.__new__(AsyncSSHPool)
+        pool._acquire = lambda: client
+        pool._release = lambda c: None
+        pool._discard = lambda c: None
+        return pool
+
+    def test_stdout_is_drained_before_waiting_for_the_exit_status(self):
+        order = []
+        stdout = MagicMock()
+        stdout.read.side_effect = lambda: order.append("stdout") or b""
+        stdout.channel.recv_exit_status.side_effect = lambda: order.append("wait") or 0
+        stderr = MagicMock()
+        stderr.read.return_value = b""
+        stdin = MagicMock()
+        client = MagicMock()
+        client.exec_command.return_value = (stdin, stdout, stderr)
+
+        pool = self._pool_with_mock_client(client)
+        assert pool._run_sync_with_input("tee /etc/pve/lxc/100.conf", "arch: amd64\n", 30) is True
+
+        assert order.index("stdout") < order.index("wait"), (
+            "stdout must be read before recv_exit_status, or a payload that "
+            "fills the channel window deadlocks the write"
+        )
+
+    def test_stdin_is_closed_so_the_command_can_finish(self):
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 0
+        stderr = MagicMock()
+        stderr.read.return_value = b""
+        stdin = MagicMock()
+        client = MagicMock()
+        client.exec_command.return_value = (stdin, stdout, stderr)
+
+        pool = self._pool_with_mock_client(client)
+        pool._run_sync_with_input("tee x", "data", 30)
+
+        stdin.write.assert_called_once_with("data")
+        stdin.channel.shutdown_write.assert_called_once()
+
+    def test_a_nonzero_exit_is_a_failure(self):
+        stdout = MagicMock()
+        stdout.read.return_value = b""
+        stdout.channel.recv_exit_status.return_value = 1
+        stderr = MagicMock()
+        stderr.read.return_value = b"permission denied"
+        client = MagicMock()
+        client.exec_command.return_value = (MagicMock(), stdout, stderr)
+
+        pool = self._pool_with_mock_client(client)
+        assert pool._run_sync_with_input("tee x", "data", 30) is False

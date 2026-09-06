@@ -103,6 +103,13 @@ class AsyncSSHPool:
             stdin.write(data)
             stdin.flush()
             stdin.channel.shutdown_write()
+            # stdout has to be drained before waiting for the exit status.
+            # `tee` echoes its input, so on a config large enough to fill the
+            # channel window the remote command blocks writing, never exits,
+            # and recv_exit_status() waits for it forever. Reading stderr first
+            # does not help: it returns at EOF, which only arrives when the
+            # command exits.
+            stdout.read()
             err = stderr.read().decode("utf-8").strip()
             exit_code = stdout.channel.recv_exit_status()
             self._release(client)
