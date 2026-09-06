@@ -50,9 +50,13 @@ Values are case-insensitive.
 
 At first use the daemon runs a single probe on the host (over SSH when `use_remote_proxmox` is set) and reads three things.
 
-- `/sys/devices/system/cpu/cpu*/topology/core_type` classifies each CPU as `Core` or `Atom`. This attribute is populated only for CPUs the kernel marks as hybrid, which today means Intel 12th gen and newer. It is absent on every AMD host, so `p-cores` and `e-cores` are not offered there.
-- `/sys/devices/system/cpu/cpu*/cache/index3/shared_cpu_list` groups CPUs by the L3 they share. This is generic sysfs and is present on both vendors.
+- `/sys/devices/cpu_core/cpus` and `/sys/devices/cpu_atom/cpus` list the members of each core type. On a hybrid part the kernel registers one perf PMU per core type, named `cpu_core` and `cpu_atom`, and gives each a `cpus` attribute; a uniform CPU has a single PMU at `/sys/devices/cpu` and neither directory exists. Their presence is therefore the hybrid signal, and their absence is why `p-cores` and `e-cores` are not offered on most hosts. This is the same interface the `perf` tool uses, and it needs `CONFIG_PERF_EVENTS`, which Proxmox kernels set.
+- `/sys/devices/system/cpu/cpu*/cache/index*/level`, matched on level 3, groups CPUs by the L3 they share through the matching `shared_cpu_list`. This is generic sysfs and is present on both vendors. The level is read rather than assuming `index3`, because the index depends on which cache levels the CPU reports.
 - `/sys/devices/system/node/node*/cpulist` gives the NUMA nodes. A node with no CPUs of its own, such as a CXL or persistent-memory node, is not offered as a group.
+
+::: warning `l3:N` is positional, `numa:N` is not
+NUMA groups carry the kernel's own node id, so `numa:1` means the same node across reboots. L3 groups have no kernel-assigned number, so they are numbered here by their lowest CPU: `l3:0` is the domain containing CPU 0, `l3:1` the next, and so on. If the set of online CPUs changes, for instance because a whole CCD is taken offline, the numbering shifts and a tier configured for `l3:1` pins to a different domain without any error. The startup line prints the members of each group; check it after any change to the host's CPU configuration.
+:::
 
 The result is logged once, and it is the fastest way to see what a given node offers:
 

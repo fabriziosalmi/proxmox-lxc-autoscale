@@ -3,7 +3,10 @@
 import asyncio
 import json
 import os
+import shutil
+import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
@@ -212,22 +215,27 @@ class TestHostResources:
 # Real probe output, AMD Ryzen AI MAX+ 395 (2 CCDs, 1 NUMA node, no core_type).
 AMD_PROBE = """online:0-31
 nproc:32
+pmu:core:
+pmu:atom:
 l3:0-7,16-23:32768K
 l3:0-7,16-23:32768K
 l3:8-15,24-31:32768K
 numa:node0:0-31"""
 
-# Intel i5-13500 shape: 6 P-cores + HT (0-11), 8 E-cores (12-19).
-INTEL_HYBRID_PROBE = "\n".join(
-    ["online:0-19", "nproc:20"]
-    + [f"core_type:cpu{i}:Core" for i in range(12)]
-    + [f"core_type:cpu{i}:Atom" for i in range(12, 20)]
-    + ["l3:0-19:24576K", "numa:node0:0-19"]
-)
+# Intel i5-13500 shape: 6 P-cores + HT (0-11), 8 E-cores (12-19), as the two
+# hybrid PMUs report them.
+INTEL_HYBRID_PROBE = """online:0-19
+nproc:20
+pmu:core:0-11
+pmu:atom:12-19
+l3:0-19:24576K
+numa:node0:0-19"""
 
 # Dual-socket EPYC: 2 NUMA nodes, 4 L3 domains, no core_type.
 EPYC_PROBE = """online:0-31
 nproc:32
+pmu:core:
+pmu:atom:
 l3:0-7:32768K
 l3:8-15:32768K
 l3:16-23:32768K
@@ -370,6 +378,131 @@ class TestCpuTopology:
         assert len(calls) == 1
 
 
+class TestTopologyProbeScript:
+    """
+    Runs `_TOPOLOGY_PROBE` itself, against a sysfs tree built on disk.
+
+    Every other test in this file feeds `detect_cpu_topology` a canned string,
+    which checks the parser and never the thing that produces the string. That
+    is the gap the feature shipped through: `topology/core_type` does not exist
+    in mainline Linux, the probe returned nothing for it on every machine, and
+    no test could tell, because no test ran the probe.
+
+    The trees below are the shapes the fixtures above claim to come from. The
+    cache directories carry L1d, L1i and L2 alongside L3, and L3 is not always
+    index3, so a probe that assumed the index rather than reading `level` would
+    fail here.
+    """
+
+    @staticmethod
+    def _write(path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text + "\n")
+
+    @classmethod
+    def _build(cls, root: Path, cpus: int, l3: list, numa: dict,
+               online: str = None, pmu: dict = None) -> Path:
+        sysfs = root / "sys"
+        if online is not None:
+            cls._write(sysfs / "devices/system/cpu/online", online)
+        owner = {}
+        for domain in l3:
+            for cpu in lxc_utils._range_to_cpus(domain):
+                owner[cpu] = domain
+        for cpu in range(cpus):
+            base = sysfs / f"devices/system/cpu/cpu{cpu}"
+            for index, (level, size) in enumerate([("1", "32K"), ("1", "32K"), ("2", "1024K")]):
+                cls._write(base / f"cache/index{index}/level", level)
+                cls._write(base / f"cache/index{index}/shared_cpu_list", str(cpu))
+                cls._write(base / f"cache/index{index}/size", size)
+            if cpu in owner:
+                cls._write(base / "cache/index3/level", "3")
+                cls._write(base / "cache/index3/shared_cpu_list", owner[cpu])
+                cls._write(base / "cache/index3/size", "32768K")
+        for node, cpulist in numa.items():
+            cls._write(sysfs / f"devices/system/node/node{node}/cpulist", cpulist)
+        for name, cpulist in (pmu or {}).items():
+            cls._write(sysfs / f"devices/{name}/cpus", cpulist)
+        return sysfs
+
+    @staticmethod
+    def _run(sysfs: Path, nproc: int) -> str:
+        """The real probe, with /sys pointed at the tree and nproc pinned."""
+        script = (lxc_utils._TOPOLOGY_PROBE
+                  .replace("/sys/", f"{sysfs}/")
+                  .replace('"$(nproc)"', f'"{nproc}"'))
+        result = subprocess.run(["sh", "-c", script], capture_output=True, text=True)
+        assert result.returncode == 0, (
+            "the probe must exit 0 even when a glob matches nothing, or "
+            "run_command reports a failure on every host without that file: "
+            f"{result.stderr}"
+        )
+        return result.stdout.strip()
+
+    async def _groups(self, sysfs: Path, nproc: int) -> dict:
+        output = self._run(sysfs, nproc)
+        lxc_utils._cached_topology = None
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(output)):
+            return await lxc_utils.detect_cpu_topology()
+
+    async def test_amd_two_ccds(self, tmp_path):
+        sysfs = self._build(tmp_path, 32, ["0-7,16-23", "8-15,24-31"],
+                            {0: "0-31"}, online="0-31")
+        groups = await self._groups(sysfs, 32)
+        assert lxc_utils._cpus_to_range(groups['l3:0']) == "0-7,16-23"
+        assert lxc_utils._cpus_to_range(groups['l3:1']) == "8-15,24-31"
+        assert groups['numa:0'] == list(range(32))
+        assert 'p-cores' not in groups
+
+    async def test_intel_hybrid_from_the_pmu_directories(self, tmp_path):
+        """
+        The interface the kernel actually creates.
+
+        arch/x86/events/intel/core.c registers one PMU per core type on hybrid
+        parts, named cpu_core and cpu_atom, each with a `cpus` attribute. Their
+        presence is the hybrid signal: a uniform CPU has a single PMU at
+        /sys/devices/cpu.
+        """
+        sysfs = self._build(tmp_path, 20, ["0-19"], {0: "0-19"}, online="0-19",
+                            pmu={"cpu_core": "0-11", "cpu_atom": "12-19"})
+        groups = await self._groups(sysfs, 20)
+        assert lxc_utils._cpus_to_range(groups['p-cores']) == "0-11"
+        assert lxc_utils._cpus_to_range(groups['e-cores']) == "12-19"
+
+    async def test_epyc_two_sockets(self, tmp_path):
+        sysfs = self._build(tmp_path, 32, ["0-7", "8-15", "16-23", "24-31"],
+                            {0: "0-15", 1: "16-31"}, online="0-31")
+        groups = await self._groups(sysfs, 32)
+        assert lxc_utils._cpus_to_range(groups['l3:3']) == "24-31"
+        assert groups['numa:1'] == list(range(16, 32))
+
+    async def test_a_vm_with_no_cache_or_numa_directories(self, tmp_path):
+        """A guest often exposes neither. The probe must still exit 0."""
+        sysfs = self._build(tmp_path, 4, [], {}, online="0-3")
+        groups = await self._groups(sysfs, 4)
+        assert groups == {'all': [0, 1, 2, 3]}
+
+    async def test_no_sysfs_at_all_falls_back_to_nproc(self, tmp_path):
+        sysfs = self._build(tmp_path, 0, [], {})
+        groups = await self._groups(sysfs, 8)
+        assert groups == {'all': list(range(8))}
+
+    async def test_l3_is_found_by_level_not_by_index(self, tmp_path):
+        """
+        L3 is index3 on the shapes above; it is not guaranteed to be. A CPU
+        without an L1i entry shifts every index down by one.
+        """
+        sysfs = self._build(tmp_path, 4, [], {}, online="0-3")
+        for cpu in range(4):
+            base = sysfs / f"devices/system/cpu/cpu{cpu}"
+            shutil.rmtree(base / "cache/index3", ignore_errors=True)
+            self._write(base / "cache/index2/level", "3")
+            self._write(base / "cache/index2/shared_cpu_list", "0-3")
+            self._write(base / "cache/index2/size", "8192K")
+        groups = await self._groups(sysfs, 4)
+        assert groups['l3:0'] == [0, 1, 2, 3]
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # CPU pinning resolution
 # ═══════════════════════════════════════════════════════════════════════════
@@ -402,7 +535,10 @@ class TestResolvePinning:
 
     async def test_p_cores_on_amd_skips_instead_of_pinning_everything(self, caplog):
         assert await self._resolve(AMD_PROBE, "p-cores") is None
-        assert "hybrid" in caplog.text.lower()
+        # The message has to say what was looked for and what this host offers
+        # instead. The old one blamed AMD, which was never the reason.
+        assert "cpu_core" in caplog.text
+        assert "l3:0" in caplog.text
 
     async def test_e_cores_on_amd_warns(self, caplog):
         assert await self._resolve(AMD_PROBE, "e-cores") is None

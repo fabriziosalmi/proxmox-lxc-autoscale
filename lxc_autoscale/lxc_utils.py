@@ -362,13 +362,29 @@ _cached_topology: Optional[Dict[str, List[int]]] = None
 # One round trip, because on a remote Proxmox host each of these is an SSH call.
 # The L3 domains are found by matching cache level 3 rather than assuming index3,
 # and the trailing `exit 0` matters: a glob that matches nothing makes the loop
-# exit non-zero, which run_command would report as a failure on every AMD host.
+# exit non-zero, which run_command would report as a failure on every host that
+# has no hybrid cores.
+#
+# P and E cores come from the perf PMU interface. The previous source,
+# /sys/devices/system/cpu/cpu*/topology/core_type, does not exist: the only file
+# that creates cpuN/topology/ is drivers/base/topology.c, it installs one
+# attribute group wholesale, and core_type is in neither of its two arrays. It
+# is absent at every tag checked from v5.18 to v6.17 and appears in none of the
+# three ABI documents. Reading it never selected a core anywhere, on any vendor,
+# which is why `p-cores` pinned to every CPU and `e-cores` pinned to nothing.
+#
+# What the kernel does create, on hybrid parts only, is one PMU per core type:
+# arch/x86/events/intel/core.c names them "cpu_core" and "cpu_atom" and gives
+# each a `cpus` attribute (intel_hybrid_get_attr_cpus, DEVICE_ATTR(cpus, ...)),
+# so the members are readable at /sys/devices/cpu_core/cpus and
+# /sys/devices/cpu_atom/cpus. Their presence is itself the hybrid signal: a
+# uniform CPU has a single PMU at /sys/devices/cpu. This is also the interface
+# the perf tool uses. It needs CONFIG_PERF_EVENTS, which Proxmox kernels set.
 _TOPOLOGY_PROBE = (
     'printf "online:%s\\n" "$(cat /sys/devices/system/cpu/online 2>/dev/null)"; '
     'printf "nproc:%s\\n" "$(nproc)"; '
-    'for f in /sys/devices/system/cpu/cpu[0-9]*/topology/core_type; do '
-    '[ -f "$f" ] || continue; printf "core_type:%s:%s\\n" '
-    '"$(basename "$(dirname "$(dirname "$f")")")" "$(cat "$f")"; done; '
+    'printf "pmu:core:%s\\n" "$(cat /sys/devices/cpu_core/cpus 2>/dev/null)"; '
+    'printf "pmu:atom:%s\\n" "$(cat /sys/devices/cpu_atom/cpus 2>/dev/null)"; '
     'for lf in $(grep -l "^3$" '
     '/sys/devices/system/cpu/cpu[0-9]*/cache/index[0-9]*/level 2>/dev/null); do '
     'd=$(dirname "$lf"); printf "l3:%s:%s\\n" '
@@ -416,9 +432,12 @@ def _range_to_cpus(cpu_range: str) -> List[int]:
 async def detect_cpu_topology() -> Dict[str, List[int]]:
     """Named CPU groups usable as `cpu_pinning` keywords, e.g. {"l3:0": [0, 1, ...]}.
 
-    `p-cores`/`e-cores` appear only on CPUs that report a hybrid core_type, which
-    in practice means Intel 12th gen and newer. `l3:N` (a CCD/CCX on AMD) and
-    `numa:N` are derived from generic sysfs and work on any vendor.
+    `p-cores`/`e-cores` appear only where the kernel registers a PMU per core
+    type, which is hybrid Intel parts with CONFIG_PERF_EVENTS. `l3:N` (a CCD/CCX
+    on AMD) and `numa:N` are derived from generic sysfs and work on any vendor.
+
+    A group is offered only when the host actually has it. Asking for one that
+    is absent is refused and named, rather than quietly resolving to every CPU.
     """
     global _cached_topology
     if _cached_topology is not None:
@@ -444,14 +463,10 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
             online = _range_to_cpus(rest)
         elif kind == 'nproc':
             num_cpus = int(rest) if rest.isdigit() else 0
-        elif kind == 'core_type':
-            cpu_name, _, core_type = rest.partition(':')
-            try:
-                cpu_id = int(cpu_name.removeprefix('cpu'))
-            except ValueError:
-                continue
-            target = e_cores if core_type.strip().lower() in ('atom', 'efficiency') else p_cores
-            target.append(cpu_id)
+        elif kind == 'pmu':
+            which, _, cpulist = rest.partition(':')
+            target = p_cores if which == 'core' else e_cores
+            target.extend(_range_to_cpus(cpulist))
         elif kind == 'l3':
             cpulist, _, size = rest.rpartition(':')
             if _range_to_cpus(cpulist):
@@ -488,8 +503,18 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
                   for i, cpulist in enumerate(l3_ordered)) or "unknown",
         ", ".join(f"numa:{n}={c}" for n, c in numa_nodes.items()) or "unknown",
     )
-    _cached_topology = groups
-    return _cached_topology
+    # Only a result worth reusing is cached. The `not output` path above is
+    # careful not to cache a failed probe, but output that arrives and parses to
+    # nothing reaches here: an SSH banner or a motd on stdout under
+    # use_remote_proxmox is enough. Caching {} makes `is not None` true forever
+    # and disables every pinning keyword for the life of the daemon, which is
+    # the failure that path exists to prevent.
+    if groups:
+        _cached_topology = groups
+    else:
+        logger.error("CPU topology probe produced no usable groups from: %r",
+                     output[:200])
+    return groups
 
 
 async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
@@ -499,10 +524,11 @@ async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
         return _cpus_to_range(groups[val])
     if val in ('p-cores', 'e-cores'):
         logger.warning(
-            "cpu_pinning: %s requires a CPU that reports hybrid P/E cores and this host "
-            "does not (AMD hosts do not expose topology/core_type). Not pinning; any "
-            "cpuset already in the container config is left as it is. "
-            "Use one of %s, or an explicit range.",
+            "cpu_pinning: %s needs a CPU whose cores are of more than one type, and "
+            "this host does not report any (/sys/devices/cpu_core and "
+            "/sys/devices/cpu_atom are absent on a uniform CPU). Not pinning; any "
+            "cpuset already in the container config is left as it is, and pct set "
+            "-cpuset '' clears it. Use one of %s, or an explicit range.",
             val, ", ".join(groups) or "none",
         )
         return None
