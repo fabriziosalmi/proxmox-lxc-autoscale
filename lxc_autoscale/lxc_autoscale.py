@@ -36,26 +36,30 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+ROLLBACK_REMOVED = (
+    "--rollback was removed in 2.0.5. It never worked: no backup was ever "
+    "written, so it restored nothing and reported success. Container settings "
+    "are in /etc/pve/lxc/<ctid>.conf and in your Proxmox backups. See "
+    "https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88"
+)
+
+
 async def async_main(args: argparse.Namespace) -> None:
     """Async entry point for the daemon."""
-    if args.rollback:
-        # Kept as a flag so an existing script gets an explanation rather than
-        # an argparse error. It never restored anything: the backup helper was
-        # only reachable from a function nothing called, so no backup file was
-        # ever written and this reported success over an empty directory.
-        sys.exit(
-            "--rollback was removed in 2.0.5. It never worked: no backup was "
-            "ever written, so it restored nothing and reported success. "
-            "Container settings are in /etc/pve/lxc/<ctid>.conf and in your "
-            "Proxmox backups. See "
-            "https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88"
-        )
-    else:
-        await main_loop(args.poll_interval, args.energy_mode)
+    await main_loop(args.poll_interval, args.energy_mode)
 
 
 if __name__ == "__main__":
     args = parse_arguments()
+
+    # Answered before the lock and before logging is configured, and above all
+    # outside the try below: that block catches SystemExit and turns it into an
+    # INFO line, so exiting from inside it would swallow this message and return
+    # zero. Which is the failure mode this flag exists to describe.
+    if args.rollback:
+        print(ROLLBACK_REMOVED, file=sys.stderr)
+        sys.exit(2)
+
     setup_logging(LOG_FILE, args.debug)
     logging.info("Starting LXC autoscaling daemon")
 
