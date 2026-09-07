@@ -257,3 +257,49 @@ class TestHorizontalGroupMinInstances:
             assert "min_instancess" in caplog.text
         finally:
             os.unlink(path)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Configuration that does nothing must say so
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestSilentConfiguration:
+    """All three models accept extra keys. That is how min_instances was
+    documented, written by users and discarded without a word for months."""
+
+    def _load(self, raw):
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(raw, f)
+            path = f.name
+        try:
+            return load_config(path)
+        finally:
+            os.unlink(path)
+
+    def test_a_typo_in_DEFAULT_is_reported(self, caplog):
+        self._load({"DEFAULT": {"cpu_upper_treshold": 95}})
+        assert "cpu_upper_treshold" in caplog.text
+
+    def test_a_typo_in_a_tier_is_reported(self, caplog):
+        self._load({"TIER_web": {"lxc_containers": ["100"], "cpu_upper_treshold": 95}})
+        assert "cpu_upper_treshold" in caplog.text
+
+    def test_a_typo_in_a_tier_still_falls_back_to_the_default(self, caplog):
+        cfg = self._load({"TIER_web": {"lxc_containers": ["100"],
+                                       "cpu_upper_treshold": 95}})
+        assert cfg.tier_associations["100"].cpu_upper_threshold == 80
+
+    def test_a_container_in_two_tiers_is_reported(self, caplog):
+        cfg = self._load({
+            "TIER_a": {"lxc_containers": ["100"], "max_cores": 2},
+            "TIER_b": {"lxc_containers": ["100"], "max_cores": 16},
+        })
+        assert "more than one tier" in caplog.text
+        # the behaviour is unchanged, it is only no longer silent
+        assert cfg.tier_associations["100"].max_cores == 16
+
+    def test_a_correct_configuration_warns_about_nothing(self, caplog):
+        self._load({"DEFAULT": {"cpu_upper_threshold": 90},
+                    "TIER_web": {"lxc_containers": ["100"], "max_cores": 8}})
+        assert "unknown key" not in caplog.text
+        assert "more than one tier" not in caplog.text
+
