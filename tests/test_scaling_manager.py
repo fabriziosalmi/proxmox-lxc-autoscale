@@ -220,3 +220,52 @@ class TestNowTz:
     def test_returns_aware_datetime(self):
         dt = _now_tz()
         assert dt.tzinfo is not None
+
+class TestResourceAccounting:
+    """The reserve was subtracted twice, and an increment that would overshoot
+    the ceiling was discarded instead of clamped."""
+
+    async def test_the_reserve_is_subtracted_once(self):
+        """A 4-core host with a 10% reserve leaves 3, not 2."""
+        with patch.object(scaling_manager, 'get_total_cores',
+                          new_callable=AsyncMock, return_value=3), \
+             patch.object(scaling_manager, 'get_total_memory',
+                          new_callable=AsyncMock, return_value=29908), \
+             patch.object(scaling_manager, 'run_command', new_callable=AsyncMock), \
+             patch.object(scaling_manager, 'log_json_event', new_callable=AsyncMock), \
+             patch.object(scaling_manager, 'logger') as log:
+            await scaling_manager.adjust_resources({}, energy_mode=False)
+        final = [c for c in log.info.call_args_list if "Final resources" in str(c)]
+        assert final, "the summary line was not logged"
+        assert final[-1].args[1] == 3, f"expected 3 cores available, got {final[-1].args[1]}"
+        assert final[-1].args[2] == 29908
+
+    async def test_an_increment_is_clamped_to_max_cores(self):
+        """A container at 3 with an increment of 2 must reach a ceiling of 4."""
+        containers = {"100": {"cpu": 95.0, "mem": 10.0,
+                              "initial_cores": 3, "initial_memory": 1024}}
+        tier = {'cpu_upper_threshold': 50, 'cpu_lower_threshold': 20,
+                'memory_upper_threshold': 80, 'memory_lower_threshold': 1,
+                'min_cores': 1, 'max_cores': 4, 'min_memory': 512,
+                'core_min_increment': 1, 'core_max_increment': 2,
+                'memory_min_increment': 256, 'min_decrease_chunk': 128}
+        cmds = []
+
+        async def cmd(c, timeout=30):
+            cmds.append(c)
+            return "OK"
+
+        with patch.object(scaling_manager, 'get_total_cores',
+                          new_callable=AsyncMock, return_value=16), \
+             patch.object(scaling_manager, 'get_total_memory',
+                          new_callable=AsyncMock, return_value=32000), \
+             patch.dict(scaling_manager.LXC_TIER_ASSOCIATIONS, {"100": tier}), \
+             patch.object(scaling_manager, 'run_command', side_effect=cmd), \
+             patch.object(scaling_manager, 'log_json_event', new_callable=AsyncMock):
+            await scaling_manager.adjust_resources(containers, energy_mode=False)
+
+        sets = [c for c in cmds if c[:2] == ["pct", "set"] and "-cores" in c]
+        assert sets, "no core change was applied; the increment was discarded"
+        assert sets[0][sets[0].index("-cores") + 1] == "4", \
+            f"expected a clamp to 4, got {sets[0]}"
+
