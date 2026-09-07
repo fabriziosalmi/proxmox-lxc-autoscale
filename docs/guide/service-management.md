@@ -32,5 +32,5 @@ The daemon accepts the following arguments:
 |------|-------------|
 | `--poll_interval <seconds>` | Override the polling interval from config. |
 | `--energy_mode` | Enable energy efficiency mode (reduce resources during off-peak). |
-| `--rollback` | Restore all containers to their last backed-up settings. |
+| `--rollback` | Intended to restore containers to their last backed-up settings. It does nothing today: the backup it reads is never written ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). |
 | `--debug` | Enable debug-level logging. |

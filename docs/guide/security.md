@@ -85,7 +85,10 @@ chmod 600 /etc/lxc_autoscale/lxc_autoscale.yaml
 
 ## Docker non-root execution
 
-When using the REST API backend (no local `pct` commands), the Docker container can run as a non-root user to reduce the attack surface.
+> [!WARNING]
+> The REST backend is present in the source tree but is not connected to the running daemon: nothing outside the tests imports it, and every operation goes through `pct`. Setting `backend: api` changes no behaviour today. Wiring it up is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
+
+The intent below is that with the REST backend, and therefore no local `pct` commands, the Docker container could run as a non-root user. Until the backend is connected, configuring it that way produces a daemon that cannot do anything at all, because `pct` is what actually runs and it needs root.
 
 Set the `LXC_RUN_AS_ROOT` environment variable to `false`:
 
@@ -100,7 +103,7 @@ This requires `backend: api` in the configuration. The CLI backend needs root fo
 
 ## Proxmox API token permissions
 
-When using the REST API backend, create a dedicated API token with minimal permissions rather than using root credentials.
+When the REST API backend is connected, create a dedicated API token with minimal permissions rather than using root credentials.
 
 In the Proxmox web UI:
 

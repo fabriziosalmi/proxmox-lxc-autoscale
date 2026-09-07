@@ -11,7 +11,7 @@ All defaults can be overridden in the `DEFAULT` section of the configuration fil
 | `cpu_lower_threshold` | `20` | CPU % triggering scale-down. |
 | `memory_upper_threshold` | `80` | Memory % triggering scale-up. |
 | `memory_lower_threshold` | `20` | Memory % triggering scale-down. |
-| `memory_exclude_cache` | `true` | Exclude reclaimable page cache from memory usage, matching the Proxmox UI. Set `false` to count file cache as used. |
+| `memory_exclude_cache` | `true` | Exclude reclaimable page cache from reported memory usage. Shared memory (tmpfs, `/dev/shm`, shm segments) is **not** excluded, because it is swap-backed and cannot be reclaimed on a container without swap; this is why the figure can read higher than the Proxmox UI, which subtracts the file total whole. Set `false` to count all page cache as used, which is the pre-2.0.2 behaviour. |
 | `min_cores` | `1` | Minimum CPU cores per container. |
 | `max_cores` | `4` | Maximum CPU cores per container. |
 | `min_memory` | `512` | Minimum memory (MB) per container. |

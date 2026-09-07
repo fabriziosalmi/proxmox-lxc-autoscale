@@ -1,5 +1,23 @@
 # CPU Core Pinning
 
+::: danger Pinning turns off CPU scaling for that tier
+Proxmox derives a container's CPU affinity from its `cores` value **only when the
+configuration carries no explicit `cpuset` line**. Setting `cpu_pinning` writes one,
+so from the container's next start `cores` no longer controls anything: the daemon
+goes on computing increments and logging "Increase Cores" for a value the hypervisor
+has stopped reading. Verified on Proxmox VE 9.1 with `cores: 1` and a pin of `0-1`,
+where the container reported two CPUs after a restart.
+
+Use `cpu_pinning` **or** CPU scaling on a given tier, not both.
+:::
+
+::: warning `l3:0` and `numa:0` are often not a restriction
+On a single-socket host with one L3 domain and one NUMA node, which is most
+machines, both resolve to every online CPU. That is the same as `all`, and no
+warning is emitted. Check the logged line before assuming a pin is confining
+anything.
+:::
+
 LXC AutoScale can pin containers to a subset of the host's CPUs. Groups are auto-detected from the kernel, so a tier can say "run this on one CCD" without hard-coding CPU numbers that change when the node is replaced.
 
 ## Why pin cores?
@@ -66,13 +84,13 @@ At first use the daemon runs a single probe on the host (over SSH when `use_remo
 - `/sys/devices/system/node/node*/cpulist` gives the NUMA nodes. A node with no CPUs of its own, such as a CXL or persistent-memory node, is not offered as a group.
 
 ::: warning `l3:N` is positional, `numa:N` is not
-NUMA groups carry the kernel's own node id, so `numa:1` means the same node across reboots. L3 groups have no kernel-assigned number, so they are numbered here by their lowest CPU: `l3:0` is the domain containing CPU 0, `l3:1` the next, and so on. If the set of online CPUs changes, for instance because a whole CCD is taken offline, the numbering shifts and a tier configured for `l3:1` pins to a different domain without any error. The startup line prints the members of each group; check it after any change to the host's CPU configuration.
+NUMA groups carry the kernel's own node id, so `numa:1` means the same node across reboots. L3 groups have no kernel-assigned number, so they are numbered here by their lowest CPU: `l3:0` is the domain containing CPU 0, `l3:1` the next, and so on. If the set of online CPUs changes, for instance because a whole CCD is taken offline, the numbering shifts and a tier configured for `l3:1` pins to a different domain without any error. The line described below prints the members of each group; check it after any change to the host's CPU configuration.
 :::
 
-The result is logged once, and it is the fastest way to see what a given node offers:
+The result is logged once, the first time a tier asks for a pinning group, not at startup. A host with no tier setting `cpu_pinning` never logs it at all. It is the fastest way to see what a given node offers:
 
 ```
-CPU topology: 32 CPUs, hybrid P/E cores: none; L3 domains: l3:0=0-7,16-23 (32768K), l3:1=8-15,24-31 (32768K); NUMA: numa:0=0-31
+CPU topology: 32 CPUs online, hybrid P/E cores: none; L3 domains: l3:0=0-7,16-23 (32768K), l3:1=8-15,24-31 (32768K); NUMA: numa:0=0-31
 ```
 
 On a hybrid Intel node the same line reads:
@@ -88,7 +106,7 @@ Not writing a pin is not the same as removing one. If the container config alrea
 :::
 
 ::: tip Picking the right CCD on an X3D part
-On a Ryzen X3D chip only one CCD carries the extra V-Cache, and the two CCDs report different L3 sizes. The startup line above prints the size of each domain, so the larger one is the V-Cache CCD.
+On a Ryzen X3D chip only one CCD carries the extra V-Cache, and the two CCDs report different L3 sizes. The line above prints the size of each domain, so the larger one is the V-Cache CCD.
 :::
 
 ## How pinning is applied

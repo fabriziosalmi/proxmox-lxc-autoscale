@@ -148,6 +148,9 @@ Boost state is persisted to disk and survives daemon restarts. If an administrat
 
 ### Proxmox REST API backend (v2.0)
 
+> [!WARNING]
+> The REST backend is present in the source tree but is not connected to the running daemon: nothing outside the tests imports it, and every operation goes through `pct`. Setting `backend: api` changes no behaviour today. Wiring it up is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
+
 Set `backend: api` to use the Proxmox REST API instead of CLI commands. Requires `pip install proxmoxer`.
 
 ```yaml

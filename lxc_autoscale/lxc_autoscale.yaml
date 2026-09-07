@@ -156,4 +156,6 @@ TIER_other:
 #   e-cores   Efficiency cores.    Hybrid Intel 12th gen and newer only.
 #   all       every online CPU.
 #   0-11 or 0,2,4,6-8   an explicit CPU range or list.
-# The groups detected on this host are logged at startup.
+# The groups detected on this host are logged the first time a tier asks for one.
+# Note: setting cpu_pinning on a tier disables that tier's CPU scaling, because
+# Proxmox stops deriving affinity from `cores` once an explicit cpuset is present.
