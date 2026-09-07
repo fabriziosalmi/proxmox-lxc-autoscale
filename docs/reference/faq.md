@@ -11,13 +11,13 @@ Proxmox users who want automatic CPU and memory scaling for LXC containers witho
 ## What are the prerequisites?
 
 - Proxmox VE 7.x or 8.x
-- Python 3.9+
-- Root access to the Proxmox host (for CLI backend) or an API token (for REST API backend)
+- Python 3.10+
+- Root access to the Proxmox host
 - LXC containers already created
 
 ## How does scaling work?
 
-Each polling cycle (default: 300 seconds), the daemon reads CPU and memory usage for each container via host-side cgroup accounting. If usage exceeds the upper threshold, resources are added. If it drops below the lower threshold, resources are reduced. Changes are applied using `pct set` (CLI backend) or the Proxmox REST API.
+Each polling cycle (default: 300 seconds), the daemon reads CPU and memory usage for each container via host-side cgroup accounting. If usage exceeds the upper threshold, resources are added. If it drops below the lower threshold, resources are reduced. Changes are applied using `pct set`.
 
 The first polling cycle stores a raw CPU sample without scaling. Actual scaling decisions begin on the second cycle, when a time delta is available for accurate percentage calculation.
 
@@ -30,11 +30,11 @@ No. CPU and memory measurement uses host-side cgroup accounting, which works wit
 Yes. Two options:
 
 - **SSH backend**: set `use_remote_proxmox: true` and provide SSH credentials. Host key verification is enforced by default.
-- **REST API backend**: set `backend: api` and configure `proxmox_api` with API tokens. No SSH required.
+- **REST API backend**: not connected yet, see below.
 
 ## Can I use the Proxmox REST API instead of SSH?
 
-Yes. Set `backend: api` in the YAML config and configure `proxmox_api` with host, user, token name, and token value. This avoids shell access entirely and uses scoped API tokens. Requires `pip install proxmoxer`.
+Not yet. The configuration keys exist and are validated, but nothing in the running daemon reads them: every operation goes through `pct`, locally or over SSH. Tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
 ## Does it support virtual machines (VMs)?
 

@@ -17,7 +17,7 @@ features:
   - title: Vertical Scaling
     details: Automatically adjusts CPU cores and memory for each container based on real-time usage thresholds.
   - title: Dual Backend
-    details: Operate via pct CLI commands (local or SSH) or the Proxmox REST API with scoped API tokens.
+    details: Operate via pct CLI commands, locally on the node or over SSH.
   - title: Tier System
     details: Group containers by workload profile with per-tier thresholds, limits, and CPU core pinning.
   - title: cgroup-based Metrics
@@ -32,12 +32,11 @@ features:
 
 **LXC AutoScale** is an async resource management daemon for Proxmox environments. It monitors LXC container CPU and memory usage every polling cycle (default: 5 minutes) and adjusts allocations based on predefined thresholds.
 
-It runs as a systemd service on the Proxmox host, remotely via SSH, or using the Proxmox REST API. Configuration is validated at startup via Pydantic models and supports per-container tier overrides.
+It runs as a systemd service on the Proxmox host, or drives one remotely over SSH. Configuration is validated at startup via Pydantic models and supports per-container tier overrides.
 
 ### Key capabilities
 
 - Async event loop with concurrent container data collection
-- Dual backend: CLI (`pct` commands) or Proxmox REST API (`proxmoxer`)
 - Pydantic-validated YAML configuration with `${ENV_VAR}` expansion
 - Automatic vertical scaling of CPU cores and memory
 - Per-container or per-group configuration via YAML tiers

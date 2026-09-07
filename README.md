@@ -2,15 +2,14 @@
 
 [![Pylint](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/pylint.yml/badge.svg)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/pylint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![GitHub release](https://img.shields.io/github/v/release/fabriziosalmi/proxmox-lxc-autoscale)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-370%20passed-brightgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
-[![Coverage](https://img.shields.io/badge/coverage-87%25-brightgreen)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale)
+[![Tests](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/tests.yml/badge.svg)](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/actions/workflows/tests.yml)
 
-**LXC AutoScale** is an async resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It supports local execution, remote execution via SSH, or the **Proxmox REST API** as backend. Container cloning (horizontal scaling) is also supported as an experimental feature.
+**LXC AutoScale** is an async resource management daemon for Proxmox environments. It automatically adjusts CPU and memory allocations for LXC containers based on real-time usage metrics and predefined thresholds. It runs on the Proxmox node or drives one over SSH. Container cloning (horizontal scaling) exists but is experimental and has known defects; see [Feature status](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/wiki/Feature-Status) before enabling it.
 
-- **v2.0** — async architecture, Pydantic config, dual CLI/API backend, security hardening
-- **Tested with Proxmox 8.x** (8.3.3+)
+- **v2.0** — async architecture, Pydantic config, security hardening
+- **Tested on Proxmox VE 8.x (8.3.3) and 9.1**, Python 3.10 to 3.14
 
 **Quick Start**
 
@@ -22,24 +21,22 @@
 ## Features
 
 - **Async architecture** — fully non-blocking event loop using `asyncio`
-- **Dual backend**: CLI (`pct` commands) or **Proxmox REST API** (`proxmoxer`)
 - **Pydantic configuration** with type validation and `${ENV_VAR}` expansion for secrets
 - Automatic vertical scaling of CPU cores and memory based on usage thresholds
 - Horizontal scaling via container cloning (experimental)
 - Per-container or per-group threshold configuration using tiers
-- **CPU core pinning** for Intel hybrid CPUs (Alder Lake+): pin containers to P-cores or E-cores
+- **CPU core pinning** to an L3 cache domain (`l3:N`, a CCD on AMD), a NUMA node (`numa:N`), or to P-cores and E-cores on hybrid Intel
 - **Cgroup-based metrics** for both CPU and memory (no `pct exec` needed)
 - **Timezone-aware** off-peak scheduling (configurable, defaults to UTC)
-- Host CPU and memory reservation to prevent over-allocation
+- Host CPU and memory reservation, subtracted from the pool the daemon considers available
 - Container exclusion list (`ignore_lxc`)
 - Energy efficiency mode that reduces resources during off-peak hours
 - **SSH connection pool** with configurable host key verification (default: reject)
-- **Secret masking** in log output (passwords, tokens, API keys redacted)
 - Notifications via email (SMTP), Gotify, and Uptime Kuma (async, fire-and-forget)
 - JSON metrics log with rotation (10MB limit)
-- Local execution, remote execution via SSH, or REST API
+- Local execution or remote execution via SSH
 - Docker support with optional non-root user for API-only mode
-- **370 tests** with 87% code coverage
+- 445 tests, run in CI on Python 3.10 through 3.14
 - **Boost/revert scaling mode** — temporary resource boosts with automatic revert after configurable duration
 
 > [!NOTE]
@@ -49,8 +46,8 @@
 
 ### Prerequisites
 
-- **Proxmox VE 7.x or 8.x** (tested with 8.3.3)
-- **Python 3.9+**
+- **Proxmox VE 8.x or 9.x** (tested on 8.3.3 and 9.1.7)
+- **Python 3.10+**. The daemon does not start on 3.9: a lock is built at import time and binds an event loop that the runtime then replaces. Proxmox VE 7 ships 3.9 and is no longer supported.
 - **Root access** to the Proxmox host
 - **LXC containers** already created and configured
 - **Internet connection** for downloading the installation script
@@ -111,7 +108,12 @@ TIER_background_tasks:
   cpu_pinning: l3:1
 ```
 
-Accepted values: `l3:N` (one L3 cache domain, a CCD/CCX on AMD), `numa:N` (one NUMA node), `p-cores` and `e-cores` (hybrid Intel 12th gen and newer only), `all`, or an explicit range like `0-11` or `0,2,4,6-8`. The detected groups are logged at startup. See [CPU Core Pinning](docs/guide/cpu-pinning.md).
+Accepted values: `l3:N` (one L3 cache domain, a CCD/CCX on AMD), `numa:N` (one NUMA node), `p-cores` and `e-cores` (hybrid Intel only), `all`, or an explicit range like `0-11` or `0,2,4,6-8`. The groups this host offers are logged the first time a tier asks for one, not at startup.
+
+> [!IMPORTANT]
+> Setting `cpu_pinning` on a tier disables that tier's CPU scaling. Proxmox derives a container's affinity from `cores` only when the config carries no explicit `cpuset` line; the pin writes one, so from the container's next start `cores` no longer controls anything. Verified on Proxmox VE 9.1. Use one or the other on a given tier, not both.
+
+On a single-socket host with one L3 domain, `l3:0` and `numa:0` resolve to every CPU, which is no restriction at all. See [CPU Core Pinning](docs/guide/cpu-pinning.md).
 
 ## Configuration
 
@@ -149,16 +151,15 @@ No, LXC AutoScale is designed for LXC containers only. For VM autoscaling, see [
 
 Yes. Two options:
 
-1. **SSH** (default): Set `use_remote_proxmox: true` and provide SSH credentials.
-2. **REST API** (v2.0): Set `backend: api` and configure `proxmox_api` with API tokens. Requires `pip install proxmoxer`.
+Set `use_remote_proxmox: true` and provide SSH credentials. Every command still runs through `pct` on the far end. There is no working REST path yet, see below.
 
 ### Can I use the Proxmox REST API instead of SSH?
 
-Yes (v2.0+). Set `backend: api` in the YAML config and provide API token credentials under `proxmox_api`. This avoids SSH entirely and uses scoped API tokens instead of root shell access. See the [configuration docs](docs/guide/configuration.md) for details.
+Not yet. A REST backend is present in the source tree but nothing in the running daemon uses it: every operation goes through `pct`, locally or over SSH. Setting `backend: api` currently changes nothing. Wiring it up is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
 ### Is it safe to use in production?
 
-LXC AutoScale backs up container settings before making changes and supports rollback via `--rollback`. Test thoroughly in a non-production environment before deploying to production.
+Read [Feature status](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/wiki/Feature-Status) first, and test in a non-production environment. Two things to know before you decide. The `--rollback` flag exists but the backup it reads is never written, so it restores nothing ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). And the daemon rewrites the configuration of running containers as root, so the blast radius of a mistake is the guest, not the daemon: use `ignore_lxc` to scope it to containers you are willing to have resized while you evaluate it.
 
 ### How often does it check container resources?
 

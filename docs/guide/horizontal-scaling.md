@@ -4,6 +4,26 @@
 Horizontal scaling is an experimental feature. Test thoroughly in a non-production environment before using it in production.
 :::
 
+::: danger Known defects, verified on a live node
+Group membership is held in memory and never persisted. After a daemon restart the
+group no longer knows about the clones it created, so it recomputes the next clone
+id from the members listed in the YAML and arrives at an id that is already in use.
+`pct clone` then fails, and it fails again on **every** poll: the grace period is
+recorded only after a successful scale-out, so nothing throttles the retry.
+
+Each attempt takes an LVM snapshot of the source container before cloning, and
+nothing removes it when the clone fails. Four accumulated in ninety seconds of
+retrying during testing; at the default five-minute interval that is **288 snapshots
+per day on the source container, growing without bound**, on thin-provisioned
+storage. No code prunes them.
+
+Scale-in also stops the last container without destroying it, so ids are never
+released.
+
+Pilot this on a node where you are watching it, and check
+`pct listsnapshot <source>` after the first restart.
+:::
+
 Horizontal scaling clones containers when group-level resource usage exceeds thresholds, and removes clones when usage drops.
 
 ## Configuration
