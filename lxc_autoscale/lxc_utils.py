@@ -1014,9 +1014,16 @@ async def get_cpu_usage(ctid: str) -> float:
 _cgroup_mem_path_cache = _state.cgroup_mem_paths
 _cgroup_mem_negative_cache = _state.mem_negative
 
-# Key holding reclaimable page cache in memory.stat, per cgroup version.
+# Keys in memory.stat, per cgroup version: the file-backed total, and the part
+# of it that is shared memory. Only their difference is genuinely reclaimable.
+# "file" and "total_cache" both include tmpfs, /dev/shm and shm segments, and
+# those pages are swap-backed: with no swap the kernel cannot free them at all.
+# Discounting them reports an almost-full container as empty, and the daemon
+# then shrinks it until the OOM killer intervenes.
 _V2_CACHE_KEY = "file"
+_V2_SHMEM_KEY = "shmem"
 _V1_CACHE_KEY = "total_cache"
+_V1_SHMEM_KEY = "total_shmem"
 
 
 def _exclude_page_cache() -> bool:
@@ -1044,7 +1051,10 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
         used = await _read_mem_file(usage_p)
         limit = await _read_mem_limit(limit_p)
         if used is not None and limit is not None:
-            return await _apply_cache_exclusion(used, stat_p, cache_key), limit
+            shmem_key = (_V1_SHMEM_KEY if cache_key == _V1_CACHE_KEY
+                         else _V2_SHMEM_KEY)
+            return await _apply_cache_exclusion(
+                used, stat_p, cache_key, shmem_key), limit
         del _cgroup_mem_path_cache[ctid]
 
     # cgroup v2 candidates
@@ -1060,7 +1070,8 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
         limit = await _read_mem_file(max_p)
         if used is not None and limit is not None and limit > 0:
             _cgroup_mem_path_cache[ctid] = (current_p, max_p, stat_p, _V2_CACHE_KEY)
-            return await _apply_cache_exclusion(used, stat_p, _V2_CACHE_KEY), limit
+            return await _apply_cache_exclusion(
+                used, stat_p, _V2_CACHE_KEY, _V2_SHMEM_KEY), limit
 
     # cgroup v1 fallback
     v1_base = f"/sys/fs/cgroup/memory/lxc/{ctid}"
@@ -1071,14 +1082,25 @@ async def _read_cgroup_memory(ctid: str) -> Optional[Tuple[int, int]]:
     limit = await _read_mem_file(v1_limit)
     if used is not None and limit is not None and limit > 0:
         _cgroup_mem_path_cache[ctid] = (v1_usage, v1_limit, v1_stat, _V1_CACHE_KEY)
-        return await _apply_cache_exclusion(used, v1_stat, _V1_CACHE_KEY), limit
+        return await _apply_cache_exclusion(
+            used, v1_stat, _V1_CACHE_KEY, _V1_SHMEM_KEY), limit
 
     _cgroup_mem_negative_cache[ctid] = _NEGATIVE_CACHE_TTL
     return None
 
 
-async def _apply_cache_exclusion(used: int, stat_path: str, cache_key: str) -> int:
-    """Subtract reclaimable page cache from a raw cgroup memory counter."""
+async def _apply_cache_exclusion(used: int, stat_path: str, cache_key: str,
+                                 shmem_key: str) -> int:
+    """Subtract reclaimable page cache from a raw cgroup memory counter.
+
+    Shared memory is deliberately NOT subtracted. It is reported inside the
+    file-backed total but it is swap-backed, so on a container with no swap it
+    cannot be reclaimed by any means short of the OOM killer. Proxmox's own
+    interface subtracts the file total whole, so a shmem-heavy container is
+    reported here as fuller than the Proxmox UI shows it. That difference is
+    intended: the UI is describing the machine, this number decides whether to
+    take memory away from it.
+    """
     if not _exclude_page_cache():
         return used
     stats = await _read_mem_stat(stat_path)
@@ -1086,7 +1108,10 @@ async def _apply_cache_exclusion(used: int, stat_path: str, cache_key: str) -> i
     if cache is None:
         # memory.stat unreadable: keep the raw counter rather than guessing.
         return used
-    return max(used - cache, 0)
+    # An older kernel without the shmem key falls back to subtracting nothing
+    # for it, which errs toward reporting more memory in use, not less.
+    reclaimable = cache - stats.get(shmem_key, 0)
+    return max(used - max(reclaimable, 0), 0)
 
 
 async def _read_mem_stat(path: str) -> Dict[str, int]:
