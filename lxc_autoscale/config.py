@@ -345,6 +345,24 @@ def _apply_env_overrides(raw: Dict[str, Any]) -> None:
             logging.info("Secret '%s' overridden from env var %s", config_key, env_var)
 
 
+def _warn_unknown_keys(section: str, raw: Dict[str, Any], model) -> None:
+    """Report configuration keys the model does not know.
+
+    All three models accept extra keys, for backward compatibility. That is also
+    how `min_instances` was documented, written by users, and discarded without
+    a word for months: the code read `min_containers`. A key that does nothing
+    should at least say so.
+    """
+    if not isinstance(raw, dict):
+        return
+    unknown = set(raw) - set(model.model_fields)
+    if unknown:
+        logging.warning(
+            "%s: unknown key(s) %s, ignored. Check for a typo.",
+            section, ", ".join(sorted(unknown)),
+        )
+
+
 def load_config(path: str = CONFIG_FILE) -> "AppConfig":
     """Load and validate the full application configuration."""
     _check_config_permissions(path)
@@ -356,6 +374,7 @@ def load_config(path: str = CONFIG_FILE) -> "AppConfig":
     # Convert ignore_lxc items to strings
     if "ignore_lxc" in raw_defaults:
         raw_defaults["ignore_lxc"] = [str(x) for x in raw_defaults["ignore_lxc"]]
+    _warn_unknown_keys("DEFAULT", raw_defaults, DefaultsConfig)
     defaults = DefaultsConfig(**raw_defaults)
 
     # Parse tiers
@@ -363,6 +382,7 @@ def load_config(path: str = CONFIG_FILE) -> "AppConfig":
     for section, values in raw.items():
         if section.startswith("TIER_") and isinstance(values, dict):
             tier_name = section[5:]
+            _warn_unknown_keys(section, values, TierConfig)
             containers = [str(c) for c in values.get("lxc_containers", [])]
             for ctid in containers:
                 if not _CTID_RE.match(ctid):
@@ -373,6 +393,15 @@ def load_config(path: str = CONFIG_FILE) -> "AppConfig":
                 for field in TierConfig.model_fields:
                     if field not in tier_data and field not in ("lxc_containers", "tier_name", "cpu_pinning"):
                         tier_data.setdefault(field, getattr(defaults, field, None))
+                if ctid in tier_associations:
+                    # Last one parsed wins, and which that is depends on key
+                    # order in a file. Say so rather than letting the safer
+                    # tier lose silently.
+                    logging.warning(
+                        "Container %s is listed in more than one tier (%s and %s). "
+                        "%s wins, because it is parsed last. Remove the duplicate.",
+                        ctid, tier_associations[ctid].tier_name, tier_name, tier_name,
+                    )
                 tier_associations[ctid] = TierConfig(**tier_data)
                 logging.info("Loaded tier config for container %s (tier: %s)", ctid, tier_name)
 
@@ -383,14 +412,7 @@ def load_config(path: str = CONFIG_FILE) -> "AppConfig":
             lxc = group_raw.get("lxc_containers")
             if isinstance(lxc, list):
                 group_raw["lxc_containers"] = set(map(str, lxc))
-            # The model allows extra keys for backward compatibility, which
-            # means a typo would otherwise be accepted and ignored in silence.
-            unknown = set(group_raw) - set(HorizontalScalingGroup.model_fields)
-            if unknown:
-                logging.warning(
-                    "%s: unknown key(s) %s, ignored. Check for a typo.",
-                    section, ", ".join(sorted(unknown)),
-                )
+            _warn_unknown_keys(section, group_raw, HorizontalScalingGroup)
             horiz_groups[section] = HorizontalScalingGroup(**group_raw)
 
     return AppConfig(
