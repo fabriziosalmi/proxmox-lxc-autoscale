@@ -129,13 +129,13 @@ TIER_other:
 #   saturation_threshold: 0.90
 #   consecutive_samples: 2
 
-# --- CPU core pinning for hybrid Intel CPUs (Big.LITTLE) ---
+# --- CPU core pinning ---
 # Uncomment and adjust for your setup.
 #
 # TIER_performance:
 #   lxc_containers:
 #     - "105"
-#   cpu_pinning: p-cores       # Pin to Performance cores
+#   cpu_pinning: l3:0          # Pin to the first L3 domain (CCD 0 on AMD)
 #   max_cores: 8
 #   min_cores: 2
 #   min_memory: 4096
@@ -144,11 +144,16 @@ TIER_other:
 #   lxc_containers:
 #     - "106"
 #     - "107"
-#   cpu_pinning: e-cores       # Pin to Efficiency cores
+#   cpu_pinning: l3:1          # Keep background work off the other CCD's cache
 #   max_cores: 4
 #   min_cores: 1
 #   min_memory: 512
 #
-# cpu_pinning accepts: "p-cores", "e-cores", "all", or an explicit
-# range like "0-11" or "0,2,4,6-8".  Requires Intel Alder Lake+
-# (12th gen or newer) for automatic P/E-core detection.
+# cpu_pinning accepts:
+#   l3:N      one L3 cache domain (a CCD/CCX on AMD).  Any CPU.
+#   numa:N    one NUMA node, by kernel node id.        Any CPU.
+#   p-cores   Performance cores.   Hybrid Intel 12th gen and newer only.
+#   e-cores   Efficiency cores.    Hybrid Intel 12th gen and newer only.
+#   all       every online CPU.
+#   0-11 or 0,2,4,6-8   an explicit CPU range or list.
+# The groups detected on this host are logged at startup.

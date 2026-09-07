@@ -74,6 +74,6 @@ See [Configuration](/guide/configuration) for backend setup details.
 
 - [Configuration](/guide/configuration) — YAML settings reference
 - [Tiers](/guide/tiers) — per-container scaling rules
-- [CPU Core Pinning](/guide/cpu-pinning) — Intel Big.LITTLE support
+- [CPU Core Pinning](/guide/cpu-pinning) — L3/CCD and NUMA groups on any CPU, P/E cores on hybrid Intel
 - [Security](/guide/security) — SSH hardening, secret masking, API tokens
 - [Docker](/guide/docker) — run the daemon in a container

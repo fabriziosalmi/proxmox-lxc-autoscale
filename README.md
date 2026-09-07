@@ -93,24 +93,25 @@ Then run `systemctl daemon-reload && systemctl restart lxcfs` and restart your c
 _See the [Proxmox forum thread](https://forum.proxmox.com/threads/lxc-containers-shows-hosts-load-average.45724/page-2) for details._
 </details>
 
-### CPU Core Pinning (Intel Big.LITTLE)
+### CPU Core Pinning
 
-On hybrid Intel CPUs (Alder Lake / Raptor Lake / Arrow Lake, 12th gen+), you can pin containers to Performance or Efficiency cores via the `cpu_pinning` tier setting:
+Pin a tier to a subset of the host's CPUs via the `cpu_pinning` tier setting. Groups are auto-detected from the kernel, so the config does not hard-code CPU numbers.
 
 ```yaml
+# AMD: keep the database on its own CCD, so background work cannot evict its L3.
 TIER_databases:
   lxc_containers:
     - "102"
-  cpu_pinning: p-cores       # Run on Performance cores only
+  cpu_pinning: l3:0
 
 TIER_background_tasks:
   lxc_containers:
     - "105"
     - "106"
-  cpu_pinning: e-cores       # Run on Efficiency cores only
+  cpu_pinning: l3:1
 ```
 
-Accepted values: `p-cores`, `e-cores`, `all`, or an explicit range like `0-11` or `0,2,4,6-8`. Core topology is auto-detected from the kernel at startup.
+Accepted values: `l3:N` (one L3 cache domain, a CCD/CCX on AMD), `numa:N` (one NUMA node), `p-cores` and `e-cores` (hybrid Intel 12th gen and newer only), `all`, or an explicit range like `0-11` or `0,2,4,6-8`. The detected groups are logged at startup. See [CPU Core Pinning](docs/guide/cpu-pinning.md).
 
 ## Configuration
 
