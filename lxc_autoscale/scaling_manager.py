@@ -227,11 +227,12 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]],
     - "boost": temporary boost with automatic revert after boost_duration
     """
     logger.info("Starting resource allocation...")
-    total_cores = await get_total_cores()
-    total_memory = await get_total_memory()
-    reserved_cores = max(1, int(total_cores * DEFAULTS['reserve_cpu_percent'] / 100))
-    available_cores = total_cores - reserved_cores
-    available_memory = total_memory - DEFAULTS['reserve_memory_mb']
+    # get_total_cores and get_total_memory already subtract the configured
+    # reserve. Subtracting it a second time here made a declared 10% CPU reserve
+    # 19%, and a declared 2048 MB memory reserve 4096 MB: on a four-core host the
+    # daemon believed it had two cores to hand out.
+    available_cores = await get_total_cores()
+    available_memory = await get_total_memory()
 
     for ctid, usage in containers.items():
         try:
@@ -287,10 +288,16 @@ async def adjust_resources(containers: Dict[str, Dict[str, Any]],
                 cpu_usage, cpu_upper,
                 config['core_min_increment'], config['core_max_increment'],
             )
-            candidate = current_cores + increment
-            if candidate <= max_cores and available_cores >= increment:
+            # Clamp to the ceiling rather than discarding the increment. The
+            # old form dropped the whole step when it would overshoot, so a
+            # container at 3 with an increment of 2 never reached a max_cores of
+            # 4: it stayed one core below its own configured limit, forever,
+            # while logging high utilisation every cycle.
+            candidate = min(current_cores + increment, max_cores)
+            granted = candidate - current_cores
+            if granted > 0 and available_cores >= granted:
                 new_cores_val = candidate
-                available_cores -= increment
+                available_cores -= granted
                 cores_changed = True
         elif cpu_usage < cpu_lower and current_cores > min_cores:
             decrement = calculate_decrement(
