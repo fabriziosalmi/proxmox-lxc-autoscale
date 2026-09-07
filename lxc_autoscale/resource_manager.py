@@ -179,7 +179,16 @@ async def main_loop(poll_interval: int, energy_mode: bool) -> None:
                 logger.warning("Loop took longer than poll interval (%.2fs > %ds)",
                                elapsed, poll_interval)
 
-        except (ValueError, OSError, KeyError) as e:
-            logger.error("Error in main loop: %s", e)
+        except asyncio.CancelledError:
+            # Shutdown, not a failure. Let it propagate.
+            raise
+        except Exception as e:  # noqa: BLE001
+            # Deliberately broad. This loop is the whole daemon: an exception it
+            # does not name escapes `while True` and the process exits, and the
+            # unit file does not restart it, so autoscaling stops for that host
+            # until a human notices. A cycle that fails is worth losing; the
+            # daemon is not. Nothing here is recovery: the next cycle re-reads
+            # everything from the host.
+            logger.error("Error in main loop, continuing with the next cycle: %s", e)
             logger.exception("Exception traceback:")
             await asyncio.sleep(poll_interval)

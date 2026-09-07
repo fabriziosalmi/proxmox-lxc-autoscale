@@ -496,3 +496,52 @@ class TestFullBackoffCycle:
         notification.send_notification("t", "m")
         assert len(call_log) == 4
         assert notification._failure_counts.get("TrackedNotifier", 0) == 0
+
+class TestTheLoopSurvivesTheUnexpected:
+    """The loop is the whole daemon. An exception it does not name ends the
+    process, and the unit file used to say Restart=no, so autoscaling stopped
+    for that host until a human noticed."""
+
+    async def test_an_unexpected_exception_does_not_end_the_loop(self):
+        import resource_manager as rm
+        calls = {"n": 0}
+
+        async def collect():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise TypeError("something nobody predicted")
+            raise KeyboardInterrupt  # end the test on the second cycle
+
+        async def no_sleep(_):
+            return None
+
+        with patch.object(rm, 'collect_container_data', side_effect=collect), \
+             patch.object(rm.asyncio, 'sleep', side_effect=no_sleep), \
+             patch.object(rm.scaling_manager, 'adjust_resources', new_callable=AsyncMock), \
+             patch.object(rm.scaling_manager, 'manage_horizontal_scaling', new_callable=AsyncMock):
+            with pytest.raises(KeyboardInterrupt):
+                await rm.main_loop(1, False)
+
+        assert calls["n"] == 2, "the loop stopped on the first unexpected exception"
+
+
+class TestPveshDoesNotReportAbsenceAsIdle:
+    """Returning 0.0 for a container missing from /cluster/resources made this
+    method 'succeed', so the fallbacks were skipped and the daemon read a
+    container it could not find as idle."""
+
+    async def test_a_missing_container_raises_instead_of_returning_zero(self):
+        import lxc_utils
+
+        class P:
+            returncode = 0
+            async def communicate(self):
+                return (json.dumps([{"id": "lxc/999", "cpu": 0.5}]).encode(), b"")
+
+        async def fake_exec(*a, **kw):
+            return P()
+
+        with patch.object(lxc_utils.asyncio, 'create_subprocess_exec', side_effect=fake_exec):
+            with pytest.raises(RuntimeError, match="not present"):
+                await lxc_utils.pvesh_stat_method("100")
+

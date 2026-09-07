@@ -5,8 +5,19 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/bin/lxc_autoscale/lxc_autoscale.py
-Restart=no
+# A daemon that stops autoscaling and stays stopped is indistinguishable from
+# one that is working, because its normal output is silence. Restart it.
+Restart=on-failure
+RestartSec=30
 User=root
+
+# The daemon needs root for pct and for /etc/pve, but nothing else.
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=false
+RestrictSUIDSGID=true
 
 # Ensure that the service is killed if it runs away
 KillMode=process
