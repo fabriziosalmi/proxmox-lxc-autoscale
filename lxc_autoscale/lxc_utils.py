@@ -356,7 +356,10 @@ async def get_total_memory() -> int:
 # CPU topology detection & core pinning
 # ---------------------------------------------------------------------------
 
-_CPU_RANGE_RE = re.compile(r'^[0-9]+([-,][0-9]+)*$')
+# `\Z`, not `$`: `$` also matches before a trailing newline, so "0-3\n"
+# satisfies this. Nothing reaches it with one today only because
+# resolve_cpu_pinning happens to call .strip() first.
+_CPU_RANGE_RE = re.compile(r'^[0-9]+([-,][0-9]+)*\Z')
 _cached_topology: Optional[Dict[str, List[int]]] = None
 
 # One round trip, because on a remote Proxmox host each of these is an SSH call.
@@ -517,6 +520,74 @@ async def detect_cpu_topology() -> Dict[str, List[int]]:
     return groups
 
 
+def _validated_cpu_range(cpu_range: str, online: List[int]) -> Optional[str]:
+    """
+    Checks an explicit `cpu_pinning` range and returns it in canonical form.
+
+    The regular expression above is a syntax check and nothing more, so on a
+    32-CPU host every one of these used to be written verbatim into
+    /etc/pve/lxc/<ctid>.conf:
+
+        "31-0"     a reversed range
+        "0-999"    past the end of the host
+        "99"       a CPU that does not exist
+        "0,0,0,0"  the same CPU four times
+
+    The kernel refuses a malformed or out-of-range cpuset, so LXC cannot set up
+    the cgroup and the container does not start. A typo in a tier's config
+    stopping a container is worse than that tier not being pinned (#78).
+
+    Membership is checked only when the online set is known. If the topology
+    probe failed there is nothing authoritative to check against, and refusing
+    every explicit range because one SSH call timed out would trade a rare
+    misconfiguration for a common outage. The structural checks still run: a
+    reversed range is wrong on any host.
+
+    Args:
+        cpu_range: The value as written in the configuration, already stripped
+            and lowercased.
+        online: The online CPUs, or an empty list when they are not known.
+
+    Returns:
+        The canonical range, or None when it cannot be pinned.
+    """
+    cpus: List[int] = []
+    for part in cpu_range.split(','):
+        if '-' in part:
+            low, _, high = part.partition('-')
+            start, end = int(low), int(high)
+            if start > end:
+                logger.error(
+                    "cpu_pinning: %r has a reversed range (%s). The kernel "
+                    "refuses a cpuset like that and the container will not "
+                    "start, so nothing is pinned.", cpu_range, part,
+                )
+                return None
+            cpus.extend(range(start, end + 1))
+        else:
+            cpus.append(int(part))
+
+    unique = sorted(set(cpus))
+    if online:
+        missing = [cpu for cpu in unique if cpu not in online]
+        if missing:
+            logger.error(
+                "cpu_pinning: %r names CPU%s %s, which this host does not have "
+                "online (it has %s). The kernel refuses a cpuset naming a CPU "
+                "that is not there and the container will not start, so nothing "
+                "is pinned.",
+                cpu_range, "" if len(missing) == 1 else "s",
+                _cpus_to_range(missing), _cpus_to_range(online),
+            )
+            return None
+
+    canonical = _cpus_to_range(unique)
+    if canonical != cpu_range:
+        logger.info("cpu_pinning: %r pins the same CPUs as %r; writing the "
+                    "latter.", cpu_range, canonical)
+    return canonical
+
+
 async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
     val = pinning_config.strip().lower()
     groups = await detect_cpu_topology()
@@ -533,7 +604,7 @@ async def resolve_cpu_pinning(pinning_config: str) -> Optional[str]:
         )
         return None
     if _CPU_RANGE_RE.match(val):
-        return val
+        return _validated_cpu_range(val, groups.get('all', []))
     logger.error(
         "Invalid cpu_pinning value: %r. Known groups on this host: %s. "
         "An explicit range such as 0-7 or 0,2,4-6 also works.",

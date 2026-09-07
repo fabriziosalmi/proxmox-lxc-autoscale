@@ -567,6 +567,88 @@ class TestResolvePinning:
         assert "Invalid cpu_pinning value" in caplog.text
 
 
+class TestExplicitRangeValidation:
+    """
+    An explicit `cpu_pinning` range, checked before it reaches the config.
+
+    `_CPU_RANGE_RE` is a syntax check and nothing more, so on a 32-CPU host all
+    of these used to be written verbatim into /etc/pve/lxc/<ctid>.conf: "31-0",
+    "0-999", "99", "0,0,0,0". The kernel refuses a malformed or out-of-range
+    cpuset, LXC cannot then set up the cgroup, and the container does not start.
+    A typo in a tier's config stopping a container is worse than that tier not
+    being pinned (#78).
+    """
+
+    def setup_method(self):
+        lxc_utils._cached_topology = None
+
+    def teardown_method(self):
+        lxc_utils._cached_topology = None
+
+    async def _resolve(self, value, probe=AMD_PROBE):
+        with patch.object(lxc_utils, 'run_command', side_effect=_probe(probe)):
+            return await lxc_utils.resolve_cpu_pinning(value)
+
+    async def test_a_valid_range_is_unchanged(self):
+        assert await self._resolve("0-7") == "0-7"
+
+    async def test_the_whole_host_is_valid(self):
+        assert await self._resolve("0-31") == "0-31"
+
+    async def test_a_reversed_range_is_refused(self, caplog):
+        assert await self._resolve("31-0") is None
+        assert "reversed" in caplog.text
+
+    async def test_a_range_past_the_end_of_the_host_is_refused(self, caplog):
+        assert await self._resolve("0-999") is None
+        assert "0-31" in caplog.text, "the message has to say what the host has"
+
+    async def test_a_cpu_that_does_not_exist_is_refused(self, caplog):
+        assert await self._resolve("99") is None
+        assert "99" in caplog.text
+
+    async def test_one_bad_cpu_in_a_good_list_is_refused(self):
+        """The whole value is rejected: a partial pin is not what was asked for."""
+        assert await self._resolve("0-3,99") is None
+
+    async def test_duplicates_are_collapsed(self):
+        assert await self._resolve("0,0,0,0") == "0"
+
+    async def test_an_unordered_list_is_canonicalised(self):
+        assert await self._resolve("4,2,0") == "0,2,4"
+
+    async def test_a_sparse_host_rejects_an_offline_cpu(self):
+        """`all` is the online set, not a count, so a gap in it is respected."""
+        sparse = "online:0-3,8-11\nnproc:12\npmu:core:\npmu:atom:"
+        assert await self._resolve("0-3", sparse) == "0-3"
+        assert await self._resolve("4", sparse) is None
+
+    async def test_structural_checks_survive_a_failed_probe(self, caplog):
+        """
+        A reversed range is wrong on any host, so it is refused even with no
+        topology to check against.
+        """
+        assert await self._resolve("31-0", "unparseable banner") is None
+        assert "reversed" in caplog.text
+
+    async def test_membership_is_not_checked_without_a_known_host(self):
+        """
+        Refusing every explicit range because one SSH call timed out would trade
+        a rare misconfiguration for a common outage, so the range is written and
+        the host is trusted.
+        """
+        assert await self._resolve("0-999", "unparseable banner") == "0-999"
+
+    def test_the_regex_rejects_a_trailing_newline(self):
+        """
+        `$` also matches before a trailing newline, so "0-3\\n" satisfied the old
+        pattern. Nothing reaches it with one today only because
+        resolve_cpu_pinning calls .strip() first.
+        """
+        assert lxc_utils._CPU_RANGE_RE.match("0-3") is not None
+        assert lxc_utils._CPU_RANGE_RE.match("0-3\n") is None
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Cgroup CPU parsing
 # ═══════════════════════════════════════════════════════════════════════════
