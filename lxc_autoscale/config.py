@@ -273,7 +273,11 @@ class HorizontalScalingGroup(BaseModel):
 # Config loading (backward-compatible with raw YAML)
 # ---------------------------------------------------------------------------
 
-CONFIG_FILE = "/etc/lxc_autoscale/lxc_autoscale.yaml"
+# Overridable so a test harness can point the daemon at its own file instead of
+# overwriting the node's real configuration. Unset in normal operation.
+CONFIG_FILE = os.environ.get(
+    "LXC_AUTOSCALE_CONFIG", "/etc/lxc_autoscale/lxc_autoscale.yaml"
+)
 
 # #4: Pattern for ${ENV_VAR} or ${ENV_VAR:-default} expansion
 _ENV_VAR_RE = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}')
