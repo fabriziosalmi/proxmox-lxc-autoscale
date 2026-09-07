@@ -160,8 +160,12 @@ async def main_loop(poll_interval: int, energy_mode: bool) -> None:
             for ctid in containers:
                 containers[ctid]["tier"] = LXC_TIER_ASSOCIATIONS.get(ctid)
 
-            # Evict boost state for removed containers
-            boost_mgr.evict_stale(set(containers.keys()))
+            # Evict boost state only for containers the host says are gone.
+            # containers holds those whose metrics were read successfully, which
+            # is a different and smaller set: a single failed `pct config` would
+            # otherwise drop a boost record, and a dropped record is never
+            # reverted.
+            boost_mgr.evict_stale(set(await lxc_utils.get_containers()))
 
             await scaling_manager.adjust_resources(containers, energy_mode, boost_mgr)
             await scaling_manager.manage_horizontal_scaling(containers)

@@ -70,11 +70,16 @@ def setup_logging(log_file: Optional[str] = None, debug: bool = False) -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG if debug else logging.INFO)
 
-    # Add secret masking filter to root logger
-    root_logger.addFilter(SecretMaskingFilter())
+    # The filter goes on the handlers, not on the logger. A filter attached to
+    # a logger runs only for records emitted through that logger; records from
+    # child loggers reach an ancestor's handlers without passing its filters.
+    # Every module here uses logging.getLogger(__name__), so a filter on the
+    # root logger saw almost nothing that this daemon writes.
+    _masker = SecretMaskingFilter()
 
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
+    console_handler.addFilter(_masker)
     root_logger.addHandler(console_handler)
 
     if log_file:
@@ -85,6 +90,7 @@ def setup_logging(log_file: Optional[str] = None, debug: bool = False) -> None:
             log_file, maxBytes=10 * 1024 * 1024, backupCount=5, encoding='utf-8'
         )
         file_handler.setFormatter(formatter)
+        file_handler.addFilter(_masker)
         root_logger.addHandler(file_handler)
 
     logging.getLogger('paramiko').setLevel(logging.WARNING)
