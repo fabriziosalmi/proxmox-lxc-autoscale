@@ -91,6 +91,44 @@ To set up a development environment:
 
 3. Make your changes and test them locally
 
+## Checking a change against a real node
+
+The unit suite mocks `run_command`. Every defect that has reached users in this
+project lived on the other side of that mock: a sysfs attribute that does not
+exist, a config path the hypervisor resolves through a symlink, page cache and
+then shared memory counted wrongly, a snapshot never cleaned up. A green suite
+has never been evidence that the daemon does the right thing on a host.
+
+`scripts/live-check.py` runs the daemon against a real Proxmox node and asserts
+what actually happened to the cgroups and to the container configuration:
+
+```bash
+sudo ./scripts/live-check.py --yes-i-understand-this-creates-a-container
+```
+
+Run it on the node, from a checkout, as root. It creates one throwaway
+container, runs the daemon against it for a few cycles, and exits non-zero if a
+check fails.
+
+It is safe to run on a node with real guests on it, by construction:
+
+- every pre-existing guest is placed in `ignore_lxc`, and the daemon's own view
+  is asserted to contain only the throwaway container before anything starts;
+- the checksum of every pre-existing container config is taken first and
+  compared at the end, and a difference fails the run;
+- the daemon is pointed at a config in a temporary directory through
+  `LXC_AUTOSCALE_CONFIG`, so the node's own configuration is never written;
+- the daemon is never installed as a service and every run has a timeout;
+- teardown runs even when a check fails.
+
+Each check corresponds to a defect that shipped. If you change how usage is
+measured, how the container config is written, or the lifecycle of snapshots and
+boosts, run this before opening the pull request and paste the output into it.
+
+A check that cannot fail is worth nothing, so verify the harness has teeth the
+same way: reintroduce the defect the check describes, confirm it fails, then put
+the code back.
+
 ## Questions?
 
 If you have questions about contributing, feel free to:
