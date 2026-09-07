@@ -759,3 +759,86 @@ class TestGetContainerIPv4:
     def test_rejects_invalid_ctid(self):
         with pytest.raises(ValueError):
             asyncio.run(lxc_utils.get_container_ipv4("100; rm -rf /"))
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Shared memory must not be discounted as reclaimable cache
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TestShmemIsNotReclaimable:
+    """A container full of tmpfs was reported as empty and shrunk into an OOM.
+
+    Fixture values are the real memory.stat of an Alpine container on Proxmox
+    VE 9.1 with 200 MB written to /dev/shm and swap disabled: 205 MB in use of
+    512 MB, of which 202 MB file-backed and 200 MB of that shared memory.
+    """
+
+    REAL_V2_STAT = (
+        "anon 389120\n"
+        "file 211812352\n"
+        "kernel 3629056\n"
+        "shmem 209715200\n"
+        "slab 2461696\n"
+    )
+
+    def _used(self, current, stat_text, limit=536870912):
+        async def cmd(c, timeout=30):
+            path = c[-1] if isinstance(c, list) else c
+            if str(path).endswith("memory.current"):
+                return str(current)
+            if str(path).endswith("memory.max"):
+                return str(limit)
+            if str(path).endswith("memory.stat"):
+                return stat_text
+            return None
+        lxc_utils._cached_topology = None
+        lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
+        with patch.object(lxc_utils, 'run_command', side_effect=cmd):
+            return asyncio.run(lxc_utils._read_cgroup_memory("100"))
+
+    def test_tmpfs_is_counted_as_used(self):
+        used, total = self._used(215171072, self.REAL_V2_STAT)
+        # 215171072 - (211812352 - 209715200) = 213073920, about 40% of 512 MB
+        assert used == 213073920
+        assert round(used / total * 100, 1) == 39.7
+
+    def test_the_old_behaviour_would_have_reported_it_empty(self):
+        """Guard against a regression to subtracting the file total whole."""
+        used, total = self._used(215171072, self.REAL_V2_STAT)
+        naive = 215171072 - 211812352
+        assert used > naive * 10, "shared memory is being discounted again"
+
+    def test_genuine_page_cache_is_still_excluded(self):
+        """#51 must keep working: real page cache is reclaimable."""
+        stat = "anon 279248896\nfile 10630598656\nshmem 0\n"
+        used, _ = self._used(10909847552, stat, limit=17179869184)
+        assert used == 10909847552 - 10630598656
+
+    def test_mixed_cache_and_shmem(self):
+        stat = "anon 100000000\nfile 900000000\nshmem 400000000\n"
+        used, _ = self._used(1000000000, stat, limit=2000000000)
+        # only the 500 MB that is not shared memory is reclaimable
+        assert used == 1000000000 - 500000000
+
+    def test_kernel_without_shmem_key_errs_toward_used(self):
+        stat = "anon 100000000\nfile 900000000\n"
+        used, _ = self._used(1000000000, stat, limit=2000000000)
+        assert used == 1000000000 - 900000000
+
+    def test_cgroup_v1_uses_total_shmem(self):
+        async def cmd(c, timeout=30):
+            path = c[-1] if isinstance(c, list) else c
+            if "memory.current" in str(path) or "memory.max" in str(path):
+                return None
+            if str(path).endswith("memory.usage_in_bytes"):
+                return "1000000000"
+            if str(path).endswith("memory.limit_in_bytes"):
+                return "2000000000"
+            if str(path).endswith("memory.stat"):
+                return "total_cache 900000000\ntotal_shmem 400000000\n"
+            return None
+        lxc_utils._cgroup_mem_path_cache.clear()
+        lxc_utils._cgroup_mem_negative_cache.clear()
+        with patch.object(lxc_utils, 'run_command', side_effect=cmd):
+            used, _ = asyncio.run(lxc_utils._read_cgroup_memory("101"))
+        assert used == 1000000000 - 500000000
