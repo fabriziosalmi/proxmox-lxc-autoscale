@@ -32,5 +32,5 @@ The daemon accepts the following arguments:
 |------|-------------|
 | `--poll_interval <seconds>` | Override the polling interval from config. |
 | `--energy_mode` | Enable energy efficiency mode (reduce resources during off-peak). |
-| `--rollback` | Intended to restore containers to their last backed-up settings. It does nothing today: the backup it reads is never written ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). |
+| `--rollback` | **Removed in 2.0.5.** It never restored anything: no backup was ever written, so it reported success over an empty directory. The flag still exists and exits with an explanation rather than an argparse error ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). |
 | `--debug` | Enable debug-level logging. |

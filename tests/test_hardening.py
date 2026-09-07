@@ -250,50 +250,6 @@ class TestNotificationBackoff:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# #7: Backup dedup (skip if unchanged)
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestBackupDedup:
-    """Test that backup_container_settings skips writes for unchanged data."""
-
-    @pytest.fixture(autouse=True)
-    def setup_tmp_backup_dir(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('lxc_utils.BACKUP_DIR', str(tmp_path))
-        # Clear the in-memory cache
-        import lxc_utils
-        lxc_utils._last_backup_settings.clear()
-        self.backup_dir = tmp_path
-
-    def test_first_write_creates_file(self):
-        import lxc_utils
-        asyncio.run(lxc_utils.backup_container_settings("100", {"cores": 4, "memory": 2048}))
-        backup_file = self.backup_dir / "100_backup.json"
-        assert backup_file.exists()
-        data = json.loads(backup_file.read_text())
-        assert data["cores"] == 4
-
-    def test_same_settings_skip_write(self):
-        import lxc_utils
-        settings = {"cores": 4, "memory": 2048}
-        asyncio.run(lxc_utils.backup_container_settings("101", settings))
-        backup_file = self.backup_dir / "101_backup.json"
-        mtime1 = backup_file.stat().st_mtime_ns
-
-        # Write again with same settings — should NOT touch the file
-        import time
-        time.sleep(0.01)  # ensure mtime would differ
-        asyncio.run(lxc_utils.backup_container_settings("101", settings))
-        mtime2 = backup_file.stat().st_mtime_ns
-        assert mtime1 == mtime2
-
-    def test_changed_settings_overwrites(self):
-        import lxc_utils
-        asyncio.run(lxc_utils.backup_container_settings("102", {"cores": 2, "memory": 1024}))
-        asyncio.run(lxc_utils.backup_container_settings("102", {"cores": 4, "memory": 2048}))
-        backup_file = self.backup_dir / "102_backup.json"
-        data = json.loads(backup_file.read_text())
-        assert data["cores"] == 4
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # #7: JSON log rotation

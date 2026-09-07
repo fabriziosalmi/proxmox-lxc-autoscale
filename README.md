@@ -159,7 +159,7 @@ No. A REST implementation sat in the tree for a year without ever being connecte
 
 ### Is it safe to use in production?
 
-Read [Feature status](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/wiki/Feature-Status) first, and test in a non-production environment. Two things to know before you decide. The `--rollback` flag exists but the backup it reads is never written, so it restores nothing ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). And the daemon rewrites the configuration of running containers as root, so the blast radius of a mistake is the guest, not the daemon: use `ignore_lxc` to scope it to containers you are willing to have resized while you evaluate it.
+Read [Feature status](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/wiki/Feature-Status) first, and test in a non-production environment. Two things to know before you decide. **There is no rollback.** A `--rollback` flag existed and restored nothing, because no backup was ever written; it was removed in 2.0.5 rather than left in place looking like a safety net ([#88](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88)). Container settings live in `/etc/pve/lxc/<ctid>.conf` and in your Proxmox backups. And the daemon rewrites the configuration of running containers as root, so the blast radius of a mistake is the guest, not the daemon: use `ignore_lxc` to scope it to containers you are willing to have resized while you evaluate it.
 
 ### How often does it check container resources?
 

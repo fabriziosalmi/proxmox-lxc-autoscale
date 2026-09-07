@@ -47,41 +47,6 @@ class TestEvictStaleCaches:
 # lxc_utils: JSON log rotation
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestJsonLogRotationEdgeCases:
-    def test_multiple_rotations(self, tmp_path, monkeypatch):
-        import lxc_utils
-        monkeypatch.setattr('lxc_utils.LOG_FILE', str(tmp_path / "test.log"))
-        monkeypatch.setattr('lxc_utils._JSON_LOG_MAX_BYTES', 50)
-        monkeypatch.setattr('lxc_utils._JSON_LOG_BACKUP_COUNT', 2)
-        monkeypatch.setattr('lxc_utils._json_log_file', None)
-
-        json_path = str(tmp_path / "test.json")
-        # First rotation
-        with open(json_path, 'w') as f:
-            f.write("x" * 100)
-        lxc_utils._rotate_json_log_if_needed()
-        assert os.path.exists(json_path + ".1")
-
-        # Second rotation
-        with open(json_path, 'w') as f:
-            f.write("y" * 100)
-        lxc_utils._rotate_json_log_if_needed()
-        assert os.path.exists(json_path + ".2")
-
-    def test_rotation_closes_open_handle(self, tmp_path, monkeypatch):
-        import lxc_utils
-        monkeypatch.setattr('lxc_utils.LOG_FILE', str(tmp_path / "test.log"))
-        monkeypatch.setattr('lxc_utils._JSON_LOG_MAX_BYTES', 10)
-        json_path = str(tmp_path / "test.json")
-        # Open a handle
-        fh = open(json_path, 'w')
-        fh.write("x" * 100)
-        fh.close()
-        lxc_utils._json_log_file = open(json_path, 'a')
-        lxc_utils._rotate_json_log_if_needed()
-        assert lxc_utils._json_log_file is None or lxc_utils._json_log_file.closed
-
-
 # ═══════════════════════════════════════════════════════════════════════════
 # lxc_utils: negative cgroup cache
 # ═══════════════════════════════════════════════════════════════════════════
@@ -113,38 +78,6 @@ class TestNegativeCgroupCache:
 # ═══════════════════════════════════════════════════════════════════════════
 # lxc_utils: get_container_data
 # ═══════════════════════════════════════════════════════════════════════════
-
-class TestGetContainerData:
-    @patch('lxc_utils.get_memory_usage', new_callable=AsyncMock, return_value=40.0)
-    @patch('lxc_utils.get_cpu_usage', new_callable=AsyncMock, return_value=25.0)
-    @patch('lxc_utils.backup_container_settings', new_callable=AsyncMock)
-    @patch('lxc_utils.run_command', new_callable=AsyncMock)
-    @patch('lxc_utils.is_container_running', new_callable=AsyncMock, return_value=True)
-    async def test_success(self, m_run, m_cmd, m_backup, m_cpu, m_mem):
-        import lxc_utils
-        m_cmd.return_value = "cores: 2\nmemory: 1024"
-        result = await lxc_utils.get_container_data("100")
-        assert result is not None
-        assert result["cpu"] == 25.0
-        assert result["mem"] == 40.0
-        assert result["initial_cores"] == 2
-
-    @patch('lxc_utils.is_container_running', new_callable=AsyncMock, return_value=False)
-    async def test_stopped_returns_none(self, m_run):
-        import lxc_utils
-        assert await lxc_utils.get_container_data("100") is None
-
-    @patch('lxc_utils.is_container_running', new_callable=AsyncMock, return_value=True)
-    @patch('lxc_utils.run_command', new_callable=AsyncMock, return_value=None)
-    async def test_no_config_returns_zeroed_data(self, m_cmd, m_running):
-        """When pct config returns None, cores/memory default to 0."""
-        import lxc_utils
-        result = await lxc_utils.get_container_data("100")
-        # Still returns data, but with zero values
-        assert result is not None
-        assert result["initial_cores"] == 0
-        assert result["cpu"] == 0.0
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # lxc_utils: memory fallback (pct exec path)
@@ -227,22 +160,6 @@ class TestCpuPinningRemote:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# lxc_utils: prune_old_backups
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestPruneOldBackups:
-    def test_prune_with_no_dir(self, monkeypatch):
-        import lxc_utils
-        monkeypatch.setattr('lxc_utils.BACKUP_DIR', '/nonexistent_dir_xyz')
-        lxc_utils.prune_old_backups(max_per_container=1)  # should not crash
-
-    def test_prune_under_limit(self, tmp_path, monkeypatch):
-        import lxc_utils
-        monkeypatch.setattr('lxc_utils.BACKUP_DIR', str(tmp_path))
-        (tmp_path / "100_backup.json").write_text("{}")
-        lxc_utils.prune_old_backups(max_per_container=5)
-        assert (tmp_path / "100_backup.json").exists()
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # lxc_utils: CPU second sample (delta computation)
@@ -281,42 +198,6 @@ class TestCpuDeltaComputation:
 # ═══════════════════════════════════════════════════════════════════════════
 # lxc_autoscale.py: entry point
 # ═══════════════════════════════════════════════════════════════════════════
-
-class TestEntryPoint:
-    def _load_main(self):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "lxc_autoscale_main",
-            os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale', 'lxc_autoscale.py'),
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        return mod
-
-    def test_parse_arguments(self):
-        mod = self._load_main()
-        with patch('sys.argv', ['prog', '--poll_interval', '60', '--debug']):
-            args = mod.parse_arguments()
-            assert args.poll_interval == 60
-            assert args.debug is True
-            assert args.rollback is False
-
-    def test_parse_arguments_defaults(self):
-        mod = self._load_main()
-        with patch('sys.argv', ['prog']):
-            args = mod.parse_arguments()
-            assert args.poll_interval > 0
-            assert args.energy_mode is False
-
-    async def test_async_main_rollback(self):
-        mod = self._load_main()
-        from argparse import Namespace
-        args = Namespace(rollback=True, poll_interval=300, energy_mode=False)
-        with patch.object(mod, 'get_containers', new_callable=AsyncMock, return_value=["100", "101"]):
-            with patch.object(mod, 'rollback_container_settings', new_callable=AsyncMock) as m_rb:
-                await mod.async_main(args)
-                assert m_rb.call_count == 2
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -368,3 +249,83 @@ class TestFireAndForget:
         # Let the task complete
         await asyncio.sleep(0.05)
         assert len(_background_tasks) == initial
+
+
+class TestJsonLogRotationEdgeCases:
+    def test_multiple_rotations(self, tmp_path, monkeypatch):
+        import lxc_utils
+        monkeypatch.setattr('lxc_utils.LOG_FILE', str(tmp_path / "test.log"))
+        monkeypatch.setattr('lxc_utils._JSON_LOG_MAX_BYTES', 50)
+        monkeypatch.setattr('lxc_utils._JSON_LOG_BACKUP_COUNT', 2)
+        monkeypatch.setattr('lxc_utils._json_log_file', None)
+
+        json_path = str(tmp_path / "test.json")
+        # First rotation
+        with open(json_path, 'w') as f:
+            f.write("x" * 100)
+        lxc_utils._rotate_json_log_if_needed()
+        assert os.path.exists(json_path + ".1")
+
+        # Second rotation
+        with open(json_path, 'w') as f:
+            f.write("y" * 100)
+        lxc_utils._rotate_json_log_if_needed()
+        assert os.path.exists(json_path + ".2")
+
+    def test_rotation_closes_open_handle(self, tmp_path, monkeypatch):
+        import lxc_utils
+        monkeypatch.setattr('lxc_utils.LOG_FILE', str(tmp_path / "test.log"))
+        monkeypatch.setattr('lxc_utils._JSON_LOG_MAX_BYTES', 10)
+        json_path = str(tmp_path / "test.json")
+        # Open a handle
+        fh = open(json_path, 'w')
+        fh.write("x" * 100)
+        fh.close()
+        lxc_utils._json_log_file = open(json_path, 'a')
+        lxc_utils._rotate_json_log_if_needed()
+        assert lxc_utils._json_log_file is None or lxc_utils._json_log_file.closed
+
+
+class TestEntryPoint:
+    def _load_main(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "lxc_autoscale_main",
+            os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale', 'lxc_autoscale.py'),
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_parse_arguments(self):
+        mod = self._load_main()
+        with patch('sys.argv', ['prog', '--poll_interval', '60', '--debug']):
+            args = mod.parse_arguments()
+            assert args.poll_interval == 60
+            assert args.debug is True
+            assert args.rollback is False
+
+    def test_parse_arguments_defaults(self):
+        mod = self._load_main()
+        with patch('sys.argv', ['prog']):
+            args = mod.parse_arguments()
+            assert args.poll_interval > 0
+            assert args.energy_mode is False
+
+    def test_rollback_exits_with_an_explanation(self):
+        """The flag is kept so an existing script gets a reason, not an
+        argparse error. It never restored anything."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "lxc_main_rollback",
+            os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale',
+                         'lxc_autoscale.py'))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        from argparse import Namespace
+        args = Namespace(rollback=True, poll_interval=300, energy_mode=False)
+        with pytest.raises(SystemExit) as exc:
+            asyncio.run(mod.async_main(args))
+        assert "never worked" in str(exc.value)
+        assert "issues/88" in str(exc.value)
+

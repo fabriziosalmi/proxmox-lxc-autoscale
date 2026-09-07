@@ -78,7 +78,7 @@ All defaults can be overridden in the `DEFAULT` section of the configuration fil
 |-----------|---------|
 | `log_file` | `/var/log/lxc_autoscale.log` |
 | `lock_file` | `/var/lock/lxc_autoscale.lock` |
-| `backup_dir` | `/var/lib/lxc_autoscale/backups` |
+| `backup_dir` | `/var/lib/lxc_autoscale/backups` | Daemon state directory. Despite the name it holds no container backups: that path was removed in 2.0.5 because it never ran. The only file here is the boost record. |
 
 ## Container exclusion
 
