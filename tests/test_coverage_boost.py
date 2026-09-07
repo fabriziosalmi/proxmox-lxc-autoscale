@@ -312,20 +312,23 @@ class TestEntryPoint:
             assert args.poll_interval > 0
             assert args.energy_mode is False
 
-    def test_rollback_exits_with_an_explanation(self):
-        """The flag is kept so an existing script gets a reason, not an
-        argparse error. It never restored anything."""
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "lxc_main_rollback",
-            os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale',
-                         'lxc_autoscale.py'))
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        from argparse import Namespace
-        args = Namespace(rollback=True, poll_interval=300, energy_mode=False)
-        with pytest.raises(SystemExit) as exc:
-            asyncio.run(mod.async_main(args))
-        assert "never worked" in str(exc.value)
-        assert "issues/88" in str(exc.value)
+    def test_rollback_is_answered_before_the_daemon_starts(self):
+        """The message must reach the operator and the exit code must be non-zero.
+
+        Answering inside async_main did neither: the __main__ block catches
+        SystemExit and turns it into an INFO line, so the message was swallowed
+        and the process exited 0. Verified on a live node before this was fixed.
+        """
+        import subprocess
+        p = subprocess.run(
+            [sys.executable,
+             os.path.join(os.path.dirname(__file__), '..', 'lxc_autoscale',
+                          'lxc_autoscale.py'),
+             "--rollback"],
+            capture_output=True, text=True, timeout=60,
+            env={**os.environ, "LXC_AUTOSCALE_CONFIG": "/nonexistent/none.yaml"},
+        )
+        assert p.returncode != 0, "exited 0, so a script would not notice"
+        assert "never worked" in p.stderr
+        assert "issues/88" in p.stderr
 
