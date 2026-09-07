@@ -29,3 +29,6 @@ config.local.yaml
 docs/node_modules/
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+
+# Internal review notes: keep local, never publish
+REVIEW.md
