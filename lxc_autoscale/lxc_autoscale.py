@@ -1,13 +1,14 @@
 """Main module for LXC autoscaling daemon (async)."""
 
 import argparse
+import sys
 import asyncio
 import logging
 
 from config import DEFAULTS, LOG_FILE
 from logging_setup import setup_logging
 from lock_manager import acquire_lock
-from lxc_utils import get_containers, rollback_container_settings
+from lxc_utils import get_containers
 from resource_manager import main_loop
 
 
@@ -26,7 +27,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--rollback", action="store_true",
-        help="Rollback to previous container configurations",
+        help="Removed in 2.0.5: no backup was ever written, so this restored nothing",
     )
     parser.add_argument(
         "--debug", action="store_true",
@@ -38,10 +39,17 @@ def parse_arguments() -> argparse.Namespace:
 async def async_main(args: argparse.Namespace) -> None:
     """Async entry point for the daemon."""
     if args.rollback:
-        logging.info("Starting rollback process...")
-        for ctid in await get_containers():
-            await rollback_container_settings(ctid)
-        logging.info("Rollback process completed.")
+        # Kept as a flag so an existing script gets an explanation rather than
+        # an argparse error. It never restored anything: the backup helper was
+        # only reachable from a function nothing called, so no backup file was
+        # ever written and this reported success over an empty directory.
+        sys.exit(
+            "--rollback was removed in 2.0.5. It never worked: no backup was "
+            "ever written, so it restored nothing and reported success. "
+            "Container settings are in /etc/pve/lxc/<ctid>.conf and in your "
+            "Proxmox backups. See "
+            "https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/88"
+        )
     else:
         await main_loop(args.poll_interval, args.energy_mode)
 

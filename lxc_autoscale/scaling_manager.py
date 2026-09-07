@@ -11,11 +11,11 @@ from config import (
     LXC_TIER_ASSOCIATIONS, get_app_config,
 )
 from lxc_utils import (
-    apply_cpu_pinning, backup_container_settings,
+    apply_cpu_pinning,
     get_container_ipv4, get_containers, get_cpu_usage, get_memory_usage,
     get_total_cores, get_total_memory, is_container_running,
-    is_ignored, load_backup_settings, log_json_event,
-    resolve_cpu_pinning, rollback_container_settings,
+    is_ignored, log_json_event,
+    resolve_cpu_pinning,
     run_command, generate_unique_snapshot_name, generate_cloned_hostname,
     validate_container_id,
 )

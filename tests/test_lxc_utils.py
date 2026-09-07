@@ -121,41 +121,6 @@ class TestIsContainerRunning:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Backup and rollback
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestBackupAndRollback:
-    @pytest.fixture(autouse=True)
-    def setup(self, tmp_path, monkeypatch):
-        monkeypatch.setattr('lxc_utils.BACKUP_DIR', str(tmp_path))
-        lxc_utils._last_backup_settings.clear()
-        self.tmp = tmp_path
-
-    async def test_backup_creates_file(self):
-        await lxc_utils.backup_container_settings("100", {"cores": 4, "memory": 2048})
-        f = self.tmp / "100_backup.json"
-        assert f.exists()
-        data = json.loads(f.read_text())
-        assert data == {"cores": 4, "memory": 2048}
-
-    async def test_load_backup(self):
-        (self.tmp / "200_backup.json").write_text('{"cores": 2, "memory": 1024}')
-        settings = await lxc_utils.load_backup_settings("200")
-        assert settings == {"cores": 2, "memory": 1024}
-
-    async def test_load_missing_backup(self):
-        settings = await lxc_utils.load_backup_settings("999")
-        assert settings is None
-
-    @patch.object(lxc_utils, 'run_command', new_callable=AsyncMock)
-    async def test_rollback_calls_pct_set(self, mock_cmd):
-        (self.tmp / "300_backup.json").write_text('{"cores": 2, "memory": 1024}')
-        mock_cmd.return_value = ""
-        await lxc_utils.rollback_container_settings("300")
-        calls = [str(c) for c in mock_cmd.call_args_list]
-        assert any("-cores" in c and "2" in c for c in calls)
-        assert any("-memory" in c and "1024" in c for c in calls)
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # JSON event logging

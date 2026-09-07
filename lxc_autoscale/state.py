@@ -19,7 +19,7 @@ class ContainerStateCache:
     Replaces the module-level dictionaries: _cgroup_path_cache,
     _prev_cpu_readings, _core_count_cache, _cgroup_mem_path_cache,
     _cgroup_negative_cache, _cgroup_mem_negative_cache,
-    _applied_pinning, _last_backup_settings, _container_locks.
+    _applied_pinning, _container_locks.
     """
 
     NEGATIVE_CACHE_TTL = 5  # poll cycles before retrying failed cgroup paths
@@ -33,7 +33,6 @@ class ContainerStateCache:
         self.cpu_negative: Dict[str, int] = {}
         self.mem_negative: Dict[str, int] = {}
         self.applied_pinning: Dict[str, str] = {}
-        self.last_backup: Dict[str, Dict[str, Any]] = {}
         self.saturation_counts: Dict[str, Dict[str, int]] = {}  # ctid -> {resource -> count}
         self._locks: Dict[str, asyncio.Lock] = {}
         self._locks_mutex = Lock()
@@ -77,14 +76,6 @@ class ContainerStateCache:
         """Mark memory cgroup discovery as failed for N cycles."""
         self.mem_negative[ctid] = self.NEGATIVE_CACHE_TTL
 
-    def backup_unchanged(self, ctid: str, settings: Dict[str, Any]) -> bool:
-        """Return True if settings match last backup (skip write)."""
-        return self.last_backup.get(ctid) == settings
-
-    def record_backup(self, ctid: str, settings: Dict[str, Any]) -> None:
-        """Record that a backup was written."""
-        self.last_backup[ctid] = settings.copy()
-
     def pinning_unchanged(self, ctid: str, cpu_range: str) -> bool:
         """Return True if pinning matches last applied state."""
         return self.applied_pinning.get(ctid) == cpu_range
@@ -98,7 +89,7 @@ class ContainerStateCache:
         for cache in (
             self.cgroup_cpu_paths, self.prev_cpu_readings, self.core_counts,
             self.cgroup_mem_paths, self.cpu_negative, self.mem_negative,
-            self.applied_pinning, self.last_backup, self.saturation_counts,
+            self.applied_pinning, self.saturation_counts,
         ):
             stale = [k for k in cache if k not in active_ctids]
             for k in stale:

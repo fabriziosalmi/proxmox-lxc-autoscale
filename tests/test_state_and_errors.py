@@ -68,6 +68,13 @@ class TestExceptionHierarchy:
 # state.py
 # ═══════════════════════════════════════════════════════════════════════════
 
+class TestGetStateCacheSingleton:
+    def test_returns_same_instance(self):
+        c1 = get_state_cache()
+        c2 = get_state_cache()
+        assert c1 is c2
+
+
 class TestContainerStateCache:
     @pytest.fixture
     def cache(self):
@@ -97,13 +104,6 @@ class TestContainerStateCache:
         assert cache.is_mem_negative_cached("100") is False
         cache.set_mem_negative("100")
         assert cache.is_mem_negative_cached("100") is True
-
-    def test_backup_unchanged(self, cache):
-        settings = {"cores": 4, "memory": 2048}
-        assert cache.backup_unchanged("100", settings) is False
-        cache.record_backup("100", settings)
-        assert cache.backup_unchanged("100", settings) is True
-        assert cache.backup_unchanged("100", {"cores": 8}) is False
 
     def test_pinning_unchanged(self, cache):
         assert cache.pinning_unchanged("100", "0-3") is False
@@ -136,14 +136,7 @@ class TestContainerStateCache:
 
     def test_evict_preserves_active(self, cache):
         cache.set_core_count("100", 4)
-        cache.record_backup("100", {"cores": 4})
+        cache.record_pinning("100", "0-3")
         cache.evict_stale({"100"})
         assert cache.get_core_count("100") == 4
-        assert cache.backup_unchanged("100", {"cores": 4}) is True
-
-
-class TestGetStateCacheSingleton:
-    def test_returns_same_instance(self):
-        c1 = get_state_cache()
-        c2 = get_state_cache()
-        assert c1 is c2
+        assert cache.pinning_unchanged("100", "0-3") is True

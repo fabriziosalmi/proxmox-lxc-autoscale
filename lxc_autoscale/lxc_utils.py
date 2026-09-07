@@ -1,13 +1,12 @@
 """Utility functions for LXC container management.
 
 Provides CPU/memory measurement (cgroup-based), container data collection,
-CPU topology detection, and backup/rollback operations.
+and CPU topology detection.
 
 Performance optimizations:
 - #2: No sleep on first CPU sample — stores raw reading, calculates delta next cycle
 - #3: Core count cached per-container, passed from collector, not re-queried
 - #4: Memory read from host-side cgroup (like CPU), no pct exec
-- #7: Backup skipped if settings unchanged
 - #8: CPU pinning state cached, only applied on change
 - #10: JSON log uses persistent file handle with periodic flush
 """
@@ -182,58 +181,9 @@ async def is_container_running(ctid: str) -> bool:
     return bool(status and "status: running" in status.lower())
 
 
-# ---------------------------------------------------------------------------
-# #7: Backup with change detection — skip if settings unchanged
-# ---------------------------------------------------------------------------
-
-# Backward-compat alias — backed by state cache
-_last_backup_settings = _state.last_backup
-
-
-async def backup_container_settings(ctid: str, settings: Dict[str, Any]) -> None:
-    """Write backup only if settings changed since last write."""
-    if _last_backup_settings.get(ctid) == settings:
-        return  # nothing changed, skip I/O
-    try:
-        os.makedirs(BACKUP_DIR, exist_ok=True, mode=0o700)
-        backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-        # Symlink-safe: resolve and verify path stays within BACKUP_DIR
-        real_dir = os.path.realpath(BACKUP_DIR)
-        real_file = os.path.realpath(backup_file)
-        if not real_file.startswith(real_dir + os.sep):
-            logger.error("Symlink attack detected on backup path: %s", backup_file)
-            return
-        async with _get_container_lock(ctid):
-            fd = os.open(real_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
-                json.dump(settings, f)
-        _last_backup_settings[ctid] = settings.copy()
-        logger.debug("Backup saved for container %s", ctid)
-    except OSError as e:
-        logger.error("Failed to backup settings for %s: %s", ctid, e)
-
-
-async def load_backup_settings(ctid: str) -> Optional[Dict[str, Any]]:
-    try:
-        backup_file = os.path.join(BACKUP_DIR, f"{ctid}_backup.json")
-        if os.path.exists(backup_file):
-            async with _get_container_lock(ctid):
-                with open(backup_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        logger.warning("No backup found for container %s", ctid)
-        return None
-    except (OSError, json.JSONDecodeError) as e:
-        logger.error("Failed to load backup for %s: %s", ctid, e)
-        return None
-
-
-async def rollback_container_settings(ctid: str) -> None:
-    settings = await load_backup_settings(ctid)
-    if settings:
-        logger.info("Rolling back container %s to backup settings", ctid)
-        validate_container_id(ctid)
-        await run_command(["pct", "set", ctid, "-cores", str(settings['cores'])])
-        await run_command(["pct", "set", ctid, "-memory", str(settings['memory'])])
+# BACKUP_DIR no longer holds container backups: the backup and rollback path was
+# removed in 2.0.5 because it never ran. It is the daemon's state directory, and
+# the only thing in it is the boost record file.
 
 
 # ---------------------------------------------------------------------------
@@ -298,31 +248,6 @@ async def log_json_event(ctid: str, action: str, resource_change) -> None:
         fh = _get_json_log_handle()
         fh.write(json.dumps(log_data) + '\n')
         fh.flush()
-
-
-def prune_old_backups(max_per_container: int = 5) -> None:
-    """Remove old backup files, keeping only the most recent N per container."""
-    if not os.path.isdir(BACKUP_DIR):
-        return
-    real_dir = os.path.realpath(BACKUP_DIR)
-    try:
-        backup_files = sorted(
-            (os.path.join(BACKUP_DIR, f) for f in os.listdir(BACKUP_DIR)
-             if f.endswith('_backup.json')),
-            key=lambda p: os.path.getmtime(p),
-        )
-        max_total = max_per_container * 100
-        if len(backup_files) > max_total:
-            for old_file in backup_files[:len(backup_files) - max_total]:
-                # Symlink-safe: verify file is inside BACKUP_DIR
-                real_path = os.path.realpath(old_file)
-                if not real_path.startswith(real_dir + os.sep):
-                    logger.warning("Refusing to delete file outside backup dir: %s", old_file)
-                    continue
-                os.unlink(real_path)
-                logger.debug("Pruned old backup: %s", old_file)
-    except OSError as e:
-        logger.warning("Failed to prune backups: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -1196,33 +1121,6 @@ async def get_memory_usage(ctid: str) -> float:
 # ---------------------------------------------------------------------------
 # Container data collection
 # ---------------------------------------------------------------------------
-
-async def get_container_data(ctid: str) -> Optional[Dict[str, Any]]:
-    if is_ignored(ctid) or not await is_container_running(ctid):
-        return None
-    try:
-        config_output = await run_command(["pct", "config", ctid])
-        cores = memory = 0
-        if config_output:
-            for line in config_output.splitlines():
-                if line.startswith("cores:"):
-                    cores = int(line.split()[1])
-                elif line.startswith("memory:"):
-                    memory = int(line.split()[1])
-        # #3: Cache core count for CPU calc
-        set_cached_core_count(ctid, cores)
-        settings = {"cores": cores, "memory": memory}
-        await backup_container_settings(ctid, settings)
-        return {
-            "cpu": await get_cpu_usage(ctid),
-            "mem": await get_memory_usage(ctid),
-            "initial_cores": cores,
-            "initial_memory": memory,
-        }
-    except (ValueError, OSError) as e:
-        logger.error("Error collecting data for %s: %s", ctid, e)
-        return None
-
 
 def prioritize_containers(
     containers: Dict[str, Dict[str, Any]],
