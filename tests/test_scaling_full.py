@@ -181,3 +181,63 @@ class TestManageHorizontalScaling:
             containers = {"100": {"cpu": 95, "mem": 50}}
             await sm.manage_horizontal_scaling(containers)
             m_scale_out.assert_called_once()
+
+class TestScaleOutSnapshotHygiene:
+    """A failing scale-out used to leave one LVM snapshot per attempt, forever.
+
+    The snapshot is taken before the clone. With the clone failing and the grace
+    period recorded only on success, the retry fired every poll: 288 snapshots a
+    day at the default interval, on the source container, never pruned.
+    """
+
+    @patch.object(sm, 'log_json_event', new_callable=AsyncMock)
+    async def test_snapshot_is_removed_after_a_successful_clone(self, _log):
+        seen = []
+
+        async def cmd(c, timeout=30):
+            seen.append(c)
+            return "OK"
+
+        with patch.object(sm, 'run_command', side_effect=cmd):
+            await sm.scale_out("g", {
+                'lxc_containers': {'100'}, 'starting_clone_id': 200,
+                'max_instances': 5, 'base_snapshot_name': '100',
+                'clone_network_type': 'dhcp',
+            })
+        assert any(c[:2] == ["pct", "delsnapshot"] for c in seen), \
+            "the scaling snapshot was left on the source container"
+
+    @patch.object(sm, 'log_json_event', new_callable=AsyncMock)
+    async def test_snapshot_is_removed_when_the_clone_fails(self, _log):
+        seen = []
+
+        async def cmd(c, timeout=30):
+            seen.append(c)
+            return None if c[:2] == ["pct", "clone"] else "OK"
+
+        with patch.object(sm, 'run_command', side_effect=cmd):
+            await sm.scale_out("g2", {
+                'lxc_containers': {'100'}, 'starting_clone_id': 200,
+                'max_instances': 5, 'base_snapshot_name': '100',
+                'clone_network_type': 'dhcp',
+            })
+        assert any(c[:2] == ["pct", "delsnapshot"] for c in seen), \
+            "a failed clone left its snapshot behind"
+
+    @patch.object(sm, 'log_json_event', new_callable=AsyncMock)
+    async def test_a_failed_scale_out_starts_the_grace_period(self, _log):
+        """Otherwise the retry fires on every poll with nothing throttling it."""
+        sm.scale_last_action.pop("g3", None)
+
+        async def cmd(c, timeout=30):
+            return None if c[:2] == ["pct", "clone"] else "OK"
+
+        with patch.object(sm, 'run_command', side_effect=cmd):
+            await sm.scale_out("g3", {
+                'lxc_containers': {'100'}, 'starting_clone_id': 200,
+                'max_instances': 5, 'base_snapshot_name': '100',
+                'clone_network_type': 'dhcp',
+            })
+        assert "g3" in sm.scale_last_action, \
+            "a failing scale-out is retried at full poll frequency"
+

@@ -201,38 +201,63 @@ class TestPersistence:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class TestReconciliation:
-    async def test_reconcile_keeps_matching_boost(self, tmp_path):
-        state_file = str(tmp_path / "state.json")
-        mgr = BoostManager(state_file)
-        mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
+    """A boost record is the only memory of a container's original size.
 
+    Dropping one makes a temporary elevation permanent, so a record may be
+    dropped only when the container is positively absent, never merely because
+    a command did not answer.
+    """
+
+    @staticmethod
+    def _host(listing, config="cores: 3\nmemory: 1024"):
         async def mock_cmd(cmd, **kw):
-            return "cores: 3\nmemory: 1024"
+            if isinstance(cmd, list) and cmd[:2] == ["pct", "list"]:
+                return listing
+            return config
+        return mock_cmd
 
-        await mgr.reconcile(mock_cmd)
+    LISTING = "VMID       Status     Name\n100        running    web\n"
+
+    async def test_reconcile_keeps_matching_boost(self, tmp_path):
+        mgr = BoostManager(str(tmp_path / "state.json"))
+        mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
+        await mgr.reconcile(self._host(self.LISTING))
         assert mgr.is_boosted("100", "cpu") is True
 
     async def test_reconcile_detects_manual_change(self, tmp_path):
-        state_file = str(tmp_path / "state.json")
-        mgr = BoostManager(state_file)
+        mgr = BoostManager(str(tmp_path / "state.json"))
         mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
-
-        async def mock_cmd(cmd, **kw):
-            return "cores: 4\nmemory: 1024"  # admin changed from 3 to 4
-
-        await mgr.reconcile(mock_cmd)
+        await mgr.reconcile(self._host(self.LISTING, "cores: 4\nmemory: 1024"))
         assert mgr.is_boosted("100", "cpu") is False
 
-    async def test_reconcile_removes_deleted_container(self, tmp_path):
-        state_file = str(tmp_path / "state.json")
-        mgr = BoostManager(state_file)
+    async def test_reconcile_removes_container_absent_from_the_listing(self, tmp_path):
+        mgr = BoostManager(str(tmp_path / "state.json"))
         mgr.apply_boost("999", "cpu", 2, 3, 1.5, 120)
-
-        async def mock_cmd(cmd, **kw):
-            return None  # container doesn't exist
-
-        await mgr.reconcile(mock_cmd)
+        await mgr.reconcile(self._host(self.LISTING))
         assert mgr.active_count == 0
+
+    async def test_reconcile_keeps_the_boost_when_the_listing_fails(self, tmp_path):
+        """A transient failure at startup must not look like a deleted container."""
+        mgr = BoostManager(str(tmp_path / "state.json"))
+        mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
+        await mgr.reconcile(self._host(None))
+        assert mgr.is_boosted("100", "cpu") is True
+
+    async def test_reconcile_keeps_the_boost_when_the_config_read_fails(self, tmp_path):
+        """The container is listed, only `pct config` failed. Keep the record."""
+        mgr = BoostManager(str(tmp_path / "state.json"))
+        mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
+        await mgr.reconcile(self._host(self.LISTING, None))
+        assert mgr.is_boosted("100", "cpu") is True
+
+    async def test_adoption_is_persisted(self, tmp_path):
+        """The file must not keep describing a boost memory has dropped."""
+        import json
+        state = tmp_path / "state.json"
+        mgr = BoostManager(str(state))
+        mgr.apply_boost("100", "cpu", 2, 3, 1.5, 120)
+        await mgr.reconcile(self._host(self.LISTING, "cores: 4\nmemory: 1024"))
+        assert json.loads(state.read_text()) == {}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -342,3 +367,30 @@ class TestAdjustBoostMode:
         )
         assert mgr.is_boosted("100", "cpu") is False
         m_cmd.assert_not_called()
+
+class TestEvictionIsConservative:
+    """evict_stale used to receive the containers whose metrics were read.
+
+    A single failed `pct config` therefore dropped a boost record, every cycle,
+    and a dropped record is never reverted.
+    """
+
+    def test_a_container_that_exists_keeps_its_boost(self, tmp_path):
+        mgr = BoostManager(str(tmp_path / "s.json"))
+        mgr.apply_boost("100", "cpu", 2, 4, 2.0, 120)
+        # 100 exists on the host even though this cycle failed to measure it
+        mgr.evict_stale({"100", "101"})
+        assert mgr.is_boosted("100", "cpu") is True
+
+    def test_an_empty_view_evicts_nothing(self, tmp_path):
+        mgr = BoostManager(str(tmp_path / "s.json"))
+        mgr.apply_boost("100", "cpu", 2, 4, 2.0, 120)
+        mgr.evict_stale(set())
+        assert mgr.is_boosted("100", "cpu") is True
+
+    def test_a_genuinely_removed_container_is_evicted(self, tmp_path):
+        mgr = BoostManager(str(tmp_path / "s.json"))
+        mgr.apply_boost("100", "cpu", 2, 4, 2.0, 120)
+        mgr.evict_stale({"101", "102"})
+        assert mgr.active_count == 0
+

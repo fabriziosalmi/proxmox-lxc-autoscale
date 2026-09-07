@@ -220,16 +220,37 @@ class BoostManager:
             logger.error("Failed to load boost state: %s", e)
 
     async def reconcile(self, run_command_fn) -> None:
-        """Reconcile persisted boosts against live Proxmox config.
+        """Reconcile persisted boosts against live Proxmox state.
 
-        For each persisted boost:
-        - If container doesn't exist: remove boost
-        - If live value != boosted value: admin changed it, remove boost
-        - If boost expired: queue revert
-        - Otherwise: keep boost active
+        A boost record is the only thing that remembers a container's original
+        size, so dropping one makes a temporary elevation permanent. A record is
+        therefore dropped only when the container is *positively absent* from
+        `pct list`. Anything that merely fails to answer leaves the record alone:
+        a command that returns nothing means a timeout as often as it means a
+        missing container, and at startup on a loaded host it usually means the
+        former.
         """
         from lxc_utils import validate_container_id
+        if not self._active:
+            return
+
+        boosted = sum(len(r) for r in self._active.values())
+        listing = await run_command_fn(["pct", "list"])
+        if not listing:
+            logger.warning(
+                "Reconcile: cannot list containers, keeping %d boost record(s) "
+                "untouched. A dropped record is never reverted.", boosted,
+            )
+            return
+
+        existing = set()
+        for line in listing.splitlines()[1:]:
+            parts = line.split()
+            if parts:
+                existing.add(parts[0])
+
         stale = []
+        adopted = False
         for ctid in list(self._active.keys()):
             try:
                 validate_container_id(ctid)
@@ -237,9 +258,16 @@ class BoostManager:
                 stale.append(ctid)
                 continue
 
+            if ctid not in existing:
+                stale.append(ctid)
+                continue
+
             output = await run_command_fn(["pct", "config", ctid])
             if output is None:
-                stale.append(ctid)
+                logger.warning(
+                    "Reconcile: container %s exists but its config could not be "
+                    "read; keeping its boost so it can still be reverted", ctid,
+                )
                 continue
 
             live_cores = 0
@@ -255,23 +283,45 @@ class BoostManager:
                 live = live_cores if resource == "cpu" else live_memory
                 if abs(live - rec.boosted) > 0.01:
                     logger.info(
-                        "Reconcile: container %s %s was %.0f (boosted), now %.0f — adopting",
-                        ctid, resource, rec.boosted, live,
+                        "Reconcile: container %s %s was %.0f (boosted), now %.0f "
+                        "- adopting", ctid, resource, rec.boosted, live,
                     )
                     self._remove_boost(ctid, resource)
+                    adopted = True
 
         for ctid in stale:
             logger.info("Reconcile: container %s no longer exists, removing boost", ctid)
             self._active.pop(ctid, None)
 
-        if stale:
+        # Persist adoptions too, not only removals: otherwise the file keeps
+        # describing boosts that memory has already dropped.
+        if stale or adopted:
             self._save()
 
-    def evict_stale(self, active_ctids: Set[str]) -> None:
-        """Remove boost records for containers no longer active."""
-        stale = [k for k in self._active if k not in active_ctids]
+    def evict_stale(self, existing_ctids: Set[str]) -> None:
+        """Drop boost records for containers that no longer exist.
+
+        Takes the containers the host reports as existing, not the ones whose
+        metrics were read successfully. A boost record is the only memory of a
+        container's original size, so a container that merely failed to answer,
+        or that is stopped, must keep its record: dropping it makes the
+        elevation permanent.
+
+        An empty set is refused for the same reason. Seeing no containers means
+        the host could not be read, not that every container disappeared.
+        """
+        if not existing_ctids:
+            if self._active:
+                logger.warning(
+                    "Boost eviction skipped: no containers visible this cycle, "
+                    "keeping %d record(s) that would otherwise never be reverted",
+                    sum(len(r) for r in self._active.values()),
+                )
+            return
+        stale = [k for k in self._active if k not in existing_ctids]
         if stale:
             for k in stale:
+                logger.info("Boost record for %s dropped: container no longer exists", k)
                 del self._active[k]
             self._save()
 
