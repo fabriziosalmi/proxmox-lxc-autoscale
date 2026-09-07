@@ -46,6 +46,17 @@ TIER_background:
 
 Values are case-insensitive.
 
+An explicit range is checked against the host before it is written. A reversed
+range (`31-0`), a CPU past the end of the host (`0-999` on a 32-CPU node) or one
+that is offline is refused with a message naming what the host does have, and
+nothing is pinned. The kernel rejects a cpuset like that, LXC then cannot set up
+the cgroup, and the container does not start: a typo in a tier should cost that
+tier its pinning, not its container. Membership is only checked when the
+topology probe succeeded; a reversed range is refused either way.
+
+Ranges are written in canonical form, so `4,2,0` is stored as `0,2,4` and
+`0,0,0,0` as `0`. The CPUs pinned are the same, and the line logged says so.
+
 ## How detection works
 
 At first use the daemon runs a single probe on the host (over SSH when `use_remote_proxmox` is set) and reads three things.
