@@ -51,17 +51,27 @@ Defects found while reading, each of which the new design must not inherit:
 
 ### 2.2 The Proxmox backends
 
-`lxc_autoscale/backends/` contains `ProxmoxBackend` (ABC), `CLIBackend`,
-`RESTBackend` (proxmoxer) and a factory, with tests. It is dead code: no
-production module imports `backends`, `defaults.backend` is read only by
-`tests/test_backend_factory.py`, and `run_command` goes straight to a local
-subprocess or to SSH against a single host. The README nonetheless advertises
-the REST API as a supported backend.
+`lxc_autoscale/backends/` contained `ProxmoxBackend` (ABC), `CLIBackend`,
+`RESTBackend` (proxmoxer) and a factory, with tests. It was dead code and has
+since been **removed**: no production module imported it, `defaults.backend` was
+read only by its own tests, and `run_command` goes straight to a local
+subprocess or to SSH against a single host, as it always did.
 
-`RESTBackend` is also single-node by construction: `_get_node()` caches
-`nodes[0]["node"]` and addresses every container through it. The ABC has no
-`migrate`, no `destroy`, no target node on `clone`, and no notion of a QEMU
-guest.
+The measurement that settled the question of connecting it rather than deleting
+it: **26 call sites invoke `pct` directly** outside the package, including three
+`pct exec` calls that have no REST equivalent, and the ABC's twelve methods are
+missing the eight that ASG-3 requires. `RESTBackend` was also single-node by
+construction, caching `nodes[0]["node"]` and addressing every container through
+it, which is what ASG-2 exists to fix. Connecting it was never a wiring job: it
+was ASG-1, ASG-2 and ASG-3, which is what this milestone already plans.
+
+`backend: api` is now refused at startup with a message explaining why, rather
+than accepted and ignored.
+
+**This does not make ASG-1 harder.** That issue is a design-first task and the
+interface it specifies is not the one that existed. What was deleted would have
+had to be rewritten either way; deleting it removes a README claim that was
+untrue and 372 lines that looked live.
 
 This is good news for the plan. The work is not "write an API client", it is
 "finish and wire an abstraction that already exists, and extend it".

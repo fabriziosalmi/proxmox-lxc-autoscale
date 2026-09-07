@@ -66,7 +66,7 @@ LXC AutoScale supports two backends for communicating with Proxmox:
 | CLI (default) | `backend: cli` | Executes `pct` commands locally or via SSH | Root access (local) or SSH credentials (remote) |
 | REST API | `backend: api` | Calls the Proxmox REST API via HTTP | `pip install proxmoxer`, API token |
 
-The CLI backend is the default, requires no additional dependencies, and is the only one that currently does anything: the REST backend is in the tree but not connected to the daemon ([#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56)).
+The CLI backend is the only one. A REST implementation was present in the tree but never connected to the daemon, and has been removed; `backend: api` is refused at startup. Tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
 See [Configuration](/guide/configuration) for backend setup details.
 

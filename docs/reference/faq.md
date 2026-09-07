@@ -34,7 +34,7 @@ Yes. Two options:
 
 ## Can I use the Proxmox REST API instead of SSH?
 
-Not yet. The configuration keys exist and are validated, but nothing in the running daemon reads them: every operation goes through `pct`, locally or over SSH. Tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
+No. A REST implementation existed in the tree for a year without ever being connected to the daemon, so `backend: api` changed nothing while appearing to work. It has been removed, and `backend: api` is now refused at startup with a message explaining why, rather than silently ignored. Tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
 ## Does it support virtual machines (VMs)?
 

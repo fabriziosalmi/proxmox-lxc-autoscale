@@ -303,3 +303,26 @@ class TestSilentConfiguration:
         assert "unknown key" not in caplog.text
         assert "more than one tier" not in caplog.text
 
+class TestTheRemovedBackendIsRefused:
+    """`backend: api` was accepted for a year and did nothing.
+
+    Refusing it is the point: an operator setting it believed they had moved off
+    root and off SSH, and every operation was still going through pct.
+    """
+
+    def test_api_is_refused_with_a_message_that_says_why(self):
+        with pytest.raises(ValueError, match="not implemented"):
+            DefaultsConfig(backend="api")
+
+    def test_the_message_points_at_the_tracking_issue(self):
+        try:
+            DefaultsConfig(backend="api")
+        except ValueError as exc:
+            assert "issues/56" in str(exc)
+        else:
+            pytest.fail("backend: api was accepted")
+
+    def test_cli_is_still_the_default_and_still_works(self):
+        assert DefaultsConfig().backend == "cli"
+        assert DefaultsConfig(backend="cli").backend == "cli"
+

@@ -105,7 +105,10 @@ class DefaultsConfig(BaseModel):
     # Containers to ignore
     ignore_lxc: List[str] = []
 
-    # Backend selection
+    # Backend selection. "api" was accepted for a year and did nothing: the
+    # REST implementation was never connected to the runtime, so setting it
+    # left every operation going through pct while the operator believed they
+    # had moved off root and off SSH. It is now refused rather than ignored.
     backend: Literal["cli", "api"] = "cli"
     use_remote_proxmox: bool = False
 
@@ -132,6 +135,19 @@ class DefaultsConfig(BaseModel):
     proxmox_api: ProxmoxAPIConfig = ProxmoxAPIConfig()
 
     model_config = {"extra": "allow"}
+
+    @model_validator(mode="after")
+    def reject_the_unimplemented_backend(self) -> "DefaultsConfig":
+        if self.backend == "api":
+            raise ValueError(
+                "backend: api is not implemented. The REST code was present but "
+                "never connected to the daemon, so it changed nothing while "
+                "appearing to work; it has been removed rather than left in "
+                "place. Use backend: cli, with use_remote_proxmox for a remote "
+                "node. Progress on a real API backend: "
+                "https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_thresholds(self) -> "DefaultsConfig":

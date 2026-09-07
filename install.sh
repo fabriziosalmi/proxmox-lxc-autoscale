@@ -25,10 +25,6 @@ PACKAGE_FILES=(
     "scaling_manager.py"
     "resource_manager.py"
     "lxc_autoscale.py"
-    "backends/__init__.py"
-    "backends/base.py"
-    "backends/cli.py"
-    "backends/api.py"
 )
 
 # Define text styles and emojis
@@ -203,7 +199,6 @@ install_lxc_autoscale() {
 
     # Create necessary directories
     mkdir -p /etc/lxc_autoscale
-    mkdir -p "${INSTALL_DIR}/backends"
 
     # Download and install the configuration file
     download "${RAW_BASE}/lxc_autoscale.yaml" /etc/lxc_autoscale/lxc_autoscale.yaml
@@ -215,7 +210,7 @@ install_lxc_autoscale() {
 
     # A downloaded file that is not valid Python means the source moved or the
     # download was silently replaced. Catch it here, not at the first poll.
-    if ! python3 -m py_compile "${INSTALL_DIR}"/*.py "${INSTALL_DIR}"/backends/*.py; then
+    if ! python3 -m py_compile "${INSTALL_DIR}"/*.py; then
         log "ERROR" "${CROSSMARK} Downloaded files are not valid Python. Aborting."
         exit 1
     fi

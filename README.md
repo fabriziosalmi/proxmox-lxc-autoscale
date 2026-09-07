@@ -151,11 +151,11 @@ No, LXC AutoScale is designed for LXC containers only. For VM autoscaling, see [
 
 Yes. Two options:
 
-Set `use_remote_proxmox: true` and provide SSH credentials. Every command still runs through `pct` on the far end. There is no working REST path yet, see below.
+Set `use_remote_proxmox: true` and provide SSH credentials. Every command runs through `pct` on the far end. There is no REST path, see below.
 
 ### Can I use the Proxmox REST API instead of SSH?
 
-Not yet. A REST backend is present in the source tree but nothing in the running daemon uses it: every operation goes through `pct`, locally or over SSH. Setting `backend: api` currently changes nothing. Wiring it up is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
+No. A REST implementation sat in the tree for a year without ever being connected to the daemon, so `backend: api` changed nothing while appearing to work. It has been removed, and that value is now refused at startup with a message saying why. Building a real one is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
 ### Is it safe to use in production?
 

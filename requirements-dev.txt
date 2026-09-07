@@ -7,7 +7,3 @@
 pytest>=8.0
 pytest-asyncio>=0.23
 
-# tests/test_coverage_boost.py exercises the REST backend. proxmoxer is an
-# optional runtime dependency, commented out in requirements.txt, but a test
-# that covers the backend needs it present.
-proxmoxer>=2.0,<3.0

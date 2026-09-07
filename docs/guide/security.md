@@ -86,9 +86,9 @@ chmod 600 /etc/lxc_autoscale/lxc_autoscale.yaml
 ## Docker non-root execution
 
 > [!WARNING]
-> The REST backend is present in the source tree but is not connected to the running daemon: nothing outside the tests imports it, and every operation goes through `pct`. Setting `backend: api` changes no behaviour today. Wiring it up is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
+> The REST backend has been **removed**. It was never connected to the running daemon, so setting `backend: api` changed nothing while appearing to work. It is now refused at startup with an explanatory message rather than silently ignored. A real API backend is tracked as [#56](https://github.com/fabriziosalmi/proxmox-lxc-autoscale/issues/56).
 
-The intent below is that with the REST backend, and therefore no local `pct` commands, the Docker container could run as a non-root user. Until the backend is connected, configuring it that way produces a daemon that cannot do anything at all, because `pct` is what actually runs and it needs root.
+The intent below is that with a REST backend, and therefore no local `pct` commands, the Docker container could run as a non-root user. There is no such backend today: `pct` is what runs, and it needs root. Configuring the container as non-root produces a daemon that cannot act at all.
 
 Set the `LXC_RUN_AS_ROOT` environment variable to `false`:
 
