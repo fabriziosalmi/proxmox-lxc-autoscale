@@ -977,7 +977,11 @@ async def pvesh_stat_method(ctid: str) -> float:
 
         if target and 'cpu' in target:
             return round(float(target['cpu']) * 100, 2)
-        return 0.0
+        # Not finding the container is not the same as finding it idle. Returning
+        # 0.0 here made this method "succeed", so the caller accepted it and the
+        # three fallbacks below were never consulted, while 0.0 reads as idle and
+        # argues for taking resources away.
+        raise RuntimeError(f"container {ctid} not present in /cluster/resources")
 
     except Exception as e:
         raise RuntimeError(f"pvesh resource method failed: {e}") from e
